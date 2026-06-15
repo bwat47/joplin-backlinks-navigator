@@ -7,7 +7,6 @@ import {
     MIN_PANEL_WIDTH,
     normalizePanelDimensions,
     normalizePanelHeightPercentage,
-    normalizePanelHeightRatio,
     normalizePanelWidth,
 } from './panelDimensions';
 
@@ -53,8 +52,8 @@ describe('panel dimension normalization', () => {
         });
     });
 
-    it('tracks whether height ratio normalization changed values', () => {
-        expect(normalizePanelHeightRatio(0.95)).toEqual({ value: 0.9, changed: true });
-        expect(normalizePanelHeightRatio(0.75)).toEqual({ value: 0.75, changed: false });
+    it('normalizes panel height ratios through panel dimensions', () => {
+        expect(normalizePanelDimensions({ maxHeightRatio: 0.95 }).maxHeightRatio).toBe(0.9);
+        expect(normalizePanelDimensions({ maxHeightRatio: 0.75 }).maxHeightRatio).toBe(0.75);
     });
 });
