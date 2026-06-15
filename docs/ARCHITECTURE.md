@@ -1,0 +1,59 @@
+# Architecture
+
+Backlinks Navigator shows a floating popup **inside the CodeMirror 6 markdown editor**
+listing every note that links to the current note. Clicking an entry navigates to that
+note. It deliberately does **not** use Joplin's panel/webview API — the UI is a `<div>`
+mounted into the editor's scroll DOM.
+
+## Two execution contexts
+
+- **Plugin host** (`src/index.ts` and its helpers) — runs with full Joplin API access.
+  Registers the content script, the `Show Backlinks` command, the toolbar button, the Edit
+  menu item, and settings. It answers messages from the content script.
+- **Content script** (`src/contentScripts/`) — runs in the editor with CodeMirror access but
+  no Joplin API. It reads the current note id, renders the panel, and asks the host for data
+  and navigation.
+
+The host has Data API access; the content script has the editor. They communicate over
+Joplin's `postMessage` bridge.
+
+## Messaging (request/response)
+
+`context.postMessage(...)` resolves to whatever the host's `onMessage` handler returns, so
+this plugin uses real request/response (see `src/messages.ts`):
+
+- `{ type: 'getBacklinks', noteId }` → host returns `BacklinkItem[]`.
+- `{ type: 'openNote', noteId }` → host runs `openItem` navigation, returns `void`.
+
+## Backlink discovery (host)
+
+`src/backlinksService.ts`:
+
+1. Paginate `joplin.data.get(['search'], { query: noteId, fields: [...] })`. A 32-char note
+   id is a single FTS token, so this returns candidate linking notes.
+2. Verify each candidate's body actually contains `:/<noteId>` (drops loose FTS matches) and
+   grab the first matching line as a context snippet.
+3. Resolve each note's parent notebook title (cached per call).
+4. Sort by title.
+
+Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
+
+## Panel lifecycle (content script)
+
+- `src/contentScripts/backlinksNavigator.ts` — reads the note id from
+  `editorControl.joplinExtensions.noteIdFacet`, registers the `togglePanel` editor command,
+  opens the panel in a loading state, fetches backlinks, and forwards clicks to the host. A
+  monotonic request token prevents a slow response from populating a stale/closed panel.
+- `src/contentScripts/ui/backlinksPanel.ts` — the floating panel UI: filter input, fuzzy
+  filtering, keyboard navigation (arrows/Tab/Enter/Escape), and loading/empty/error states.
+- `src/contentScripts/ui/noteIdWatcher.ts` — a transaction extender that closes the panel
+  when the active note id changes (note switch).
+- `src/contentScripts/theme/panelTheme.ts` — CSS using `var(--joplin-*)` theme variables,
+  injected as a single `<style>` element.
+
+## Build
+
+`npm run dist` runs three webpack passes (main, extra scripts, archive). The content script
+entry is declared in `plugin.config.json` (`extraScripts`) and registered in
+`src/manifest.json` (`content_scripts`). CodeMirror/Lezer modules are treated as externals —
+Joplin provides them at runtime.

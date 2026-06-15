@@ -8,9 +8,17 @@
     "author": "bwat47",
     "homepage_url": "https://github.com/bwat47/joplin-backlinks-navigator",
     "repository_url": "https://github.com/bwat47/joplin-backlinks-navigator",
-    "keywords": [],
-    "categories": [],
+    "platforms": ["desktop", "mobile"],
+    "keywords": ["joplin-plugin", "backlinks", "links", "navigation", "editor"],
+    "categories": ["productivity", "editor"],
     "screenshots": [],
     "icons": {},
-    "promo_tile": {}
+    "promo_tile": {},
+    "content_scripts": [
+        {
+            "id": "backlinksNavigatorPanel",
+            "path": "./contentScripts/backlinksNavigator.js",
+            "type": "codeMirrorPlugin"
+        }
+    ]
 }
