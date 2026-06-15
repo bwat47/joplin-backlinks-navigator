@@ -33,7 +33,7 @@ export interface GetIndicatorStateMessage {
 export interface OpenNoteMessage {
     type: 'openNote';
     noteId: string;
-    mode?: 'current' | 'ctrlClick';
+    mode?: 'current' | 'ctrlClick' | 'ctrlEnter';
 }
 
 /**

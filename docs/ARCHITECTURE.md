@@ -26,7 +26,7 @@ this plugin uses real request/response (see `src/messages.ts`):
 - `{ type: 'getIndicatorState', noteId }` → host returns `{ enabled: false }` when the
   "show indicator" setting is off (no search performed), otherwise `{ enabled: true, backlinks }`.
 - `{ type: 'openNote', noteId, mode? }` → host opens the note in the current editor, or resolves the
-  configured Ctrl-click behavior to open it in a new window or through Note Tabs, returns `void`.
+  configured Ctrl-click/Ctrl-Enter behavior to open it in a new window or through Note Tabs, returns `void`.
 - `{ type: 'openPanel' }` → host runs the `Show Backlinks` command (so the panel opens with the
   configured dimensions and correct mobile flag), returns `void`.
 

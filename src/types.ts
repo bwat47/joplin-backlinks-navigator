@@ -25,7 +25,7 @@ export interface PanelDimensions {
     maxHeightRatio: number;
 }
 
-export type CtrlClickBehavior = 'newWindow' | 'newTab';
+export type BacklinkOpenBehavior = 'newWindow' | 'newTab';
 
 export const DEFAULT_PANEL_DIMENSIONS: PanelDimensions = {
     width: 360,

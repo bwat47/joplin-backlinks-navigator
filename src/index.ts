@@ -20,6 +20,7 @@ import logger from './logger';
 import {
     DEBUG_SETTING_KEY,
     loadCtrlClickBehaviorSetting,
+    loadCtrlEnterBehaviorSetting,
     loadDebugSetting,
     loadPanelSettings,
     loadShowIndicatorSetting,
@@ -27,9 +28,9 @@ import {
 } from './settings';
 import type { ContentScriptToPluginMessage, GetBacklinksResponse, IndicatorState } from './messages';
 import { findBacklinks } from './backlinksService';
-import type { CtrlClickBehavior } from './types';
+import type { BacklinkOpenBehavior } from './types';
 
-type ResolvedOpenNoteMode = 'current' | CtrlClickBehavior;
+type ResolvedOpenNoteMode = 'current' | BacklinkOpenBehavior;
 
 async function showErrorToast(message: string): Promise<void> {
     try {
@@ -40,7 +41,16 @@ async function showErrorToast(message: string): Promise<void> {
 }
 
 async function resolveOpenNoteMode(message: ContentScriptToPluginMessage): Promise<ResolvedOpenNoteMode> {
-    return message.type === 'openNote' && message.mode === 'ctrlClick' ? loadCtrlClickBehaviorSetting() : 'current';
+    if (message.type !== 'openNote') {
+        return 'current';
+    }
+    if (message.mode === 'ctrlClick') {
+        return loadCtrlClickBehaviorSetting();
+    }
+    if (message.mode === 'ctrlEnter') {
+        return loadCtrlEnterBehaviorSetting();
+    }
+    return 'current';
 }
 
 async function openNote(noteId: string, mode: ResolvedOpenNoteMode): Promise<void> {

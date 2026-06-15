@@ -24,6 +24,7 @@ Click a backlink to open the note that links to the current note. On desktop, th
 - Panel max height
 - Show backlink indicator - recommend using with a max editor width set in joplin settings | editor tab to avoid overlapping content
 - Ctrl-click backlink behavior - open in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
+- Ctrl-Enter backlink behavior - open the selected backlink in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
 - Enable debug logging
 
 ## Limitations

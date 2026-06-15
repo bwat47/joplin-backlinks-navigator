@@ -96,18 +96,18 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
 
             const navigateTo = async (
                 backlink: BacklinkItem,
-                mode: 'current' | 'ctrlClick' = 'current'
+                mode: 'current' | 'ctrlClick' | 'ctrlEnter' = 'current'
             ): Promise<void> => {
-                if (mode === 'ctrlClick') {
+                if (mode !== 'current') {
                     const message: ContentScriptToPluginMessage = {
                         type: 'openNote',
                         noteId: backlink.noteId,
-                        mode: 'ctrlClick',
+                        mode,
                     };
                     try {
                         await context.postMessage(message);
                     } catch (error) {
-                        logger.error('Failed to open backlink with Ctrl-click behavior', error);
+                        logger.error('Failed to open backlink with alternate behavior', { mode, error });
                     }
                     return;
                 }
@@ -221,8 +221,11 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                             onSelect: (backlink) => {
                                 void navigateTo(backlink);
                             },
-                            onCtrlSelect: (backlink) => {
+                            onCtrlClickSelect: (backlink) => {
                                 void navigateTo(backlink, 'ctrlClick');
+                            },
+                            onCtrlEnterSelect: (backlink) => {
+                                void navigateTo(backlink, 'ctrlEnter');
                             },
                             onClose: (reason: PanelCloseReason) => {
                                 closePanel(reason === 'escape');

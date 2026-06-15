@@ -13,7 +13,8 @@ type PanelState = 'loading' | 'ready' | 'error';
 
 export interface PanelCallbacks {
     onSelect: (backlink: BacklinkItem) => void;
-    onCtrlSelect: (backlink: BacklinkItem) => void;
+    onCtrlClickSelect: (backlink: BacklinkItem) => void;
+    onCtrlEnterSelect: (backlink: BacklinkItem) => void;
     onClose: (reason: PanelCloseReason) => void;
 }
 
@@ -55,7 +56,9 @@ export class BacklinksPanel {
 
     private readonly onSelect: (backlink: BacklinkItem) => void;
 
-    private readonly onCtrlSelect: (backlink: BacklinkItem) => void;
+    private readonly onCtrlClickSelect: (backlink: BacklinkItem) => void;
+
+    private readonly onCtrlEnterSelect: (backlink: BacklinkItem) => void;
 
     private readonly onClose: (reason: PanelCloseReason) => void;
 
@@ -77,7 +80,8 @@ export class BacklinksPanel {
     ) {
         this.view = view;
         this.onSelect = callbacks.onSelect;
-        this.onCtrlSelect = callbacks.onCtrlSelect;
+        this.onCtrlClickSelect = callbacks.onCtrlClickSelect;
+        this.onCtrlEnterSelect = callbacks.onCtrlEnterSelect;
         this.onClose = callbacks.onClose;
         this.options = options;
 
@@ -250,7 +254,7 @@ export class BacklinksPanel {
                 break;
             case 'Enter':
                 event.preventDefault();
-                this.confirmSelection();
+                this.confirmSelection(event.ctrlKey);
                 break;
             case 'Escape':
                 event.preventDefault();
@@ -272,13 +276,17 @@ export class BacklinksPanel {
         this.scrollActiveItemIntoView();
     }
 
-    private confirmSelection(): void {
+    private confirmSelection(useCtrlEnterBehavior: boolean): void {
         if (!this.selectedId) {
             return;
         }
         const backlink = this.filtered.find((b) => b.id === this.selectedId);
         if (backlink) {
-            this.onSelect(backlink);
+            if (useCtrlEnterBehavior) {
+                this.onCtrlEnterSelect(backlink);
+            } else {
+                this.onSelect(backlink);
+            }
         }
     }
 
@@ -297,7 +305,7 @@ export class BacklinksPanel {
             this.selectedId = id;
             this.updateSelection();
             if (event.ctrlKey) {
-                this.onCtrlSelect(backlink);
+                this.onCtrlClickSelect(backlink);
             } else {
                 this.onSelect(backlink);
             }
