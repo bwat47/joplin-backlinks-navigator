@@ -11,7 +11,7 @@
 import joplin from 'api';
 import { SettingItemType } from 'api/types';
 import logger from './logger';
-import type { PanelDimensions } from './types';
+import type { CtrlClickBehavior, PanelDimensions } from './types';
 import {
     DEFAULT_PANEL_HEIGHT_PERCENTAGE,
     DEFAULT_PANEL_WIDTH,
@@ -27,7 +27,9 @@ const SECTION_ID = 'backlinksNavigator';
 const SETTING_PANEL_WIDTH = 'backlinksNavigator.panelWidth';
 const SETTING_PANEL_MAX_HEIGHT = 'backlinksNavigator.panelMaxHeightPercentage';
 const SETTING_SHOW_INDICATOR = 'backlinksNavigator.showIndicator';
+const SETTING_CTRL_CLICK_BEHAVIOR = 'backlinksNavigator.ctrlClickBehavior';
 const SETTING_DEBUG = 'backlinksNavigator.debug';
+const DEFAULT_CTRL_CLICK_BEHAVIOR: CtrlClickBehavior = 'newWindow';
 
 export interface PanelSettings {
     dimensions: PanelDimensions;
@@ -39,6 +41,14 @@ function normalizeBooleanSetting(value: unknown, defaultValue: boolean): { value
     }
 
     return { value: defaultValue, changed: true };
+}
+
+export function normalizeCtrlClickBehavior(value: unknown): { value: CtrlClickBehavior; changed: boolean } {
+    if (value === 'newWindow' || value === 'newTab') {
+        return { value, changed: false };
+    }
+
+    return { value: DEFAULT_CTRL_CLICK_BEHAVIOR, changed: true };
 }
 
 export async function registerSettings(): Promise<void> {
@@ -82,6 +92,20 @@ export async function registerSettings(): Promise<void> {
                 'Show a clickable badge in the top-right of the editor when the current note has backlinks. ' +
                 'This checks for backlinks each time a note is opened.',
         },
+        [SETTING_CTRL_CLICK_BEHAVIOR]: {
+            value: DEFAULT_CTRL_CLICK_BEHAVIOR,
+            type: SettingItemType.String,
+            isEnum: true,
+            public: true,
+            section: SECTION_ID,
+            label: 'Ctrl-click backlink behavior',
+            description:
+                'Choose where Ctrl-click opens a backlink. Opening in a new tab requires the Note Tabs plugin.',
+            options: {
+                newWindow: 'Open note in new window',
+                newTab: 'Open note in Note Tabs tab',
+            },
+        },
         [SETTING_DEBUG]: {
             value: false,
             type: SettingItemType.Bool,
@@ -117,6 +141,15 @@ export async function loadPanelSettings(): Promise<PanelSettings> {
 export async function loadShowIndicatorSetting(): Promise<boolean> {
     const value = await joplin.settings.value(SETTING_SHOW_INDICATOR);
     return normalizeBooleanSetting(value, false).value;
+}
+
+export async function loadCtrlClickBehaviorSetting(): Promise<CtrlClickBehavior> {
+    const value = await joplin.settings.value(SETTING_CTRL_CLICK_BEHAVIOR);
+    const result = normalizeCtrlClickBehavior(value);
+    if (result.changed) {
+        logger.warn(`Invalid Ctrl-click behavior setting: ${value}. Using ${result.value}.`);
+    }
+    return result.value;
 }
 
 export async function loadDebugSetting(): Promise<boolean> {

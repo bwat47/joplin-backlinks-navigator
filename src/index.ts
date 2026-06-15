@@ -14,11 +14,12 @@
  */
 
 import joplin from 'api';
-import { ContentScriptType, MenuItemLocation, ToolbarButtonLocation } from 'api/types';
+import { ContentScriptType, MenuItemLocation, ToastType, ToolbarButtonLocation } from 'api/types';
 import { CODEMIRROR_CONTENT_SCRIPT_ID, COMMAND_SHOW_BACKLINKS, EDITOR_COMMAND_TOGGLE_PANEL } from './constants';
 import logger from './logger';
 import {
     DEBUG_SETTING_KEY,
+    loadCtrlClickBehaviorSetting,
     loadDebugSetting,
     loadPanelSettings,
     loadShowIndicatorSetting,
@@ -26,6 +27,49 @@ import {
 } from './settings';
 import type { ContentScriptToPluginMessage, GetBacklinksResponse, IndicatorState } from './messages';
 import { findBacklinks } from './backlinksService';
+import type { CtrlClickBehavior } from './types';
+
+type ResolvedOpenNoteMode = 'current' | CtrlClickBehavior;
+
+async function showErrorToast(message: string): Promise<void> {
+    try {
+        await joplin.views.dialogs.showToast({ message, type: ToastType.Error });
+    } catch (error) {
+        logger.warn('Failed to show toast notification', error);
+    }
+}
+
+async function resolveOpenNoteMode(message: ContentScriptToPluginMessage): Promise<ResolvedOpenNoteMode> {
+    return message.type === 'openNote' && message.mode === 'ctrlClick' ? loadCtrlClickBehaviorSetting() : 'current';
+}
+
+async function openNote(noteId: string, mode: ResolvedOpenNoteMode): Promise<void> {
+    switch (mode) {
+        case 'current':
+            await joplin.commands.execute('openItem', `:/${noteId}`);
+            return;
+        case 'newWindow':
+            try {
+                await joplin.commands.execute('openNoteInNewWindow', noteId);
+                logger.debug('Opened backlink in new window', { noteId });
+            } catch (error) {
+                logger.error('Failed to open backlink in new window', { noteId, error });
+                await showErrorToast('Failed to open backlink in new window');
+            }
+            return;
+        case 'newTab':
+            try {
+                await joplin.commands.execute('tabsPinNote', [noteId]);
+                logger.debug('Opened backlink in Note Tabs tab', { noteId });
+            } catch (error) {
+                logger.error('Failed to open backlink in Note Tabs tab', { noteId, error });
+                await showErrorToast('Opening backlinks in new tabs requires the Note Tabs plugin.');
+            }
+            return;
+        default:
+            logger.warn('Received unsupported backlink open mode', mode);
+    }
+}
 
 async function handleMessage(
     message: ContentScriptToPluginMessage
@@ -44,7 +88,7 @@ async function handleMessage(
             }
             return { enabled: true, backlinks: await findBacklinks(message.noteId) };
         case 'openNote':
-            await joplin.commands.execute('openItem', `:/${message.noteId}`);
+            await openNote(message.noteId, await resolveOpenNoteMode(message));
             return;
         case 'openPanel':
             await joplin.commands.execute(COMMAND_SHOW_BACKLINKS);

@@ -13,6 +13,7 @@ type PanelState = 'loading' | 'ready' | 'error';
 
 export interface PanelCallbacks {
     onSelect: (backlink: BacklinkItem) => void;
+    onCtrlSelect: (backlink: BacklinkItem) => void;
     onClose: (reason: PanelCloseReason) => void;
 }
 
@@ -54,6 +55,8 @@ export class BacklinksPanel {
 
     private readonly onSelect: (backlink: BacklinkItem) => void;
 
+    private readonly onCtrlSelect: (backlink: BacklinkItem) => void;
+
     private readonly onClose: (reason: PanelCloseReason) => void;
 
     private readonly handleInputListener: () => void;
@@ -74,6 +77,7 @@ export class BacklinksPanel {
     ) {
         this.view = view;
         this.onSelect = callbacks.onSelect;
+        this.onCtrlSelect = callbacks.onCtrlSelect;
         this.onClose = callbacks.onClose;
         this.options = options;
 
@@ -291,7 +295,12 @@ export class BacklinksPanel {
         const backlink = this.filtered.find((b) => b.id === id);
         if (backlink) {
             this.selectedId = id;
-            this.onSelect(backlink);
+            this.updateSelection();
+            if (event.ctrlKey) {
+                this.onCtrlSelect(backlink);
+            } else {
+                this.onSelect(backlink);
+            }
         }
     }
 
