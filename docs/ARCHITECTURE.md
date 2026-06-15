@@ -23,7 +23,11 @@ Joplin's `postMessage` bridge.
 this plugin uses real request/response (see `src/messages.ts`):
 
 - `{ type: 'getBacklinks', noteId }` → host returns `BacklinkItem[]`.
+- `{ type: 'getIndicatorState', noteId }` → host returns `{ enabled: false }` when the
+  "show indicator" setting is off (no search performed), otherwise `{ enabled: true, backlinks }`.
 - `{ type: 'openNote', noteId }` → host runs `openItem` navigation, returns `void`.
+- `{ type: 'openPanel' }` → host runs the `Show Backlinks` command (so the panel opens with the
+  configured dimensions and correct mobile flag), returns `void`.
 
 ## Backlink discovery (host)
 
@@ -51,6 +55,12 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
   the new content settles.
 - `src/contentScripts/ui/backlinksPanel.ts` — the floating panel UI: filter input, fuzzy
   filtering, keyboard navigation (arrows/Tab/Enter/Escape), and loading/empty/error states.
+- `src/contentScripts/ui/backlinkIndicator.ts` — an optional clickable badge (icon + count)
+  floated in the editor's top-right when the current note has backlinks. Gated by the
+  "show indicator" setting (default off). On note load the entry sends `getIndicatorState`
+  (debounced); when enabled it caches the result so the badge shows the count and clicking it
+  (`openPanel`) opens the panel instantly from cache. The badge hides while the panel is open
+  (same corner) and clears on note switch.
 - `src/contentScripts/ui/noteIdWatcher.ts` — a transaction extender that reports note-id
   changes (note switch); the entry uses it to close the panel and trigger the pending scroll.
 - `src/contentScripts/theme/panelTheme.ts` — CSS using `var(--joplin-*)` theme variables,

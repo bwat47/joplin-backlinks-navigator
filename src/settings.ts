@@ -26,6 +26,7 @@ import {
 const SECTION_ID = 'backlinksNavigator';
 const SETTING_PANEL_WIDTH = 'backlinksNavigator.panelWidth';
 const SETTING_PANEL_MAX_HEIGHT = 'backlinksNavigator.panelMaxHeightPercentage';
+const SETTING_SHOW_INDICATOR = 'backlinksNavigator.showIndicator';
 const SETTING_DEBUG = 'backlinksNavigator.debug';
 
 export interface PanelSettings {
@@ -71,6 +72,16 @@ export async function registerSettings(): Promise<void> {
             maximum: MAX_PANEL_HEIGHT_PERCENTAGE,
             step: 5,
         },
+        [SETTING_SHOW_INDICATOR]: {
+            value: false,
+            type: SettingItemType.Bool,
+            public: true,
+            section: SECTION_ID,
+            label: 'Show backlink indicator',
+            description:
+                'Show a clickable badge in the top-right of the editor when the current note has backlinks. ' +
+                'This checks for backlinks each time a note is opened.',
+        },
         [SETTING_DEBUG]: {
             value: false,
             type: SettingItemType.Bool,
@@ -101,6 +112,11 @@ export async function loadPanelSettings(): Promise<PanelSettings> {
             maxHeightRatio: heightResult.value / 100,
         },
     };
+}
+
+export async function loadShowIndicatorSetting(): Promise<boolean> {
+    const value = await joplin.settings.value(SETTING_SHOW_INDICATOR);
+    return normalizeBooleanSetting(value, false).value;
 }
 
 export async function loadDebugSetting(): Promise<boolean> {

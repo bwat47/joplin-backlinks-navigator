@@ -17,11 +17,19 @@ import joplin from 'api';
 import { ContentScriptType, MenuItemLocation, ToolbarButtonLocation } from 'api/types';
 import { CODEMIRROR_CONTENT_SCRIPT_ID, COMMAND_SHOW_BACKLINKS, EDITOR_COMMAND_TOGGLE_PANEL } from './constants';
 import logger from './logger';
-import { DEBUG_SETTING_KEY, loadDebugSetting, loadPanelSettings, registerSettings } from './settings';
-import type { ContentScriptToPluginMessage, GetBacklinksResponse } from './messages';
+import {
+    DEBUG_SETTING_KEY,
+    loadDebugSetting,
+    loadPanelSettings,
+    loadShowIndicatorSetting,
+    registerSettings,
+} from './settings';
+import type { ContentScriptToPluginMessage, GetBacklinksResponse, IndicatorState } from './messages';
 import { findBacklinks } from './backlinksService';
 
-async function handleMessage(message: ContentScriptToPluginMessage): Promise<GetBacklinksResponse | void> {
+async function handleMessage(
+    message: ContentScriptToPluginMessage
+): Promise<GetBacklinksResponse | IndicatorState | void> {
     if (!message || typeof message !== 'object') {
         return;
     }
@@ -29,8 +37,17 @@ async function handleMessage(message: ContentScriptToPluginMessage): Promise<Get
     switch (message.type) {
         case 'getBacklinks':
             return findBacklinks(message.noteId);
+        case 'getIndicatorState':
+            // Honor the setting before doing any backlink search.
+            if (!(await loadShowIndicatorSetting())) {
+                return { enabled: false };
+            }
+            return { enabled: true, backlinks: await findBacklinks(message.noteId) };
         case 'openNote':
             await joplin.commands.execute('openItem', `:/${message.noteId}`);
+            return;
+        case 'openPanel':
+            await joplin.commands.execute(COMMAND_SHOW_BACKLINKS);
             return;
         default:
             logger.warn('Received unsupported message from content script', message);

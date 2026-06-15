@@ -194,6 +194,53 @@ export function createPanelCss(dimensions: PanelDimensions): string {
     text-align: center;
 }
 
+.backlinks-navigator-indicator {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    border: 1px solid var(--joplin-divider-color, #dddddd);
+    border-radius: 999px;
+    background-color: var(--joplin-background-color3, #f4f5f6);
+    color: var(--joplin-color, #32373f);
+    font-family: system-ui, sans-serif !important;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    opacity: 0.85;
+    transition: opacity 120ms ease-out, background-color 120ms ease-out;
+    z-index: 1999;
+}
+
+.backlinks-navigator-indicator:hover,
+.backlinks-navigator-indicator:focus-visible {
+    opacity: 1;
+    background-color: var(--joplin-background-color-hover3, #cbdaf1);
+    outline: none;
+}
+
+.backlinks-navigator-indicator-icon {
+    display: inline-flex;
+}
+
+.backlinks-navigator-indicator-icon svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.backlinks-navigator-indicator-count {
+    font-weight: 600;
+}
+
 /* Mobile Mode Overrides */
 .backlinks-navigator-panel.is-mobile {
     position: fixed;

@@ -19,11 +19,14 @@ import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL } from '../constants';
 import type { BacklinkItem, PanelDimensions } from '../types';
-import type { ContentScriptToPluginMessage, GetBacklinksResponse } from '../messages';
+import type { ContentScriptToPluginMessage, GetBacklinksResponse, IndicatorState } from '../messages';
 import { normalizePanelDimensions } from '../panelDimensions';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
+import { BacklinkIndicator } from './ui/backlinkIndicator';
 import { createNoteIdWatcher } from './ui/noteIdWatcher';
 import logger from '../logger';
+
+const INDICATOR_DEBOUNCE_MS = 350;
 
 export default function backlinksNavigator(context: ContentScriptContext): MarkdownEditorContentScriptModule {
     return {
@@ -39,7 +42,15 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             // the note we came from. The same EditorView is reused across note switches, so this
             // closure state survives the navigation.
             let pendingScroll: { targetNoteId: string; needle: string } | null = null;
+            // Backlinks for the current note, cached when the indicator is enabled so the panel
+            // can open instantly. `null` means "not fetched" (indicator off, or not yet loaded).
+            let currentNoteBacklinks: BacklinkItem[] | null = null;
+            let indicatorSeq = 0;
+            let indicatorTimer: number | null = null;
             const noteIdFacet = editorControl.joplinExtensions?.noteIdFacet;
+            const indicator = new BacklinkIndicator(view, () => {
+                void context.postMessage({ type: 'openPanel' } as ContentScriptToPluginMessage);
+            });
 
             const resolveNoteId = (): string | null => {
                 if (!noteIdFacet) {
@@ -58,6 +69,21 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 }
             };
 
+            // Shows the indicator if it has a positive cached count and the panel isn't open
+            // (the panel occupies the same top-right corner).
+            const syncIndicator = (): void => {
+                if (panel?.isOpen()) {
+                    indicator.hide();
+                    return;
+                }
+                const count = currentNoteBacklinks?.length ?? 0;
+                if (count > 0) {
+                    indicator.show(count);
+                } else {
+                    indicator.hide();
+                }
+            };
+
             const closePanel = (focusEditor = false): void => {
                 requestSeq += 1; // Invalidate any in-flight request.
                 panel?.destroy();
@@ -65,6 +91,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 if (focusEditor) {
                     view.focus();
                 }
+                syncIndicator();
             };
 
             const navigateTo = async (backlink: BacklinkItem): Promise<void> => {
@@ -129,6 +156,8 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             };
 
             const handleNoteChange = (noteId: string): void => {
+                // New note: drop the stale cache (and its indicator) before closing the panel.
+                currentNoteBacklinks = null;
                 closePanel(false);
 
                 if (pendingScroll) {
@@ -138,6 +167,8 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                         scrollToReference(target.targetNoteId, target.needle);
                     }
                 }
+
+                scheduleIndicatorRefresh();
             };
 
             const ensurePanel = (isMobile: boolean): BacklinksPanel => {
@@ -180,14 +211,62 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 const noteId = resolveNoteId();
                 const activePanel = ensurePanel(isMobile);
                 activePanel.open();
+                indicator.hide(); // The panel occupies the indicator's corner.
 
                 if (!noteId) {
                     activePanel.setError('Could not determine the current note');
                     return;
                 }
 
+                // Use the indicator's cached results for an instant open when available.
+                if (currentNoteBacklinks) {
+                    activePanel.setBacklinks(currentNoteBacklinks);
+                    return;
+                }
+
                 requestSeq += 1;
                 void loadBacklinks(noteId, requestSeq);
+            };
+
+            const refreshIndicator = async (attempt = 0): Promise<void> => {
+                const noteId = resolveNoteId();
+                if (!noteId) {
+                    // The facet may not be populated yet right after the editor loads.
+                    if (attempt < 5) {
+                        window.setTimeout(() => void refreshIndicator(attempt + 1), 150);
+                    }
+                    return;
+                }
+
+                const seq = ++indicatorSeq;
+                let state: IndicatorState;
+                try {
+                    state = (await context.postMessage({
+                        type: 'getIndicatorState',
+                        noteId,
+                    } as ContentScriptToPluginMessage)) as IndicatorState;
+                } catch (error) {
+                    logger.warn('Failed to fetch backlink indicator state', error);
+                    return;
+                }
+
+                // Ignore if the note changed or another refresh superseded this one.
+                if (seq !== indicatorSeq || resolveNoteId() !== noteId) {
+                    return;
+                }
+
+                currentNoteBacklinks = state?.enabled ? (Array.isArray(state.backlinks) ? state.backlinks : []) : null;
+                syncIndicator();
+            };
+
+            const scheduleIndicatorRefresh = (): void => {
+                if (indicatorTimer !== null) {
+                    clearTimeout(indicatorTimer);
+                }
+                indicatorTimer = window.setTimeout(() => {
+                    indicatorTimer = null;
+                    void refreshIndicator();
+                }, INDICATOR_DEBOUNCE_MS);
             };
 
             const togglePanel = (dimensions?: PanelDimensions, isMobile?: boolean): void => {
@@ -210,6 +289,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             }
 
             editorControl.registerCommand(EDITOR_COMMAND_TOGGLE_PANEL, togglePanel);
+
+            // Check the initial note (the watcher only fires on subsequent switches).
+            scheduleIndicatorRefresh();
         },
     };
 }
