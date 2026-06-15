@@ -11,9 +11,22 @@
     "platforms": ["desktop", "mobile"],
     "keywords": ["joplin-plugin", "backlinks", "links", "navigation", "editor"],
     "categories": ["productivity", "editor"],
-    "screenshots": [],
-    "icons": {},
-    "promo_tile": {},
+    "screenshots": [
+        { "src": "images/screenshot1.png", "label": "Backlinks Navigator screenshot 1" },
+        { "src": "images/screenshot2.png", "label": "Backlinks Navigator screenshot 2" }
+    ],
+    "icons": {
+        "128": "images/128.png",
+        "64": "images/64.png",
+        "48": "images/48.png",
+        "32": "images/32.png",
+        "24": "images/24.png",
+        "16": "images/16.png"
+    },
+    "promo_tile": {
+        "src": "images/backlinks-navigator_promo_tile.png",
+        "label": "Backlinks Navigator Promo Tile"
+    },
     "content_scripts": [
         {
             "id": "backlinksNavigatorPanel",
