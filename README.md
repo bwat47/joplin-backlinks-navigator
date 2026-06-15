@@ -29,7 +29,7 @@ Click a backlink to open the note that links to the current note. On desktop, th
 
 ## Limitations
 
-- Scrolling to backlink occurrance after note switch only works on desktop (and does not work when opening the note in new window or pinning with note tabs).
+- Scrolling to backlink occurrence after note switch only works on desktop (and does not work when opening the note in new window or pinning with note tabs).
 
 ## Development
 
