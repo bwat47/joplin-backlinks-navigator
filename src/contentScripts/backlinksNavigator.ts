@@ -222,10 +222,10 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                                 void navigateTo(backlink);
                             },
                             onCtrlClickSelect: (backlink) => {
-                                void navigateTo(backlink, 'ctrlClick');
+                                return navigateTo(backlink, 'ctrlClick');
                             },
                             onCtrlEnterSelect: (backlink) => {
-                                void navigateTo(backlink, 'ctrlEnter');
+                                return navigateTo(backlink, 'ctrlEnter');
                             },
                             onClose: (reason: PanelCloseReason) => {
                                 closePanel(reason === 'escape');

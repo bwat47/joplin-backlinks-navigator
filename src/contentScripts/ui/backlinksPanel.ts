@@ -10,11 +10,12 @@ const PANEL_RIGHT_GAP_PX = 8;
 export type PanelCloseReason = 'escape' | 'blur';
 
 type PanelState = 'loading' | 'ready' | 'error';
+type SelectCallback = (backlink: BacklinkItem) => Promise<void> | void;
 
 export interface PanelCallbacks {
-    onSelect: (backlink: BacklinkItem) => void;
-    onCtrlClickSelect: (backlink: BacklinkItem) => void;
-    onCtrlEnterSelect: (backlink: BacklinkItem) => void;
+    onSelect: SelectCallback;
+    onCtrlClickSelect: SelectCallback;
+    onCtrlEnterSelect: SelectCallback;
     onClose: (reason: PanelCloseReason) => void;
 }
 
@@ -54,11 +55,11 @@ export class BacklinksPanel {
 
     private filterDebounceTimer: number | null = null;
 
-    private readonly onSelect: (backlink: BacklinkItem) => void;
+    private readonly onSelect: SelectCallback;
 
-    private readonly onCtrlClickSelect: (backlink: BacklinkItem) => void;
+    private readonly onCtrlClickSelect: SelectCallback;
 
-    private readonly onCtrlEnterSelect: (backlink: BacklinkItem) => void;
+    private readonly onCtrlEnterSelect: SelectCallback;
 
     private readonly onClose: (reason: PanelCloseReason) => void;
 
@@ -283,7 +284,7 @@ export class BacklinksPanel {
         const backlink = this.filtered.find((b) => b.id === this.selectedId);
         if (backlink) {
             if (useCtrlEnterBehavior) {
-                this.onCtrlEnterSelect(backlink);
+                this.refocusInputAfter(this.onCtrlEnterSelect(backlink));
             } else {
                 this.onSelect(backlink);
             }
@@ -305,11 +306,21 @@ export class BacklinksPanel {
             this.selectedId = id;
             this.updateSelection();
             if (event.ctrlKey) {
-                this.onCtrlClickSelect(backlink);
+                this.refocusInputAfter(this.onCtrlClickSelect(backlink));
             } else {
                 this.onSelect(backlink);
             }
         }
+    }
+
+    private refocusInputAfter(result: Promise<void> | void): void {
+        void Promise.resolve(result).finally(() => {
+            window.setTimeout(() => {
+                if (this.isOpen()) {
+                    this.input.focus();
+                }
+            }, 0);
+        });
     }
 
     private render(): void {
