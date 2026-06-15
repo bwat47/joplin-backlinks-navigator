@@ -39,7 +39,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             // Monotonic token so a slow backlink response can't populate a stale/closed panel.
             let requestSeq = 0;
             // After navigating to a backlink, scroll the target note to the line that references
-            // the note we came from. The same EditorView is reused across note switches, so this
+            // the note we came from. On Desktop, the same EditorView is reused across note switches, so this
             // closure state survives the navigation.
             let pendingScroll: { targetNoteId: string; needle: string } | null = null;
             // Backlinks for the current note, cached when the indicator is enabled so the panel
