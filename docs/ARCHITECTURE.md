@@ -44,10 +44,15 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
   `editorControl.joplinExtensions.noteIdFacet`, registers the `togglePanel` editor command,
   opens the panel in a loading state, fetches backlinks, and forwards clicks to the host. A
   monotonic request token prevents a slow response from populating a stale/closed panel.
+  When a backlink is selected it records a "pending scroll" (the target note id + the
+  `:/<currentNoteId>` needle) before navigating; once the target note loads it scrolls to the
+  first line referencing the note we came from. The same `EditorView` is reused across note
+  switches, so this closure state survives navigation; a short retry handles the gap before
+  the new content settles.
 - `src/contentScripts/ui/backlinksPanel.ts` — the floating panel UI: filter input, fuzzy
   filtering, keyboard navigation (arrows/Tab/Enter/Escape), and loading/empty/error states.
-- `src/contentScripts/ui/noteIdWatcher.ts` — a transaction extender that closes the panel
-  when the active note id changes (note switch).
+- `src/contentScripts/ui/noteIdWatcher.ts` — a transaction extender that reports note-id
+  changes (note switch); the entry uses it to close the panel and trigger the pending scroll.
 - `src/contentScripts/theme/panelTheme.ts` — CSS using `var(--joplin-*)` theme variables,
   injected as a single `<style>` element.
 

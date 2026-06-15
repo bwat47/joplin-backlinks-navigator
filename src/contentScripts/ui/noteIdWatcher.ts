@@ -16,9 +16,9 @@ type NoteIdFacet = Facet<string, string>;
  * Creates an extension that calls `onNoteChange` whenever the active note id changes.
  *
  * @param noteIdFacet - The Joplin-provided note-id facet (`editorControl.joplinExtensions.noteIdFacet`).
- * @param onNoteChange - Invoked after the note id changes (e.g. to close an open panel).
+ * @param onNoteChange - Invoked with the new note id after it changes (e.g. to close an open panel).
  */
-export function createNoteIdWatcher(noteIdFacet: NoteIdFacet, onNoteChange: () => void): Extension {
+export function createNoteIdWatcher(noteIdFacet: NoteIdFacet, onNoteChange: (noteId: string) => void): Extension {
     let lastNoteId: string | null = null;
 
     return EditorState.transactionExtender.of((tr: Transaction) => {
@@ -32,7 +32,7 @@ export function createNoteIdWatcher(noteIdFacet: NoteIdFacet, onNoteChange: () =
 
         if (lastNoteId !== currentId) {
             lastNoteId = currentId;
-            onNoteChange();
+            onNoteChange(currentId);
         }
 
         return null;

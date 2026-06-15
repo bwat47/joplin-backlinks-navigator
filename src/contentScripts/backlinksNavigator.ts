@@ -14,6 +14,7 @@
  * - ui/backlinksPanel.ts - Floating panel UI
  */
 
+import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL } from '../constants';
@@ -34,6 +35,10 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             let panelDimensions: PanelDimensions = normalizePanelDimensions();
             // Monotonic token so a slow backlink response can't populate a stale/closed panel.
             let requestSeq = 0;
+            // After navigating to a backlink, scroll the target note to the line that references
+            // the note we came from. The same EditorView is reused across note switches, so this
+            // closure state survives the navigation.
+            let pendingScroll: { targetNoteId: string; needle: string } | null = null;
             const noteIdFacet = editorControl.joplinExtensions?.noteIdFacet;
 
             const resolveNoteId = (): string | null => {
@@ -63,12 +68,75 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             };
 
             const navigateTo = async (backlink: BacklinkItem): Promise<void> => {
+                // Record where to scroll once the target note loads: the line that links back to
+                // the note we're currently viewing (`:/<currentNoteId>`).
+                const currentNoteId = resolveNoteId();
+                pendingScroll = currentNoteId ? { targetNoteId: backlink.id, needle: `:/${currentNoteId}` } : null;
+
                 const message: ContentScriptToPluginMessage = { type: 'openNote', noteId: backlink.id };
                 closePanel(false);
                 try {
                     await context.postMessage(message);
                 } catch (error) {
                     logger.error('Failed to navigate to backlink', error);
+                    pendingScroll = null;
+                }
+            };
+
+            // Scrolls the (just-loaded) target note to the first line containing `needle`.
+            // The note content may not be present the instant the id changes, so retry briefly.
+            const scrollToReference = (targetNoteId: string, needle: string): void => {
+                const MAX_ATTEMPTS = 15;
+                const RETRY_DELAY_MS = 80;
+                let attempt = 0;
+
+                const doScroll = (pos: number): void => {
+                    try {
+                        view.dispatch({
+                            selection: EditorSelection.cursor(pos),
+                            effects: EditorView.scrollIntoView(pos, { y: 'center' }),
+                        });
+                    } catch (error) {
+                        logger.warn('Failed to scroll to backlink reference', error);
+                    }
+                };
+
+                const tryScroll = (): void => {
+                    // Bail if the user navigated away again before the content settled.
+                    if (resolveNoteId() !== targetNoteId) {
+                        return;
+                    }
+
+                    const pos = view.state.doc.toString().indexOf(needle);
+                    if (pos === -1) {
+                        attempt += 1;
+                        if (attempt <= MAX_ATTEMPTS) {
+                            window.setTimeout(tryScroll, RETRY_DELAY_MS);
+                        }
+                        return;
+                    }
+
+                    doScroll(pos);
+                    // Re-assert once after Joplin's own post-load cursor/scroll restoration.
+                    window.setTimeout(() => {
+                        if (resolveNoteId() === targetNoteId) {
+                            doScroll(pos);
+                        }
+                    }, 150);
+                };
+
+                window.setTimeout(tryScroll, 0);
+            };
+
+            const handleNoteChange = (noteId: string): void => {
+                closePanel(false);
+
+                if (pendingScroll) {
+                    const target = pendingScroll;
+                    pendingScroll = null;
+                    if (noteId === target.targetNoteId) {
+                        scrollToReference(target.targetNoteId, target.needle);
+                    }
                 }
             };
 
@@ -135,9 +203,10 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 }
             };
 
-            // Close the panel when the user switches notes (backlinks are note-specific).
+            // Close the panel when the user switches notes (backlinks are note-specific), and
+            // scroll to the reference if the switch was triggered by selecting a backlink.
             if (noteIdFacet) {
-                editorControl.addExtension(createNoteIdWatcher(noteIdFacet, () => closePanel(false)));
+                editorControl.addExtension(createNoteIdWatcher(noteIdFacet, handleNoteChange));
             }
 
             editorControl.registerCommand(EDITOR_COMMAND_TOGGLE_PANEL, togglePanel);
