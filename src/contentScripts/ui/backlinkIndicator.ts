@@ -1,6 +1,8 @@
 import { EditorView } from '@codemirror/view';
+import { createIndicatorCss } from '../theme/panelTheme';
 
 const INDICATOR_RIGHT_GAP_PX = 8;
+const INDICATOR_STYLE_ID = 'backlinks-navigator-indicator-styles';
 
 const LINK_ICON_SVG =
     '<svg viewBox="0 0 24 24" aria-hidden="true">' +
@@ -89,6 +91,10 @@ export class BacklinkIndicator {
         if (this.button.parentElement) {
             return;
         }
+        // Inject the indicator's own stylesheet so it's styled immediately, independent of
+        // whether the (dimension-dependent) panel stylesheet has been injected yet.
+        ensureIndicatorStyles(this.view);
+
         const scrollRoot = this.view.scrollDOM.parentElement;
         const fallbackRoot = this.view.dom.parentElement ?? this.view.dom;
         (scrollRoot ?? fallbackRoot).appendChild(this.button);
@@ -105,4 +111,15 @@ export class BacklinkIndicator {
         const scrollbarWidth = scrollDOM.offsetWidth - scrollDOM.clientWidth;
         this.button.style.right = `${scrollbarWidth + INDICATOR_RIGHT_GAP_PX}px`;
     }
+}
+
+function ensureIndicatorStyles(view: EditorView): void {
+    const doc = view.dom.ownerDocument!;
+    if (doc.getElementById(INDICATOR_STYLE_ID)) {
+        return;
+    }
+    const style = doc.createElement('style');
+    style.id = INDICATOR_STYLE_ID;
+    style.textContent = createIndicatorCss();
+    (doc.head ?? doc.body).appendChild(style);
 }

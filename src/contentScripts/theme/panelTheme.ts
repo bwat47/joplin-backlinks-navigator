@@ -194,6 +194,45 @@ export function createPanelCss(dimensions: PanelDimensions): string {
     text-align: center;
 }
 
+/* Mobile Mode Overrides */
+.backlinks-navigator-panel.is-mobile {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    right: auto;
+    width: 90vw;
+    max-height: 80vh;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45); /* Backdrop dimming */
+}
+
+/* Prevent scroll chaining to editor behind panel */
+.backlinks-navigator-panel.is-mobile .backlinks-navigator-list {
+    overscroll-behavior: contain;
+}
+
+/* Larger touch targets on mobile */
+.backlinks-navigator-panel.is-mobile .backlinks-navigator-item {
+    padding: 14px 16px;
+    gap: 4px;
+}
+
+.backlinks-navigator-panel.is-mobile .backlinks-navigator-input {
+    padding: 12px;
+    font-size: 16px; /* Prevents iOS zoom on focus */
+}
+`;
+}
+
+/**
+ * Styles for the top-right backlink indicator badge.
+ *
+ * Kept separate from {@link createPanelCss} (which is dimension-dependent and injected only
+ * when the panel opens) so the indicator can style itself the moment it mounts — including
+ * before the panel has ever been opened.
+ */
+export function createIndicatorCss(): string {
+    return `
 .backlinks-navigator-indicator {
     position: absolute;
     top: 12px;
@@ -239,34 +278,6 @@ export function createPanelCss(dimensions: PanelDimensions): string {
 
 .backlinks-navigator-indicator-count {
     font-weight: 600;
-}
-
-/* Mobile Mode Overrides */
-.backlinks-navigator-panel.is-mobile {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    right: auto;
-    width: 90vw;
-    max-height: 80vh;
-    transform: translate(-50%, -50%);
-    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45); /* Backdrop dimming */
-}
-
-/* Prevent scroll chaining to editor behind panel */
-.backlinks-navigator-panel.is-mobile .backlinks-navigator-list {
-    overscroll-behavior: contain;
-}
-
-/* Larger touch targets on mobile */
-.backlinks-navigator-panel.is-mobile .backlinks-navigator-item {
-    padding: 14px 16px;
-    gap: 4px;
-}
-
-.backlinks-navigator-panel.is-mobile .backlinks-navigator-input {
-    padding: 12px;
-    font-size: 16px; /* Prevents iOS zoom on focus */
 }
 `;
 }
