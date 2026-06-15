@@ -22,7 +22,7 @@ Click a backlink to open the note that links to the current note. On desktop, th
 
 - Panel width
 - Panel max height
-- Show backlink indicator
+- Show backlink indicator - recommend using with a max editor width set in joplin settings | editor tab to avoid overlapping content
 - Enable debug logging
 
 ## Development
