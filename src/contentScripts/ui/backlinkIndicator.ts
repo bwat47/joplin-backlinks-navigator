@@ -26,10 +26,6 @@ export class BacklinkIndicator {
 
     private readonly onClick: () => void;
 
-    private readonly handleClickListener: (event: MouseEvent) => void;
-
-    private scrollerObserver: ResizeObserver | null = null;
-
     public constructor(view: EditorView, onClick: () => void) {
         this.view = view;
         this.onClick = onClick;
@@ -50,12 +46,11 @@ export class BacklinkIndicator {
         this.button.appendChild(icon);
         this.button.appendChild(this.countEl);
 
-        this.handleClickListener = (event: MouseEvent) => {
+        this.button.addEventListener('click', (event: MouseEvent) => {
             event.preventDefault();
             event.stopPropagation();
             this.onClick();
-        };
-        this.button.addEventListener('click', this.handleClickListener);
+        });
     }
 
     /** Shows the indicator with the given backlink count. */
@@ -72,17 +67,6 @@ export class BacklinkIndicator {
         this.button.style.display = 'none';
     }
 
-    public destroy(): void {
-        this.button.removeEventListener('click', this.handleClickListener);
-        if (this.scrollerObserver) {
-            this.scrollerObserver.disconnect();
-            this.scrollerObserver = null;
-        }
-        if (this.button.parentElement) {
-            this.button.parentElement.removeChild(this.button);
-        }
-    }
-
     private mount(): void {
         if (this.button.parentElement) {
             return;
@@ -96,8 +80,7 @@ export class BacklinkIndicator {
         (scrollRoot ?? fallbackRoot).appendChild(this.button);
 
         this.updateRightOffset();
-        this.scrollerObserver = new ResizeObserver(() => this.updateRightOffset());
-        this.scrollerObserver.observe(this.view.scrollDOM);
+        new ResizeObserver(() => this.updateRightOffset()).observe(this.view.scrollDOM);
     }
 
     private updateRightOffset(): void {
