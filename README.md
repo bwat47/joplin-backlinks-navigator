@@ -16,14 +16,20 @@ A Joplin plugin for viewing and navigating to backlinks in the Markdown editor.
 
 Open the backlinks panel from the editor toolbar, the Edit menu, or the `Show Backlinks` command.
 
-Click a backlink to open the note that links to the current note. On desktop, the editor will try to scroll to the line that contains the link back to the previous note after note switch (I'm not sure if its possible to make this work on mobile).
+Click a backlink to open the note that links to the current note. On desktop, the editor will try to scroll to the line that contains the link back to the previous note after note switch.
 
 ## Settings
 
 - Panel width
 - Panel max height
 - Show backlink indicator - recommend using with a max editor width set in joplin settings | editor tab to avoid overlapping content
+- Ctrl-click backlink behavior - open in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
+- Ctrl-Enter backlink behavior - open the selected backlink in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
 - Enable debug logging
+
+## Limitations
+
+- Scrolling to backlink occurrence after note switch only works on desktop (and does not work when opening the note in new window or pinning with note tabs).
 
 ## Development
 

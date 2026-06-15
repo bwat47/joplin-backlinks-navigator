@@ -10,9 +10,12 @@ const PANEL_RIGHT_GAP_PX = 8;
 export type PanelCloseReason = 'escape' | 'blur';
 
 type PanelState = 'loading' | 'ready' | 'error';
+type SelectCallback = (backlink: BacklinkItem) => Promise<void> | void;
 
 export interface PanelCallbacks {
-    onSelect: (backlink: BacklinkItem) => void;
+    onSelect: SelectCallback;
+    onCtrlClickSelect: SelectCallback;
+    onCtrlEnterSelect: SelectCallback;
     onClose: (reason: PanelCloseReason) => void;
 }
 
@@ -52,7 +55,11 @@ export class BacklinksPanel {
 
     private filterDebounceTimer: number | null = null;
 
-    private readonly onSelect: (backlink: BacklinkItem) => void;
+    private readonly onSelect: SelectCallback;
+
+    private readonly onCtrlClickSelect: SelectCallback;
+
+    private readonly onCtrlEnterSelect: SelectCallback;
 
     private readonly onClose: (reason: PanelCloseReason) => void;
 
@@ -74,6 +81,8 @@ export class BacklinksPanel {
     ) {
         this.view = view;
         this.onSelect = callbacks.onSelect;
+        this.onCtrlClickSelect = callbacks.onCtrlClickSelect;
+        this.onCtrlEnterSelect = callbacks.onCtrlEnterSelect;
         this.onClose = callbacks.onClose;
         this.options = options;
 
@@ -246,7 +255,7 @@ export class BacklinksPanel {
                 break;
             case 'Enter':
                 event.preventDefault();
-                this.confirmSelection();
+                this.confirmSelection(event.ctrlKey);
                 break;
             case 'Escape':
                 event.preventDefault();
@@ -268,13 +277,17 @@ export class BacklinksPanel {
         this.scrollActiveItemIntoView();
     }
 
-    private confirmSelection(): void {
+    private confirmSelection(useCtrlEnterBehavior: boolean): void {
         if (!this.selectedId) {
             return;
         }
         const backlink = this.filtered.find((b) => b.id === this.selectedId);
         if (backlink) {
-            this.onSelect(backlink);
+            if (useCtrlEnterBehavior) {
+                this.refocusInputAfter(this.onCtrlEnterSelect(backlink));
+            } else {
+                this.onSelect(backlink);
+            }
         }
     }
 
@@ -291,8 +304,23 @@ export class BacklinksPanel {
         const backlink = this.filtered.find((b) => b.id === id);
         if (backlink) {
             this.selectedId = id;
-            this.onSelect(backlink);
+            this.updateSelection();
+            if (event.ctrlKey) {
+                this.refocusInputAfter(this.onCtrlClickSelect(backlink));
+            } else {
+                this.onSelect(backlink);
+            }
         }
+    }
+
+    private refocusInputAfter(result: Promise<void> | void): void {
+        void Promise.resolve(result).finally(() => {
+            window.setTimeout(() => {
+                if (this.isOpen()) {
+                    this.input.focus();
+                }
+            }, 0);
+        });
     }
 
     private render(): void {

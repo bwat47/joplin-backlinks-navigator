@@ -94,7 +94,24 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 syncIndicator();
             };
 
-            const navigateTo = async (backlink: BacklinkItem): Promise<void> => {
+            const navigateTo = async (
+                backlink: BacklinkItem,
+                mode: 'current' | 'ctrlClick' | 'ctrlEnter' = 'current'
+            ): Promise<void> => {
+                if (mode !== 'current') {
+                    const message: ContentScriptToPluginMessage = {
+                        type: 'openNote',
+                        noteId: backlink.noteId,
+                        mode,
+                    };
+                    try {
+                        await context.postMessage(message);
+                    } catch (error) {
+                        logger.error('Failed to open backlink with alternate behavior', { mode, error });
+                    }
+                    return;
+                }
+
                 // Record where to scroll once the target note loads: the line that links back to
                 // the note we're currently viewing (`:/<currentNoteId>`).
                 const currentNoteId = resolveNoteId();
@@ -203,6 +220,12 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                         {
                             onSelect: (backlink) => {
                                 void navigateTo(backlink);
+                            },
+                            onCtrlClickSelect: (backlink) => {
+                                return navigateTo(backlink, 'ctrlClick');
+                            },
+                            onCtrlEnterSelect: (backlink) => {
+                                return navigateTo(backlink, 'ctrlEnter');
                             },
                             onClose: (reason: PanelCloseReason) => {
                                 closePanel(reason === 'escape');

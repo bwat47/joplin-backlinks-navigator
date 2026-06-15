@@ -25,6 +25,8 @@ export interface PanelDimensions {
     maxHeightRatio: number;
 }
 
+export type BacklinkOpenBehavior = 'newWindow' | 'newTab';
+
 export const DEFAULT_PANEL_DIMENSIONS: PanelDimensions = {
     width: 360,
     // Represents 75% of the editor viewport height
