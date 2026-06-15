@@ -30,11 +30,7 @@ export class BacklinkIndicator {
 
     private scrollerObserver: ResizeObserver | null = null;
 
-    public constructor(
-        view: EditorView,
-        onClick: () => void,
-        private readonly isMobile = false
-    ) {
+    public constructor(view: EditorView, onClick: () => void) {
         this.view = view;
         this.onClick = onClick;
 
@@ -98,8 +94,6 @@ export class BacklinkIndicator {
         const scrollRoot = this.view.scrollDOM.parentElement;
         const fallbackRoot = this.view.dom.parentElement ?? this.view.dom;
         (scrollRoot ?? fallbackRoot).appendChild(this.button);
-
-        if (this.isMobile) return;
 
         this.updateRightOffset();
         this.scrollerObserver = new ResizeObserver(() => this.updateRightOffset());
