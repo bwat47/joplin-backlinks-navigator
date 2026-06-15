@@ -22,9 +22,7 @@
     "devDependencies": {
         "@codemirror/state": "6.5.2",
         "@codemirror/view": "6.38.7",
-        "@eslint/eslintrc": "^3.3.5",
         "@eslint/js": "^10.0.1",
-        "@lezer/markdown": "1.6.0",
         "@types/jest": "^30.0.0",
         "@types/node": "^25.6.2",
         "@typescript-eslint/eslint-plugin": "^8.59.2",
@@ -33,10 +31,10 @@
         "copy-webpack-plugin": "^14.0.0",
         "eslint": "^10.3.0",
         "eslint-config-prettier": "^10.1.8",
-        "eslint-plugin-prettier": "^5.5.5",
         "eslint-plugin-import-x": "^4.16.2",
         "fs-extra": "^10.1.0",
         "glob": "^8.0.3",
+        "globals": "^17.6.0",
         "jest": "^30.4.2",
         "jest-environment-jsdom": "^30.4.1",
         "prettier": "^3.8.3",
@@ -48,7 +46,6 @@
         "webpack-cli": "^7.0.2"
     },
     "dependencies": {
-        "@joplin/fork-uslug": "^2.0.6",
         "fuzzysort": "^3.1.0"
     }
 }
