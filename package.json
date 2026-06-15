@@ -1,0 +1,54 @@
+{
+    "name": "joplin-plugin-backlinks-navigator",
+    "version": "1.0.0",
+    "scripts": {
+        "dist": "webpack --env joplin-plugin-config=buildMain && webpack --env joplin-plugin-config=buildExtraScripts && webpack --env joplin-plugin-config=createArchive",
+        "prepare": "npm run dist",
+        "updateVersion": "webpack --env joplin-plugin-config=updateVersion",
+        "update": "npm install -g generator-joplin && yo joplin --node-package-manager npm --update --force",
+        "lint": "eslint --ext .ts src/",
+        "lint:fix": "eslint --ext .ts src/ --fix",
+        "format": "prettier --write \"src/**/*.ts\"",
+        "test": "jest --passWithNoTests",
+        "test:watch": "jest --watch"
+    },
+    "license": "MIT",
+    "keywords": [
+        "joplin-plugin"
+    ],
+    "files": [
+        "publish"
+    ],
+    "devDependencies": {
+        "@codemirror/state": "6.5.2",
+        "@codemirror/view": "6.38.7",
+        "@eslint/eslintrc": "^3.3.5",
+        "@eslint/js": "^10.0.1",
+        "@lezer/markdown": "1.6.0",
+        "@types/jest": "^30.0.0",
+        "@types/node": "^25.6.2",
+        "@typescript-eslint/eslint-plugin": "^8.59.2",
+        "@typescript-eslint/parser": "^8.59.2",
+        "chalk": "^4.1.0",
+        "copy-webpack-plugin": "^14.0.0",
+        "eslint": "^10.3.0",
+        "eslint-config-prettier": "^10.1.8",
+        "eslint-plugin-prettier": "^5.5.5",
+        "eslint-plugin-import-x": "^4.16.2",
+        "fs-extra": "^10.1.0",
+        "glob": "^8.0.3",
+        "jest": "^30.4.2",
+        "jest-environment-jsdom": "^30.4.1",
+        "prettier": "^3.8.3",
+        "tar": "^7.5.9",
+        "ts-jest": "^29.4.11",
+        "ts-loader": "^9.5.7",
+        "typescript": "^6.0.3",
+        "webpack": "^5.106.2",
+        "webpack-cli": "^7.0.2"
+    },
+    "dependencies": {
+        "@joplin/fork-uslug": "^2.0.6",
+        "fuzzysort": "^3.1.0"
+    }
+}

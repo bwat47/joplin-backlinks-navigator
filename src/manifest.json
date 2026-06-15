@@ -1,0 +1,16 @@
+{
+    "manifest_version": 1,
+    "id": "com.bwat47.joplin-backlinks-navigator",
+    "app_min_version": "3.5",
+    "version": "1.0.0",
+    "name": "Backlinks Navigator",
+    "description": "View and navigate to backlinks in the markdown editor",
+    "author": "bwat47",
+    "homepage_url": "https://github.com/bwat47/joplin-backlinks-navigator",
+    "repository_url": "https://github.com/bwat47/joplin-backlinks-navigator",
+    "keywords": [],
+    "categories": [],
+    "screenshots": [],
+    "icons": {},
+    "promo_tile": {}
+}
