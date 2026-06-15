@@ -353,6 +353,13 @@ export class BacklinksPanel {
 
         item.appendChild(header);
 
+        if (backlink.section) {
+            const section = document.createElement('span');
+            section.className = 'backlinks-navigator-item-section';
+            section.textContent = `§ ${backlink.section}`;
+            item.appendChild(section);
+        }
+
         if (backlink.snippet) {
             const snippet = document.createElement('span');
             snippet.className = 'backlinks-navigator-item-snippet';

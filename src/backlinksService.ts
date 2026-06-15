@@ -39,24 +39,69 @@ function linkNeedle(noteId: string): string {
     return `:/${noteId}`;
 }
 
+/** Matches an ATX heading line, capturing the heading text. e.g. "## References" -> "References" */
+const HEADING_RE = /^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/;
+
 /**
- * Extracts a short snippet from the first body line that references `noteId`.
+ * Cleans a raw markdown line into readable prose:
+ * - converts `![alt](url)` and `[text](url)` to their text/alt
+ * - strips leading block markers (list bullets, task checkboxes, blockquotes, heading hashes)
+ * - collapses whitespace and truncates to {@link SNIPPET_MAX_LENGTH}
  *
- * @returns The trimmed/collapsed line text, or an empty string if not found.
+ * Note links (`:/<id>`) are removed along with every other link URL, so the raw 32-char id
+ * never surfaces in the UI.
  */
-function extractSnippet(body: string, noteId: string): string {
-    const needle = linkNeedle(noteId);
-    const lines = body.split('\n');
-    for (const line of lines) {
-        if (line.includes(needle)) {
-            const collapsed = line.replace(/\s+/g, ' ').trim();
-            if (collapsed.length <= SNIPPET_MAX_LENGTH) {
-                return collapsed;
-            }
-            return `${collapsed.slice(0, SNIPPET_MAX_LENGTH - 1)}…`;
+function cleanSnippetLine(line: string): string {
+    const cleaned = line
+        // Images first (so the leading "!" doesn't survive the link pass), then links.
+        .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+        // Leading block markers: blockquote, heading hashes, task checkbox, list bullet/number.
+        .replace(/^\s*>+\s?/, '')
+        .replace(/^\s*#{1,6}\s+/, '')
+        .replace(/^\s*[-*+]\s+\[[ xX]\]\s+/, '')
+        .replace(/^\s*(?:[-*+]|\d+[.)])\s+/, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (cleaned.length <= SNIPPET_MAX_LENGTH) {
+        return cleaned;
+    }
+    return `${cleaned.slice(0, SNIPPET_MAX_LENGTH - 1)}…`;
+}
+
+/**
+ * Finds the nearest ATX heading at or above the link line, returning its text (no `#`).
+ *
+ * @returns The section heading text, or an empty string if the link isn't under a heading.
+ */
+function findSection(lines: string[], linkLineIndex: number): string {
+    for (let i = linkLineIndex; i >= 0; i--) {
+        const match = HEADING_RE.exec(lines[i]);
+        if (match) {
+            return match[1].trim();
         }
     }
     return '';
+}
+
+/**
+ * Extracts display context for a backlink: a cleaned prose snippet of the first line that
+ * references `noteId`, plus the section heading that line sits under.
+ */
+function extractContext(body: string, noteId: string): { snippet: string; section: string } {
+    const needle = linkNeedle(noteId);
+    const lines = body.split('\n');
+    const linkLineIndex = lines.findIndex((line) => line.includes(needle));
+
+    if (linkLineIndex === -1) {
+        return { snippet: '', section: '' };
+    }
+
+    return {
+        snippet: cleanSnippetLine(lines[linkLineIndex]),
+        section: findSection(lines, linkLineIndex),
+    };
 }
 
 /**
@@ -133,11 +178,13 @@ export async function findBacklinks(noteId: string): Promise<BacklinkItem[]> {
         }
 
         const notebookName = await resolveNotebookName(candidate.parent_id, notebookCache);
+        const { snippet, section } = extractContext(candidate.body, noteId);
         backlinks.push({
             id: candidate.id,
             title: typeof candidate.title === 'string' && candidate.title ? candidate.title : 'Untitled',
             notebookName,
-            snippet: extractSnippet(candidate.body, noteId),
+            section,
+            snippet,
         });
     }
 

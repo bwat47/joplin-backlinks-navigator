@@ -161,6 +161,20 @@ export function createPanelCss(dimensions: PanelDimensions): string {
     opacity: 0.85;
 }
 
+.backlinks-navigator-item-section {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 11px;
+    color: var(--joplin-color-faded, #7c8b9e);
+    opacity: 0.9;
+}
+
+.backlinks-navigator-item.is-selected .backlinks-navigator-item-section {
+    color: inherit;
+    opacity: 0.85;
+}
+
 .backlinks-navigator-item-snippet {
     white-space: nowrap;
     overflow: hidden;

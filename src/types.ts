@@ -8,7 +8,9 @@ export interface BacklinkItem {
     title: string;
     /** Title of the linking note's parent notebook. */
     notebookName: string;
-    /** Trimmed text of the first body line that contains the link. */
+    /** Text of the nearest heading the link sits under (no `#`); empty if none. */
+    section: string;
+    /** Cleaned prose of the first body line that contains the link (no link URLs/markdown). */
     snippet: string;
 }
 
