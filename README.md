@@ -5,6 +5,7 @@ A Joplin plugin for viewing and navigating to backlinks in the Markdown editor.
 ## Features
 
 - Shows notes that link to the current note
+- Shows each link occurrence when a note links more than once
 - Opens backlinks from a compact floating panel
 - Filters backlinks by note title
 - Shows notebook, section, and link context when available

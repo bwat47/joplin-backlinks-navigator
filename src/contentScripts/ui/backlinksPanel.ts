@@ -344,10 +344,14 @@ export class BacklinksPanel {
         title.appendChild(highlightMatch(backlink.title, this.filterText));
         header.appendChild(title);
 
-        if (backlink.notebookName) {
+        const occurrenceLabel =
+            backlink.occurrenceCount > 1 ? `${backlink.occurrenceIndex + 1}/${backlink.occurrenceCount}` : '';
+        const metadata = [backlink.notebookName, occurrenceLabel].filter(Boolean).join(' - ');
+
+        if (metadata) {
             const notebook = document.createElement('span');
             notebook.className = 'backlinks-navigator-item-notebook';
-            notebook.textContent = backlink.notebookName;
+            notebook.textContent = metadata;
             header.appendChild(notebook);
         }
 

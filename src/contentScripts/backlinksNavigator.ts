@@ -41,7 +41,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             // After navigating to a backlink, scroll the target note to the line that references
             // the note we came from. On Desktop, the same EditorView is reused across note switches, so this
             // closure state survives the navigation.
-            let pendingScroll: { targetNoteId: string; needle: string } | null = null;
+            let pendingScroll: { targetNoteId: string; needle: string; occurrenceIndex: number } | null = null;
             // Backlinks for the current note, cached when the indicator is enabled so the panel
             // can open instantly. `null` means "not fetched" (indicator off, or not yet loaded).
             let currentNoteBacklinks: BacklinkItem[] | null = null;
@@ -98,9 +98,15 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 // Record where to scroll once the target note loads: the line that links back to
                 // the note we're currently viewing (`:/<currentNoteId>`).
                 const currentNoteId = resolveNoteId();
-                pendingScroll = currentNoteId ? { targetNoteId: backlink.id, needle: `:/${currentNoteId}` } : null;
+                pendingScroll = currentNoteId
+                    ? {
+                          targetNoteId: backlink.noteId,
+                          needle: `:/${currentNoteId}`,
+                          occurrenceIndex: backlink.occurrenceIndex,
+                      }
+                    : null;
 
-                const message: ContentScriptToPluginMessage = { type: 'openNote', noteId: backlink.id };
+                const message: ContentScriptToPluginMessage = { type: 'openNote', noteId: backlink.noteId };
                 closePanel(false);
                 try {
                     await context.postMessage(message);
@@ -110,9 +116,28 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 }
             };
 
-            // Scrolls the (just-loaded) target note to the first line containing `needle`.
+            const findOccurrencePosition = (text: string, needle: string, occurrenceIndex: number): number => {
+                let fromIndex = 0;
+                let remainingOccurrences = occurrenceIndex;
+
+                while (fromIndex < text.length) {
+                    const pos = text.indexOf(needle, fromIndex);
+                    if (pos === -1) {
+                        return -1;
+                    }
+                    if (remainingOccurrences === 0) {
+                        return pos;
+                    }
+                    remainingOccurrences -= 1;
+                    fromIndex = pos + needle.length;
+                }
+
+                return -1;
+            };
+
+            // Scrolls the (just-loaded) target note to the selected occurrence containing `needle`.
             // The note content may not be present the instant the id changes, so retry briefly.
-            const scrollToReference = (targetNoteId: string, needle: string): void => {
+            const scrollToReference = (targetNoteId: string, needle: string, occurrenceIndex: number): void => {
                 const MAX_ATTEMPTS = 15;
                 const RETRY_DELAY_MS = 80;
                 let attempt = 0;
@@ -134,7 +159,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                         return;
                     }
 
-                    const pos = view.state.doc.toString().indexOf(needle);
+                    const pos = findOccurrencePosition(view.state.doc.toString(), needle, occurrenceIndex);
                     if (pos === -1) {
                         attempt += 1;
                         if (attempt <= MAX_ATTEMPTS) {
@@ -164,7 +189,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     const target = pendingScroll;
                     pendingScroll = null;
                     if (noteId === target.targetNoteId) {
-                        scrollToReference(target.targetNoteId, target.needle);
+                        scrollToReference(target.targetNoteId, target.needle, target.occurrenceIndex);
                     }
                 }
 

@@ -27,7 +27,9 @@ describe('findBacklinks', () => {
                             {
                                 id: 'note-z',
                                 title: 'Zulu',
-                                body: `# References\n- [Current note](:/${TARGET_NOTE_ID}) and [site](https://example.com)`,
+                                body:
+                                    `# References\n- [Current note](:/${TARGET_NOTE_ID}) and ` +
+                                    `[site](https://example.com)\n## Follow-up\n- [Again](:/${TARGET_NOTE_ID})`,
                                 parent_id: 'folder-1',
                             },
                             {
@@ -69,18 +71,34 @@ describe('findBacklinks', () => {
 
         await expect(findBacklinks(TARGET_NOTE_ID)).resolves.toEqual([
             {
-                id: 'note-a',
+                id: 'note-a:0',
+                noteId: 'note-a',
+                occurrenceIndex: 0,
+                occurrenceCount: 1,
                 title: 'Alpha',
                 notebookName: 'Projects',
                 section: 'Context',
                 snippet: 'Diagram see Target',
             },
             {
-                id: 'note-z',
+                id: 'note-z:0',
+                noteId: 'note-z',
+                occurrenceIndex: 0,
+                occurrenceCount: 2,
                 title: 'Zulu',
                 notebookName: 'Projects',
                 section: 'References',
                 snippet: 'Current note and site',
+            },
+            {
+                id: 'note-z:1',
+                noteId: 'note-z',
+                occurrenceIndex: 1,
+                occurrenceCount: 2,
+                title: 'Zulu',
+                notebookName: 'Projects',
+                section: 'Follow-up',
+                snippet: 'Again',
             },
         ]);
 

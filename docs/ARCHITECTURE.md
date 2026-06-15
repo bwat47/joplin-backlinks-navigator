@@ -36,9 +36,10 @@ this plugin uses real request/response (see `src/messages.ts`):
 1. Paginate `joplin.data.get(['search'], { query: noteId, fields: [...] })`. A 32-char note
    id is a single FTS token, so this returns candidate linking notes.
 2. Verify each candidate's body actually contains `:/<noteId>` (drops loose FTS matches) and
-   grab the first matching line as a context snippet.
+   create one backlink row for each matching occurrence, using that occurrence's line as the
+   context snippet.
 3. Resolve each note's parent notebook title (cached per call).
-4. Sort by title.
+4. Sort by title, then occurrence order within each note.
 
 Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
 
@@ -48,11 +49,11 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
   `editorControl.joplinExtensions.noteIdFacet`, registers the `togglePanel` editor command,
   opens the panel in a loading state, fetches backlinks, and forwards clicks to the host. A
   monotonic request token prevents a slow response from populating a stale/closed panel.
-  When a backlink is selected it records a "pending scroll" (the target note id + the
-  `:/<currentNoteId>` needle) before navigating; once the target note loads it scrolls to the
-  first line referencing the note we came from. The same `EditorView` is reused across note
-  switches, so this closure state survives navigation; a short retry handles the gap before
-  the new content settles.
+  When a backlink is selected it records a "pending scroll" (the target note id, the
+  `:/<currentNoteId>` needle, and the selected occurrence index) before navigating; once the
+  target note loads it scrolls to that occurrence. The same `EditorView` is reused across note
+  switches on desktop, so this closure state survives navigation; a short retry handles the gap
+  before the new content settles.
 - `src/contentScripts/ui/backlinksPanel.ts` — the floating panel UI: filter input, fuzzy
   filtering, keyboard navigation (arrows/Tab/Enter/Escape), and loading/empty/error states.
 - `src/contentScripts/ui/backlinkIndicator.ts` — an optional clickable badge (icon + count)

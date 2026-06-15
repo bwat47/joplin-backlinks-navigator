@@ -13,7 +13,7 @@
 
 import type { BacklinkItem } from './types';
 
-/** Request the list of notes that link to `noteId`. Host responds with `BacklinkItem[]`. */
+/** Request the list of backlink occurrences that link to `noteId`. Host responds with `BacklinkItem[]`. */
 export interface GetBacklinksMessage {
     type: 'getBacklinks';
     noteId: string;

@@ -4,6 +4,9 @@ import { fuzzyFilter } from './fuzzyFilter';
 function backlink(id: string, title: string): BacklinkItem {
     return {
         id,
+        noteId: id,
+        occurrenceIndex: 0,
+        occurrenceCount: 1,
         title,
         notebookName: '',
         section: '',

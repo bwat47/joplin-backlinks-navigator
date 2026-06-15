@@ -8,7 +8,7 @@
  * 1. Search the Data API for the note id token. A note id is a 32-char hex
  *    string, indexed by FTS as a single token, so this returns candidate notes.
  * 2. Verify each candidate's body actually contains `:/<noteId>` to drop loose
- *    FTS matches, and capture the first matching line as a context snippet.
+ *    FTS matches, and capture each matching occurrence as a backlink row.
  * 3. Resolve each candidate's parent notebook title (cached per call).
  *
  * Only the plugin host has Data API access, so this runs here rather than in
@@ -86,22 +86,65 @@ function findSection(lines: string[], linkLineIndex: number): string {
 }
 
 /**
- * Extracts display context for a backlink: a cleaned prose snippet of the first line that
- * references `noteId`, plus the section heading that line sits under.
+ * Finds every occurrence of `needle` in `text`.
  */
-function extractContext(body: string, noteId: string): { snippet: string; section: string } {
-    const needle = linkNeedle(noteId);
-    const lines = body.split('\n');
-    const linkLineIndex = lines.findIndex((line) => line.includes(needle));
+function findOccurrenceOffsets(text: string, needle: string): number[] {
+    const offsets: number[] = [];
+    let fromIndex = 0;
 
-    if (linkLineIndex === -1) {
-        return { snippet: '', section: '' };
+    while (fromIndex < text.length) {
+        const offset = text.indexOf(needle, fromIndex);
+        if (offset === -1) {
+            break;
+        }
+        offsets.push(offset);
+        fromIndex = offset + needle.length;
     }
 
-    return {
-        snippet: cleanSnippetLine(lines[linkLineIndex]),
-        section: findSection(lines, linkLineIndex),
-    };
+    return offsets;
+}
+
+/**
+ * Extracts display context for every backlink occurrence: a cleaned prose snippet of the
+ * line that references `noteId`, plus the section heading that line sits under.
+ */
+function extractContexts(
+    body: string,
+    noteId: string
+): { snippet: string; section: string; occurrenceIndex: number }[] {
+    const needle = linkNeedle(noteId);
+    const occurrenceOffsets = findOccurrenceOffsets(body, needle);
+    if (!occurrenceOffsets.length) {
+        return [];
+    }
+
+    const lines = body.split('\n');
+    const contexts: { snippet: string; section: string; occurrenceIndex: number }[] = [];
+    let lineStartOffset = 0;
+    let occurrenceIndex = 0;
+
+    for (let lineIndex = 0; lineIndex < lines.length && occurrenceIndex < occurrenceOffsets.length; lineIndex++) {
+        const line = lines[lineIndex];
+        const lineEndOffset = lineStartOffset + line.length;
+
+        while (
+            occurrenceIndex < occurrenceOffsets.length &&
+            occurrenceOffsets[occurrenceIndex] >= lineStartOffset &&
+            occurrenceOffsets[occurrenceIndex] <= lineEndOffset
+        ) {
+            contexts.push({
+                snippet: cleanSnippetLine(line),
+                section: findSection(lines, lineIndex),
+                occurrenceIndex,
+            });
+            occurrenceIndex += 1;
+        }
+
+        // +1 accounts for the newline removed by split().
+        lineStartOffset = lineEndOffset + 1;
+    }
+
+    return contexts;
 }
 
 /**
@@ -177,18 +220,39 @@ export async function findBacklinks(noteId: string): Promise<BacklinkItem[]> {
             continue;
         }
 
+        const contexts = extractContexts(candidate.body, noteId);
+        if (!contexts.length) {
+            continue;
+        }
+
         const notebookName = await resolveNotebookName(candidate.parent_id, notebookCache);
-        const { snippet, section } = extractContext(candidate.body, noteId);
-        backlinks.push({
-            id: candidate.id,
-            title: typeof candidate.title === 'string' && candidate.title ? candidate.title : 'Untitled',
-            notebookName,
-            section,
-            snippet,
-        });
+        const title = typeof candidate.title === 'string' && candidate.title ? candidate.title : 'Untitled';
+        const occurrenceCount = contexts.length;
+
+        for (const { snippet, section, occurrenceIndex } of contexts) {
+            backlinks.push({
+                id: `${candidate.id}:${occurrenceIndex}`,
+                noteId: candidate.id,
+                occurrenceIndex,
+                occurrenceCount,
+                title,
+                notebookName,
+                section,
+                snippet,
+            });
+        }
     }
 
-    backlinks.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+    backlinks.sort((a, b) => {
+        const titleCompare = a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+        if (titleCompare !== 0) {
+            return titleCompare;
+        }
+        if (a.noteId !== b.noteId) {
+            return a.noteId.localeCompare(b.noteId);
+        }
+        return a.occurrenceIndex - b.occurrenceIndex;
+    });
 
     logger.debug('Resolved backlinks', { noteId, count: backlinks.length });
     return backlinks;
