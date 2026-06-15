@@ -25,4 +25,29 @@ describe('createNoteIdWatcher', () => {
 
         expect(changes).toEqual(['note-b']);
     });
+
+    it('does not report when the note id stays the same', () => {
+        const changes: string[] = [];
+        const { noteCompartment, state } = createState('note-a', (noteId) => changes.push(noteId));
+
+        state.update({
+            effects: noteCompartment.reconfigure(noteIdFacet.of('note-a')),
+        });
+
+        expect(changes).toEqual([]);
+    });
+
+    it('reports subsequent note switches', () => {
+        const changes: string[] = [];
+        const { noteCompartment, state } = createState('note-a', (noteId) => changes.push(noteId));
+        const first = state.update({
+            effects: noteCompartment.reconfigure(noteIdFacet.of('note-b')),
+        }).state;
+
+        first.update({
+            effects: noteCompartment.reconfigure(noteIdFacet.of('note-c')),
+        });
+
+        expect(changes).toEqual(['note-b', 'note-c']);
+    });
 });
