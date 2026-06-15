@@ -24,10 +24,10 @@ export function createNoteIdWatcher(noteIdFacet: NoteIdFacet, onNoteChange: (not
     return EditorState.transactionExtender.of((tr: Transaction) => {
         const currentId = tr.state.facet(noteIdFacet);
 
-        // Initialize on first transaction.
+        // If registration happened before the facet was readable, use the transaction's
+        // start state as the baseline so the first observed note switch is still reported.
         if (lastNoteId === null) {
-            lastNoteId = currentId;
-            return null;
+            lastNoteId = tr.startState.facet(noteIdFacet);
         }
 
         if (lastNoteId !== currentId) {
