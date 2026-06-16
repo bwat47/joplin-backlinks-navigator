@@ -6,7 +6,7 @@ A Joplin plugin for viewing and navigating to backlinks in the Markdown editor.
 
 - Shows notes that link to the current note
 - Shows each link occurrence when a note links more than once
-- Opens backlinks from a compact floating panel
+- Opens backlinks from a compact floating panel in the markdown editor
 - Filters backlinks by note title
 - Shows notebook, section, and link context when available
 - Optionally shows a backlink count indicator in the editor (which can also be used to open the panel)
@@ -14,7 +14,10 @@ A Joplin plugin for viewing and navigating to backlinks in the Markdown editor.
 
 ## Usage
 
-Open the backlinks panel from the editor toolbar, the Edit menu, or the `Show Backlinks` command.
+Open the backlinks panel from the editor toolbar, editor indicator icon (if enabled in settings), the Edit menu, or the `Show Backlinks` command.
+
+> [!note]
+> There isn't a default keyboard shortcut, you can assign one under Tools | Options | Keyboard Shortcuts | "Show Backlinks" command.
 
 Click a backlink to open the note that links to the current note. On desktop, the editor will try to scroll to the line that contains the link back to the previous note after note switch.
 
