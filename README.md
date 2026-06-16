@@ -1,3 +1,9 @@
+> [!note]
+> This plugin was created entirely with AI tools.
+
+> [!important]
+> This plugin only works in the markdown editor (editor view or split view). It does not work in the reading view or in the rich text editor. Codemirror 6 only, legacy editor is not supported.
+
 # Backlinks Navigator
 
 A Joplin plugin for viewing and navigating to backlinks in the Markdown editor.
