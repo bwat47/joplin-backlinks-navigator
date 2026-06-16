@@ -8,6 +8,8 @@
 
 A Joplin plugin for viewing and navigating to backlinks in the Markdown editor.
 
+![backlinks-navigator-demo](https://github.com/bwat47/joplin-backlinks-navigator/blob/main/images/backlinks_examples.gif)
+
 ## Features
 
 - Shows notes that link to the current note
