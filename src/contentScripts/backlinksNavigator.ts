@@ -161,9 +161,10 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
 
                 const doScroll = (pos: number): void => {
                     try {
+                        const lineStart = view.state.doc.lineAt(pos).from;
                         view.dispatch({
-                            selection: EditorSelection.cursor(pos),
-                            effects: EditorView.scrollIntoView(pos, { y: 'center' }),
+                            selection: EditorSelection.cursor(lineStart),
+                            effects: EditorView.scrollIntoView(lineStart, { y: 'center' }),
                         });
                     } catch (error) {
                         logger.warn('Failed to scroll to backlink reference', error);
