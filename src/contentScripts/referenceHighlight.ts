@@ -24,8 +24,7 @@ export const referenceHighlightField = StateField.define<DecorationSet>({
         for (const effect of transaction.effects) {
             if (effect.is(setReferenceHighlightEffect)) {
                 const { from, to } = effect.value;
-                nextHighlights =
-                    from < to ? Decoration.set([referenceHighlightMark.range(from, to)]) : Decoration.none;
+                nextHighlights = from < to ? Decoration.set([referenceHighlightMark.range(from, to)]) : Decoration.none;
                 handledByEffect = true;
             }
         }
