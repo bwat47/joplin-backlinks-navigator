@@ -24,6 +24,7 @@ import { normalizePanelDimensions } from '../panelDimensions';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
 import { createNoteIdWatcher } from './ui/noteIdWatcher';
+import { findMarkdownLinkStart } from './markdownLinkPosition';
 import logger from '../logger';
 
 const INDICATOR_DEBOUNCE_MS = 350;
@@ -112,7 +113,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     return;
                 }
 
-                // Record where to scroll once the target note loads: the line that links back to
+                // Record where to scroll once the target note loads: the occurrence that links back to
                 // the note we're currently viewing (`:/<currentNoteId>`).
                 const currentNoteId = resolveNoteId();
                 pendingScroll = currentNoteId
@@ -159,12 +160,11 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 const RETRY_DELAY_MS = 80;
                 let attempt = 0;
 
-                const doScroll = (pos: number): void => {
+                const doScroll = (scrollPosition: number): void => {
                     try {
-                        const lineStart = view.state.doc.lineAt(pos).from;
                         view.dispatch({
-                            selection: EditorSelection.cursor(lineStart),
-                            effects: EditorView.scrollIntoView(lineStart, { y: 'center' }),
+                            selection: EditorSelection.cursor(scrollPosition),
+                            effects: EditorView.scrollIntoView(scrollPosition, { y: 'center' }),
                         });
                     } catch (error) {
                         logger.warn('Failed to scroll to backlink reference', error);
@@ -177,7 +177,8 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                         return;
                     }
 
-                    const pos = findOccurrencePosition(view.state.doc.toString(), needle, occurrenceIndex);
+                    const text = view.state.doc.toString();
+                    const pos = findOccurrencePosition(text, needle, occurrenceIndex);
                     if (pos === -1) {
                         attempt += 1;
                         if (attempt <= MAX_ATTEMPTS) {
@@ -186,11 +187,12 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                         return;
                     }
 
-                    doScroll(pos);
+                    const scrollPosition = findMarkdownLinkStart(text, pos);
+                    doScroll(scrollPosition);
                     // Re-assert once after Joplin's own post-load cursor/scroll restoration.
                     window.setTimeout(() => {
                         if (resolveNoteId() === targetNoteId) {
-                            doScroll(pos);
+                            doScroll(scrollPosition);
                         }
                     }, 150);
                 };
