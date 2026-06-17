@@ -193,17 +193,31 @@ export async function registerSettings(): Promise<void> {
     });
 }
 
+/**
+ * Persists a corrected setting value so a malformed stored value self-heals
+ * after one read. Only called when normalization actually changed the value.
+ */
+async function persistNormalizedSetting(key: string, value: unknown): Promise<void> {
+    try {
+        await joplin.settings.setValue(key, value);
+    } catch (error) {
+        logger.warn(`Failed to persist normalized setting: ${key}`, { error });
+    }
+}
+
 export async function loadPanelSettings(): Promise<PanelSettings> {
     const values = await joplin.settings.values([SETTING_PANEL_WIDTH, SETTING_PANEL_MAX_HEIGHT]);
 
     const widthResult = normalizePanelWidth(values[SETTING_PANEL_WIDTH]);
     if (widthResult.changed) {
         logger.warn(`Invalid panel width setting: ${values[SETTING_PANEL_WIDTH]}. Using ${widthResult.value}px.`);
+        await persistNormalizedSetting(SETTING_PANEL_WIDTH, widthResult.value);
     }
 
     const heightResult = normalizePanelHeightPercentage(values[SETTING_PANEL_MAX_HEIGHT]);
     if (heightResult.changed) {
         logger.warn(`Invalid panel height setting: ${values[SETTING_PANEL_MAX_HEIGHT]}. Using ${heightResult.value}%.`);
+        await persistNormalizedSetting(SETTING_PANEL_MAX_HEIGHT, heightResult.value);
     }
 
     return {
@@ -216,7 +230,12 @@ export async function loadPanelSettings(): Promise<PanelSettings> {
 
 export async function loadShowIndicatorSetting(): Promise<boolean> {
     const value = await joplin.settings.value(SETTING_SHOW_INDICATOR);
-    return normalizeBooleanSetting(value, false).value;
+    const result = normalizeBooleanSetting(value, false);
+    if (result.changed) {
+        logger.warn(`Invalid show indicator setting: ${value}. Using ${result.value}.`);
+        await persistNormalizedSetting(SETTING_SHOW_INDICATOR, result.value);
+    }
+    return result.value;
 }
 
 export async function loadIgnoredBacklinkNoteIdsSetting(): Promise<Set<string>> {
@@ -224,6 +243,7 @@ export async function loadIgnoredBacklinkNoteIdsSetting(): Promise<Set<string>> 
     const result = normalizeIgnoredBacklinkNoteIds(value);
     if (result.changed) {
         logger.warn('Ignored backlink note IDs setting contained invalid, duplicate, or normalized entries.');
+        await persistNormalizedSetting(SETTING_IGNORED_BACKLINK_NOTE_IDS, result.value.join(', '));
     }
     return new Set(result.value);
 }
@@ -233,6 +253,7 @@ export async function loadCtrlClickBehaviorSetting(): Promise<BacklinkOpenBehavi
     const result = normalizeCtrlClickBehavior(value);
     if (result.changed) {
         logger.warn(`Invalid Ctrl-click behavior setting: ${value}. Using ${result.value}.`);
+        await persistNormalizedSetting(SETTING_CTRL_CLICK_BEHAVIOR, result.value);
     }
     return result.value;
 }
@@ -242,13 +263,19 @@ export async function loadCtrlEnterBehaviorSetting(): Promise<BacklinkOpenBehavi
     const result = normalizeCtrlEnterBehavior(value);
     if (result.changed) {
         logger.warn(`Invalid Ctrl-Enter behavior setting: ${value}. Using ${result.value}.`);
+        await persistNormalizedSetting(SETTING_CTRL_ENTER_BEHAVIOR, result.value);
     }
     return result.value;
 }
 
 export async function loadDebugSetting(): Promise<boolean> {
     const value = await joplin.settings.value(SETTING_DEBUG);
-    return normalizeBooleanSetting(value, false).value;
+    const result = normalizeBooleanSetting(value, false);
+    if (result.changed) {
+        logger.warn(`Invalid debug setting: ${value}. Using ${result.value}.`);
+        await persistNormalizedSetting(SETTING_DEBUG, result.value);
+    }
+    return result.value;
 }
 
 /** Setting key for the debug toggle, exposed so the host can watch for changes. */
