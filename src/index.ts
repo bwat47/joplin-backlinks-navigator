@@ -22,6 +22,7 @@ import {
     loadCtrlClickBehaviorSetting,
     loadCtrlEnterBehaviorSetting,
     loadDebugSetting,
+    loadIgnoredBacklinkNoteIdsSetting,
     loadPanelSettings,
     loadShowIndicatorSetting,
     registerSettings,
@@ -81,6 +82,11 @@ async function openNote(noteId: string, mode: ResolvedOpenNoteMode): Promise<voi
     }
 }
 
+async function findBacklinksWithSettings(noteId: string): Promise<GetBacklinksResponse> {
+    const ignoredNoteIds = await loadIgnoredBacklinkNoteIdsSetting();
+    return findBacklinks(noteId, { ignoredNoteIds });
+}
+
 async function handleMessage(
     message: ContentScriptToPluginMessage
 ): Promise<GetBacklinksResponse | IndicatorState | void> {
@@ -90,13 +96,13 @@ async function handleMessage(
 
     switch (message.type) {
         case 'getBacklinks':
-            return findBacklinks(message.noteId);
+            return findBacklinksWithSettings(message.noteId);
         case 'getIndicatorState':
             // Honor the setting before doing any backlink search.
             if (!(await loadShowIndicatorSetting())) {
                 return { enabled: false };
             }
-            return { enabled: true, backlinks: await findBacklinks(message.noteId) };
+            return { enabled: true, backlinks: await findBacklinksWithSettings(message.noteId) };
         case 'openNote':
             await openNote(message.noteId, await resolveOpenNoteMode(message));
             return;
