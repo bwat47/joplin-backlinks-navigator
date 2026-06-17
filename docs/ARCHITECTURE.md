@@ -52,9 +52,21 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
   monotonic request token prevents a slow response from populating a stale/closed panel.
   When a backlink is selected it records a "pending scroll" (the target note id, the
   `:/<currentNoteId>` needle, and the selected occurrence index) before navigating; once the
-  target note loads it scrolls to that occurrence. The same `EditorView` is reused across note
-  switches on desktop, so this closure state survives navigation; a short retry handles the gap
-  before the new content settles.
+  target note loads it scrolls to that occurrence. The cursor is placed at the start of the
+  enclosing markdown link (see `markdownLinkPosition.ts`) rather than inside the URL, and the
+  matched reference is briefly highlighted (see `referenceHighlight.ts`). The same `EditorView`
+  is reused across note switches on desktop, so this closure state survives navigation; a short
+  retry handles the gap before the new content settles, and the scroll is re-asserted once after
+  Joplin's own post-load cursor restoration.
+- `src/contentScripts/markdownLinkPosition.ts` — given the position of a found `:/<noteId>` URL,
+  resolves the range of the enclosing inline markdown link (`[label](:/id)`, including a leading
+  `!` for embed syntax) on the same line. Falls back to just the URL range for raw note
+  references or when no same-line link encloses the URL. Used to choose the cursor target and the
+  highlight range.
+- `src/contentScripts/referenceHighlight.ts` — a CodeMirror `StateField`/`StateEffect` pair that
+  decorates the matched reference range with a `mark` highlight. The highlight is applied via
+  `setReferenceHighlightEffect` and cleared automatically on the next selection change that isn't
+  the originating dispatch, so it disappears as soon as the user moves the cursor.
 - `src/contentScripts/ui/backlinksPanel.ts` — the floating panel UI: filter input, fuzzy
   filtering, keyboard navigation (arrows/Tab/Enter/Escape), and loading/empty/error states.
 - `src/contentScripts/ui/backlinkIndicator.ts` — an optional clickable badge (icon + count)
