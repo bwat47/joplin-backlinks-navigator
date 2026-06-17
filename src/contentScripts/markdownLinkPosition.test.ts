@@ -1,4 +1,4 @@
-import { findMarkdownLinkStart } from './markdownLinkPosition';
+import { findMarkdownLinkRange, findMarkdownLinkStart } from './markdownLinkPosition';
 
 const NOTE_ID = '0123456789abcdef0123456789abcdef';
 
@@ -29,5 +29,27 @@ describe('findMarkdownLinkStart', () => {
         const urlPosition = text.indexOf(`:/${NOTE_ID}`);
 
         expect(findMarkdownLinkStart(text, urlPosition)).toBe(urlPosition);
+    });
+});
+
+describe('findMarkdownLinkRange', () => {
+    it('returns the whole markdown link range for inline links', () => {
+        const text = `A long wrapped sentence before [Target](:/${NOTE_ID}) after`;
+        const urlPosition = text.indexOf(`:/${NOTE_ID}`);
+
+        expect(findMarkdownLinkRange(text, urlPosition, NOTE_ID.length + 2)).toEqual({
+            from: text.indexOf('[Target]'),
+            to: text.indexOf(') after') + 1,
+        });
+    });
+
+    it('returns just the URL range for raw note links', () => {
+        const text = `Raw reference :/${NOTE_ID}`;
+        const urlPosition = text.indexOf(`:/${NOTE_ID}`);
+
+        expect(findMarkdownLinkRange(text, urlPosition, NOTE_ID.length + 2)).toEqual({
+            from: urlPosition,
+            to: urlPosition + NOTE_ID.length + 2,
+        });
     });
 });

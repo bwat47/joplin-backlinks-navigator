@@ -24,7 +24,8 @@ import { normalizePanelDimensions } from '../panelDimensions';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
 import { createNoteIdWatcher } from './ui/noteIdWatcher';
-import { findMarkdownLinkStart } from './markdownLinkPosition';
+import { findMarkdownLinkRange, type MarkdownLinkRange } from './markdownLinkPosition';
+import { referenceHighlightExtension, setReferenceHighlightEffect } from './referenceHighlight';
 import logger from '../logger';
 
 const INDICATOR_DEBOUNCE_MS = 350;
@@ -160,11 +161,16 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 const RETRY_DELAY_MS = 80;
                 let attempt = 0;
 
-                const doScroll = (scrollPosition: number): void => {
+                const doScroll = (scrollPosition: number, highlightRange?: MarkdownLinkRange): void => {
                     try {
                         view.dispatch({
                             selection: EditorSelection.cursor(scrollPosition),
-                            effects: EditorView.scrollIntoView(scrollPosition, { y: 'center' }),
+                            effects: highlightRange
+                                ? [
+                                      EditorView.scrollIntoView(scrollPosition, { y: 'center' }),
+                                      setReferenceHighlightEffect.of(highlightRange),
+                                  ]
+                                : EditorView.scrollIntoView(scrollPosition, { y: 'center' }),
                         });
                     } catch (error) {
                         logger.warn('Failed to scroll to backlink reference', error);
@@ -187,12 +193,12 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                         return;
                     }
 
-                    const scrollPosition = findMarkdownLinkStart(text, pos);
-                    doScroll(scrollPosition);
+                    const highlightRange = findMarkdownLinkRange(text, pos, needle.length);
+                    doScroll(highlightRange.from, highlightRange);
                     // Re-assert once after Joplin's own post-load cursor/scroll restoration.
                     window.setTimeout(() => {
                         if (resolveNoteId() === targetNoteId) {
-                            doScroll(scrollPosition);
+                            doScroll(highlightRange.from, highlightRange);
                         }
                     }, 150);
                 };
@@ -338,6 +344,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             if (noteIdFacet) {
                 editorControl.addExtension(createNoteIdWatcher(noteIdFacet, handleNoteChange));
             }
+            editorControl.addExtension(referenceHighlightExtension);
 
             editorControl.registerCommand(EDITOR_COMMAND_TOGGLE_PANEL, togglePanel);
 
