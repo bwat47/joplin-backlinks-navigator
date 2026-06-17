@@ -33,5 +33,10 @@ export function findMarkdownLinkRange(text: string, urlPosition: number, urlLeng
         return { from: urlPosition, to: urlPosition + urlLength };
     }
 
-    return { from: labelStart, to: linkEnd + 1 };
+    // Include a leading `!` so embed/transclusion syntax (`![label](:/id)`) is
+    // treated as part of the link. Joplin has no note transclusion today, but
+    // this keeps the range correct if it (or a plugin) ever adds it.
+    const from = labelStart > lineStart && text[labelStart - 1] === '!' ? labelStart - 1 : labelStart;
+
+    return { from, to: linkEnd + 1 };
 }

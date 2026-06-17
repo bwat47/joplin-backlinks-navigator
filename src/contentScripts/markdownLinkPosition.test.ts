@@ -14,6 +14,16 @@ describe('findMarkdownLinkRange', () => {
         });
     });
 
+    it('includes a leading `!` for embed/transclusion syntax', () => {
+        const text = `Before ![Target](:/${NOTE_ID}) after`;
+        const urlPosition = text.indexOf(`:/${NOTE_ID}`);
+
+        expect(findMarkdownLinkRange(text, urlPosition, URL_LENGTH)).toEqual({
+            from: text.indexOf('![Target]'),
+            to: text.indexOf(') after') + 1,
+        });
+    });
+
     it('uses the matching link when multiple links appear on the same line', () => {
         const text = `[Other](:/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa) then [Target](:/${NOTE_ID}#heading)`;
         const urlPosition = text.indexOf(`:/${NOTE_ID}`);
