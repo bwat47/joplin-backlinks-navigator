@@ -34,6 +34,10 @@ interface SearchResponse {
     has_more: boolean;
 }
 
+interface FindBacklinksOptions {
+    ignoredNoteIds?: ReadonlySet<string>;
+}
+
 /** Builds the literal link prefix to look for in a candidate note's body. */
 function linkNeedle(noteId: string): string {
     return `:/${noteId}`;
@@ -174,14 +178,16 @@ async function resolveNotebookName(parentId: string, cache: Map<string, string>)
  * Finds all notes that link to the given note.
  *
  * @param noteId - ID of the note to find backlinks for.
+ * @param options - Optional search filters, including note ids to omit from results.
  * @returns Backlink entries sorted by note title. Returns `[]` on failure.
  */
-export async function findBacklinks(noteId: string): Promise<BacklinkItem[]> {
+export async function findBacklinks(noteId: string, options: FindBacklinksOptions = {}): Promise<BacklinkItem[]> {
     if (!noteId) {
         return [];
     }
 
     const needle = linkNeedle(noteId);
+    const ignoredNoteIds = options.ignoredNoteIds ?? new Set<string>();
     const candidates: SearchNote[] = [];
 
     try {
@@ -213,7 +219,7 @@ export async function findBacklinks(noteId: string): Promise<BacklinkItem[]> {
 
     for (const candidate of candidates) {
         // Drop the note itself and any candidate that doesn't actually contain the link.
-        if (candidate.id === noteId) {
+        if (candidate.id === noteId || ignoredNoteIds.has(candidate.id.toLowerCase())) {
             continue;
         }
         if (typeof candidate.body !== 'string' || !candidate.body.includes(needle)) {

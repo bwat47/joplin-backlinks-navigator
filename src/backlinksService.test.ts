@@ -117,4 +117,49 @@ describe('findBacklinks', () => {
         await expect(findBacklinks('')).resolves.toEqual([]);
         expect(mockDataGet).not.toHaveBeenCalled();
     });
+
+    it('omits backlinks from ignored source notes', async () => {
+        mockDataGet.mockImplementation(async (path: string[]) => {
+            if (path[0] === 'search') {
+                return {
+                    items: [
+                        {
+                            id: 'note-a',
+                            title: 'Alpha',
+                            body: `[Target](:/${TARGET_NOTE_ID})`,
+                            parent_id: 'folder-1',
+                        },
+                        {
+                            id: 'note-z',
+                            title: 'Zulu',
+                            body: `[Target](:/${TARGET_NOTE_ID})`,
+                            parent_id: 'folder-2',
+                        },
+                    ],
+                    has_more: false,
+                };
+            }
+
+            if (path[0] === 'folders' && path[1] === 'folder-1') {
+                return { id: 'folder-1', title: 'Projects' };
+            }
+
+            throw new Error(`Unexpected Data API request: ${path.join('/')}`);
+        });
+
+        await expect(findBacklinks(TARGET_NOTE_ID, { ignoredNoteIds: new Set(['note-z']) })).resolves.toEqual([
+            {
+                id: 'note-a:0',
+                noteId: 'note-a',
+                occurrenceIndex: 0,
+                occurrenceCount: 1,
+                title: 'Alpha',
+                notebookName: 'Projects',
+                section: '',
+                snippet: 'Target',
+            },
+        ]);
+
+        expect(mockDataGet).not.toHaveBeenCalledWith(['folders', 'folder-2'], expect.anything());
+    });
 });

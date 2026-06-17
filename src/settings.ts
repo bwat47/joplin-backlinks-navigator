@@ -27,6 +27,7 @@ const SECTION_ID = 'backlinksNavigator';
 const SETTING_PANEL_WIDTH = 'backlinksNavigator.panelWidth';
 const SETTING_PANEL_MAX_HEIGHT = 'backlinksNavigator.panelMaxHeightPercentage';
 const SETTING_SHOW_INDICATOR = 'backlinksNavigator.showIndicator';
+const SETTING_IGNORED_BACKLINK_NOTE_IDS = 'backlinksNavigator.ignoredBacklinkNoteIds';
 const SETTING_CTRL_CLICK_BEHAVIOR = 'backlinksNavigator.ctrlClickBehavior';
 const SETTING_CTRL_ENTER_BEHAVIOR = 'backlinksNavigator.ctrlEnterBehavior';
 const SETTING_DEBUG = 'backlinksNavigator.debug';
@@ -35,6 +36,11 @@ const BACKLINK_OPEN_BEHAVIOR_OPTIONS: Record<BacklinkOpenBehavior, string> = {
     newWindow: 'Open note in new window',
     newTab: 'Open note in Note Tabs tab',
 };
+
+/**
+ * Matches one raw Joplin note id token, e.g. `bb12adaa3c704ff3bf09c0d7f7ad0c38`.
+ */
+const NOTE_ID_RE = /^[0-9a-f]{32}$/i;
 
 export interface PanelSettings {
     dimensions: PanelDimensions;
@@ -62,6 +68,45 @@ export function normalizeCtrlClickBehavior(value: unknown): { value: BacklinkOpe
 
 export function normalizeCtrlEnterBehavior(value: unknown): { value: BacklinkOpenBehavior; changed: boolean } {
     return normalizeBacklinkOpenBehavior(value);
+}
+
+export function normalizeIgnoredBacklinkNoteIds(value: unknown): { value: string[]; changed: boolean } {
+    if (typeof value !== 'string') {
+        return { value: [], changed: true };
+    }
+
+    if (!value.trim()) {
+        return { value: [], changed: false };
+    }
+
+    const seen = new Set<string>();
+    const ignoredNoteIds: string[] = [];
+    let changed = false;
+
+    for (const rawToken of value.split(',')) {
+        const token = rawToken.trim();
+        if (!token) {
+            changed = true;
+            continue;
+        }
+
+        if (!NOTE_ID_RE.test(token)) {
+            changed = true;
+            continue;
+        }
+
+        const noteId = token.toLowerCase();
+        if (seen.has(noteId)) {
+            changed = true;
+            continue;
+        }
+
+        seen.add(noteId);
+        ignoredNoteIds.push(noteId);
+        changed = changed || noteId !== token;
+    }
+
+    return { value: ignoredNoteIds, changed };
 }
 
 export async function registerSettings(): Promise<void> {
@@ -104,6 +149,16 @@ export async function registerSettings(): Promise<void> {
             description:
                 'Show a clickable badge in the top-right of the editor when the current note has backlinks. ' +
                 'This checks for backlinks each time a note is opened.',
+        },
+        [SETTING_IGNORED_BACKLINK_NOTE_IDS]: {
+            value: '',
+            type: SettingItemType.String,
+            public: true,
+            section: SECTION_ID,
+            label: 'Ignored backlink note IDs',
+            description:
+                'Comma-separated note IDs to exclude from backlink results and counts. Example: ' +
+                'bb12adaa3c704ff3bf09c0d7f7ad0c38, 14270a1ea65546319c1ed3db0e362c37',
         },
         [SETTING_CTRL_CLICK_BEHAVIOR]: {
             value: DEFAULT_BACKLINK_OPEN_BEHAVIOR,
@@ -162,6 +217,15 @@ export async function loadPanelSettings(): Promise<PanelSettings> {
 export async function loadShowIndicatorSetting(): Promise<boolean> {
     const value = await joplin.settings.value(SETTING_SHOW_INDICATOR);
     return normalizeBooleanSetting(value, false).value;
+}
+
+export async function loadIgnoredBacklinkNoteIdsSetting(): Promise<Set<string>> {
+    const value = await joplin.settings.value(SETTING_IGNORED_BACKLINK_NOTE_IDS);
+    const result = normalizeIgnoredBacklinkNoteIds(value);
+    if (result.changed) {
+        logger.warn('Ignored backlink note IDs setting contained invalid, duplicate, or normalized entries.');
+    }
+    return new Set(result.value);
 }
 
 export async function loadCtrlClickBehaviorSetting(): Promise<BacklinkOpenBehavior> {
