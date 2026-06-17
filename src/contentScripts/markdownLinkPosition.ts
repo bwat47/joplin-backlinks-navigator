@@ -10,10 +10,6 @@ export interface MarkdownLinkRange {
     to: number;
 }
 
-export function findMarkdownLinkStart(text: string, urlPosition: number): number {
-    return findMarkdownLinkRange(text, urlPosition, 0).from;
-}
-
 export function findMarkdownLinkRange(text: string, urlPosition: number, urlLength: number): MarkdownLinkRange {
     if (urlPosition < 0 || urlPosition >= text.length) {
         return { from: urlPosition, to: urlPosition };
@@ -24,7 +20,9 @@ export function findMarkdownLinkRange(text: string, urlPosition: number, urlLeng
     const lineEnd = nextNewline === -1 ? text.length : nextNewline;
     const linkUrlStart = text.lastIndexOf('](', urlPosition);
 
-    if (linkUrlStart < lineStart) {
+    // The URL must start immediately after `](`; otherwise the `](` belongs to a
+    // different markdown link on the same line and this is a raw note reference.
+    if (linkUrlStart < lineStart || linkUrlStart + 2 !== urlPosition) {
         return { from: urlPosition, to: urlPosition + urlLength };
     }
 
