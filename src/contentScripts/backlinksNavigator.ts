@@ -161,16 +161,15 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 const RETRY_DELAY_MS = 80;
                 let attempt = 0;
 
-                const doScroll = (scrollPosition: number, highlightRange?: MarkdownLinkRange): void => {
+                const doScroll = (highlightRange: MarkdownLinkRange): void => {
+                    const scrollPosition = highlightRange.from;
                     try {
                         view.dispatch({
                             selection: EditorSelection.cursor(scrollPosition),
-                            effects: highlightRange
-                                ? [
-                                      EditorView.scrollIntoView(scrollPosition, { y: 'center' }),
-                                      setReferenceHighlightEffect.of(highlightRange),
-                                  ]
-                                : EditorView.scrollIntoView(scrollPosition, { y: 'center' }),
+                            effects: [
+                                EditorView.scrollIntoView(scrollPosition, { y: 'center' }),
+                                setReferenceHighlightEffect.of(highlightRange),
+                            ],
                         });
                     } catch (error) {
                         logger.warn('Failed to scroll to backlink reference', error);
@@ -194,11 +193,11 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     }
 
                     const highlightRange = findMarkdownLinkRange(text, pos, needle.length);
-                    doScroll(highlightRange.from, highlightRange);
+                    doScroll(highlightRange);
                     // Re-assert once after Joplin's own post-load cursor/scroll restoration.
                     window.setTimeout(() => {
                         if (resolveNoteId() === targetNoteId) {
-                            doScroll(highlightRange.from, highlightRange);
+                            doScroll(highlightRange);
                         }
                     }, 150);
                 };
