@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import type { LinkDirection, LinkItem, PanelDimensions } from '../../types';
+import type { LinkDirection, LinkItem, PanelSettings } from '../../types';
 import { createPanelCss } from '../theme/panelTheme';
 import { fuzzyFilter, highlightMatch } from './fuzzyFilter';
 
@@ -71,7 +71,7 @@ export class BacklinksPanel {
 
     private filterText = '';
 
-    private options: PanelDimensions;
+    private settings: PanelSettings;
 
     private filterDebounceTimer: number | null = null;
 
@@ -98,7 +98,7 @@ export class BacklinksPanel {
     public constructor(
         view: EditorView,
         callbacks: PanelCallbacks,
-        options: PanelDimensions,
+        settings: PanelSettings,
         private readonly isMobile = false
     ) {
         this.view = view;
@@ -106,7 +106,7 @@ export class BacklinksPanel {
         this.onCtrlClickSelect = callbacks.onCtrlClickSelect;
         this.onCtrlEnterSelect = callbacks.onCtrlEnterSelect;
         this.onClose = callbacks.onClose;
-        this.options = options;
+        this.settings = settings;
 
         this.container = document.createElement('div');
         this.container.className = 'backlinks-navigator-panel';
@@ -214,9 +214,10 @@ export class BacklinksPanel {
         return Boolean(this.container.parentElement);
     }
 
-    public setOptions(options: PanelDimensions): void {
-        this.options = options;
-        ensurePanelStyles(this.view, this.options);
+    public setSettings(settings: PanelSettings): void {
+        this.settings = settings;
+        ensurePanelStyles(this.view, this.settings);
+        this.render();
     }
 
     private createTabButton(direction: LinkDirection): HTMLButtonElement {
@@ -314,7 +315,7 @@ export class BacklinksPanel {
     }
 
     private mount(): void {
-        ensurePanelStyles(this.view, this.options);
+        ensurePanelStyles(this.view, this.settings);
 
         if (!this.container.parentElement) {
             const scrollRoot = this.view.scrollDOM.parentElement;
@@ -527,14 +528,18 @@ export class BacklinksPanel {
 
         item.appendChild(header);
 
-        if (link.section) {
+        const previewMode = this.settings.preview[link.direction];
+        const showSnippet = previewMode === 'titleSnippet' || previewMode === 'titleSnippetHeading';
+        const showHeading = previewMode === 'titleSnippetHeading';
+
+        if (showHeading && link.section) {
             const section = document.createElement('span');
             section.className = 'backlinks-navigator-item-section';
             section.textContent = `§ ${link.section}`;
             item.appendChild(section);
         }
 
-        if (link.snippet) {
+        if (showSnippet && link.snippet) {
             const snippet = document.createElement('span');
             snippet.className = 'backlinks-navigator-item-snippet';
             snippet.textContent = link.snippet;
@@ -591,9 +596,10 @@ export class BacklinksPanel {
     }
 }
 
-function ensurePanelStyles(view: EditorView, options: PanelDimensions): void {
+function ensurePanelStyles(view: EditorView, settings: PanelSettings): void {
     const doc = view.dom.ownerDocument!;
     // Cache key based only on dimensions since CSS variables handle theme changes automatically.
+    const options = settings.dimensions;
     const signature = [options.width.toString(), options.maxHeightRatio.toFixed(4)].join('|');
 
     let style = doc.getElementById(PANEL_STYLE_ID) as HTMLStyleElement | null;

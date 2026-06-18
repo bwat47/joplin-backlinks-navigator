@@ -3,7 +3,12 @@ jest.mock('api', () => ({
     default: {},
 }));
 
-import { normalizeCtrlClickBehavior, normalizeCtrlEnterBehavior, normalizeIgnoredBacklinkNoteIds } from './settings';
+import {
+    normalizeCtrlClickBehavior,
+    normalizeCtrlEnterBehavior,
+    normalizeIgnoredBacklinkNoteIds,
+    normalizeLinkPreviewMode,
+} from './settings';
 
 describe('settings normalization', () => {
     it('accepts supported Ctrl-click backlink behaviors', () => {
@@ -24,6 +29,26 @@ describe('settings normalization', () => {
     it('falls back to new window for invalid Ctrl-Enter backlink behaviors', () => {
         expect(normalizeCtrlEnterBehavior('current')).toEqual({ value: 'newWindow', changed: true });
         expect(normalizeCtrlEnterBehavior(undefined)).toEqual({ value: 'newWindow', changed: true });
+    });
+
+    it('accepts supported link preview modes', () => {
+        expect(normalizeLinkPreviewMode('title', 'titleSnippet')).toEqual({ value: 'title', changed: false });
+        expect(normalizeLinkPreviewMode('titleSnippet', 'title')).toEqual({
+            value: 'titleSnippet',
+            changed: false,
+        });
+        expect(normalizeLinkPreviewMode('titleSnippetHeading', 'title')).toEqual({
+            value: 'titleSnippetHeading',
+            changed: false,
+        });
+    });
+
+    it('falls back to the provided default for invalid link preview modes', () => {
+        expect(normalizeLinkPreviewMode('snippet', 'titleSnippet')).toEqual({
+            value: 'titleSnippet',
+            changed: true,
+        });
+        expect(normalizeLinkPreviewMode(undefined, 'title')).toEqual({ value: 'title', changed: true });
     });
 
     it('parses comma-separated ignored backlink note ids', () => {

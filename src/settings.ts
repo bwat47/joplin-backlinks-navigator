@@ -11,7 +11,8 @@
 import joplin from 'api';
 import { SettingItemType } from 'api/types';
 import logger from './logger';
-import type { BacklinkOpenBehavior, PanelDimensions } from './types';
+import type { BacklinkOpenBehavior, LinkPreviewMode, PanelSettings } from './types';
+import { DEFAULT_LINK_PREVIEW_SETTINGS } from './types';
 import {
     DEFAULT_PANEL_HEIGHT_PERCENTAGE,
     DEFAULT_PANEL_WIDTH,
@@ -30,21 +31,24 @@ const SETTING_SHOW_INDICATOR = 'backlinksNavigator.showIndicator';
 const SETTING_IGNORED_BACKLINK_NOTE_IDS = 'backlinksNavigator.ignoredBacklinkNoteIds';
 const SETTING_CTRL_CLICK_BEHAVIOR = 'backlinksNavigator.ctrlClickBehavior';
 const SETTING_CTRL_ENTER_BEHAVIOR = 'backlinksNavigator.ctrlEnterBehavior';
+const SETTING_BACKLINK_PREVIEW_MODE = 'backlinksNavigator.backlinkPreviewMode';
+const SETTING_OUTGOING_PREVIEW_MODE = 'backlinksNavigator.outgoingPreviewMode';
 const SETTING_DEBUG = 'backlinksNavigator.debug';
 const DEFAULT_BACKLINK_OPEN_BEHAVIOR: BacklinkOpenBehavior = 'newWindow';
 const BACKLINK_OPEN_BEHAVIOR_OPTIONS: Record<BacklinkOpenBehavior, string> = {
     newWindow: 'Open note in new window',
     newTab: 'Open note in Note Tabs tab',
 };
+const LINK_PREVIEW_MODE_OPTIONS: Record<LinkPreviewMode, string> = {
+    title: 'Note Title',
+    titleSnippet: 'Note Title + Snippet',
+    titleSnippetHeading: 'Note Title + Snippet + Nearest Heading',
+};
 
 /**
  * Matches one raw Joplin note id token, e.g. `bb12adaa3c704ff3bf09c0d7f7ad0c38`.
  */
 const NOTE_ID_RE = /^[0-9a-f]{32}$/i;
-
-export interface PanelSettings {
-    dimensions: PanelDimensions;
-}
 
 function normalizeBooleanSetting(value: unknown, defaultValue: boolean): { value: boolean; changed: boolean } {
     if (typeof value === 'boolean') {
@@ -68,6 +72,17 @@ export function normalizeCtrlClickBehavior(value: unknown): { value: BacklinkOpe
 
 export function normalizeCtrlEnterBehavior(value: unknown): { value: BacklinkOpenBehavior; changed: boolean } {
     return normalizeBacklinkOpenBehavior(value);
+}
+
+export function normalizeLinkPreviewMode(
+    value: unknown,
+    defaultValue: LinkPreviewMode
+): { value: LinkPreviewMode; changed: boolean } {
+    if (value === 'title' || value === 'titleSnippet' || value === 'titleSnippetHeading') {
+        return { value, changed: false };
+    }
+
+    return { value: defaultValue, changed: true };
 }
 
 export function normalizeIgnoredBacklinkNoteIds(value: unknown): { value: string[]; changed: boolean } {
@@ -182,6 +197,26 @@ export async function registerSettings(): Promise<void> {
                 'Choose where Ctrl-Enter opens the selected backlink. Opening in a new tab requires the Note Tabs plugin.',
             options: BACKLINK_OPEN_BEHAVIOR_OPTIONS,
         },
+        [SETTING_BACKLINK_PREVIEW_MODE]: {
+            value: DEFAULT_LINK_PREVIEW_SETTINGS.in,
+            type: SettingItemType.String,
+            isEnum: true,
+            public: true,
+            section: SECTION_ID,
+            label: 'Backlink context preview',
+            description: 'Choose how much context to show for backlinks in the panel.',
+            options: LINK_PREVIEW_MODE_OPTIONS,
+        },
+        [SETTING_OUTGOING_PREVIEW_MODE]: {
+            value: DEFAULT_LINK_PREVIEW_SETTINGS.out,
+            type: SettingItemType.String,
+            isEnum: true,
+            public: true,
+            section: SECTION_ID,
+            label: 'Outgoing link context preview',
+            description: 'Choose how much context to show for outgoing links in the panel.',
+            options: LINK_PREVIEW_MODE_OPTIONS,
+        },
         [SETTING_DEBUG]: {
             value: false,
             type: SettingItemType.Bool,
@@ -206,7 +241,12 @@ async function persistNormalizedSetting(key: string, value: unknown): Promise<vo
 }
 
 export async function loadPanelSettings(): Promise<PanelSettings> {
-    const values = await joplin.settings.values([SETTING_PANEL_WIDTH, SETTING_PANEL_MAX_HEIGHT]);
+    const values = await joplin.settings.values([
+        SETTING_PANEL_WIDTH,
+        SETTING_PANEL_MAX_HEIGHT,
+        SETTING_BACKLINK_PREVIEW_MODE,
+        SETTING_OUTGOING_PREVIEW_MODE,
+    ]);
 
     const widthResult = normalizePanelWidth(values[SETTING_PANEL_WIDTH]);
     if (widthResult.changed) {
@@ -220,10 +260,38 @@ export async function loadPanelSettings(): Promise<PanelSettings> {
         await persistNormalizedSetting(SETTING_PANEL_MAX_HEIGHT, heightResult.value);
     }
 
+    const backlinkPreviewResult = normalizeLinkPreviewMode(
+        values[SETTING_BACKLINK_PREVIEW_MODE],
+        DEFAULT_LINK_PREVIEW_SETTINGS.in
+    );
+    if (backlinkPreviewResult.changed) {
+        logger.warn(
+            `Invalid backlink context preview setting: ${values[SETTING_BACKLINK_PREVIEW_MODE]}. ` +
+                `Using ${backlinkPreviewResult.value}.`
+        );
+        await persistNormalizedSetting(SETTING_BACKLINK_PREVIEW_MODE, backlinkPreviewResult.value);
+    }
+
+    const outgoingPreviewResult = normalizeLinkPreviewMode(
+        values[SETTING_OUTGOING_PREVIEW_MODE],
+        DEFAULT_LINK_PREVIEW_SETTINGS.out
+    );
+    if (outgoingPreviewResult.changed) {
+        logger.warn(
+            `Invalid outgoing link context preview setting: ${values[SETTING_OUTGOING_PREVIEW_MODE]}. ` +
+                `Using ${outgoingPreviewResult.value}.`
+        );
+        await persistNormalizedSetting(SETTING_OUTGOING_PREVIEW_MODE, outgoingPreviewResult.value);
+    }
+
     return {
         dimensions: {
             width: widthResult.value,
             maxHeightRatio: heightResult.value / 100,
+        },
+        preview: {
+            in: backlinkPreviewResult.value,
+            out: outgoingPreviewResult.value,
         },
     };
 }

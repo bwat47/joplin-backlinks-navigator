@@ -39,10 +39,27 @@ export interface PanelDimensions {
     maxHeightRatio: number;
 }
 
+export type LinkPreviewMode = 'title' | 'titleSnippet' | 'titleSnippetHeading';
+
+export interface LinkPreviewSettings {
+    in: LinkPreviewMode;
+    out: LinkPreviewMode;
+}
+
+export interface PanelSettings {
+    dimensions: PanelDimensions;
+    preview: LinkPreviewSettings;
+}
+
 export type BacklinkOpenBehavior = 'newWindow' | 'newTab';
 
 export const DEFAULT_PANEL_DIMENSIONS: PanelDimensions = {
     width: 360,
     // Represents 75% of the editor viewport height
     maxHeightRatio: 0.75,
+};
+
+export const DEFAULT_LINK_PREVIEW_SETTINGS: LinkPreviewSettings = {
+    in: 'titleSnippet',
+    out: 'title',
 };

@@ -155,7 +155,7 @@ async function registerCommands(): Promise<void> {
 
             await joplin.commands.execute('editor.execCommand', {
                 name: EDITOR_COMMAND_TOGGLE_PANEL,
-                args: [panelSettings.dimensions, isMobile],
+                args: [panelSettings, isMobile],
             });
         },
     });

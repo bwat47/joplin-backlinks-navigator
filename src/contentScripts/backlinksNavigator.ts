@@ -18,7 +18,8 @@ import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL } from '../constants';
-import type { LinkItem, PanelDimensions } from '../types';
+import type { LinkItem, PanelDimensions, PanelSettings } from '../types';
+import { DEFAULT_LINK_PREVIEW_SETTINGS } from '../types';
 import type {
     ContentScriptToPluginMessage,
     GetBacklinksResponse,
@@ -42,7 +43,10 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             // destroys the editor (note close, plugin disable), they are cleaned up automatically.
             const view = editorControl.editor as EditorView;
             let panel: BacklinksPanel | null = null;
-            let panelDimensions: PanelDimensions = normalizePanelDimensions();
+            let panelSettings: PanelSettings = {
+                dimensions: normalizePanelDimensions(),
+                preview: { ...DEFAULT_LINK_PREVIEW_SETTINGS },
+            };
             // Monotonic token so a slow backlink response can't populate a stale/closed panel.
             let requestSeq = 0;
             // After navigating to a backlink, scroll the target note to the line that references
@@ -251,7 +255,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                                 closePanel(reason === 'escape');
                             },
                         },
-                        panelDimensions,
+                        panelSettings,
                         isMobile
                     );
                 }
@@ -367,10 +371,26 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 }, INDICATOR_DEBOUNCE_MS);
             };
 
-            const togglePanel = (dimensions?: PanelDimensions, isMobile?: boolean): void => {
-                if (dimensions) {
-                    panelDimensions = normalizePanelDimensions(dimensions);
-                    panel?.setOptions(panelDimensions);
+            const normalizeIncomingPanelSettings = (settings?: PanelSettings | PanelDimensions): PanelSettings => {
+                if (settings && 'dimensions' in settings) {
+                    return {
+                        dimensions: normalizePanelDimensions(settings.dimensions),
+                        preview: {
+                            ...DEFAULT_LINK_PREVIEW_SETTINGS,
+                            ...settings.preview,
+                        },
+                    };
+                }
+                return {
+                    dimensions: normalizePanelDimensions(settings),
+                    preview: { ...DEFAULT_LINK_PREVIEW_SETTINGS },
+                };
+            };
+
+            const togglePanel = (settings?: PanelSettings | PanelDimensions, isMobile?: boolean): void => {
+                if (settings) {
+                    panelSettings = normalizeIncomingPanelSettings(settings);
+                    panel?.setSettings(panelSettings);
                 }
 
                 if (panel?.isOpen()) {

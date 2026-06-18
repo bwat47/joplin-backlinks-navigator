@@ -88,10 +88,12 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
 - `src/contentScripts/ui/backlinksPanel.ts` — the floating panel UI: a two-tab strip
   (Backlinks / Links, each with a live count), filter input, fuzzy filtering, keyboard navigation
   (arrows/Tab/Enter/Escape, plus `Ctrl+Tab` to switch tabs), and per-tab loading/empty/error
-  states. The active list feeds the shared filter/render machinery. The panel owns the
-  **default-tab** policy: after each tab resolves, and until the user manually switches, it selects
-  backlinks if any exist, otherwise outgoing if any exist, otherwise backlinks — so this rule
-  governs every entry point (command/toolbar and indicator alike).
+  states. The active list feeds the shared filter/render machinery. Preview detail is a render-time
+  setting, separately configurable for backlinks and outgoing links (`title`, `title + snippet`,
+  or `title + snippet + nearest heading`). The panel owns the **default-tab** policy: after each
+  tab resolves, and until the user manually switches, it selects backlinks if any exist, otherwise
+  outgoing if any exist, otherwise backlinks — so this rule governs every entry point
+  (command/toolbar and indicator alike).
 - `src/contentScripts/ui/backlinkIndicator.ts` — an optional clickable badge (icon + per-direction
   counts, `← n` backlinks / `→ n` outgoing, each shown only when non-zero) floated in the editor's
   top-right when the current note has any links. Gated by the "show indicator" setting (default
