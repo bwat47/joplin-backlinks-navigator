@@ -1,8 +1,9 @@
-import type { BacklinkItem } from '../../types';
+import type { LinkItem } from '../../types';
 import { fuzzyFilter } from './fuzzyFilter';
 
-function backlink(id: string, title: string): BacklinkItem {
+function backlink(id: string, title: string): LinkItem {
     return {
+        direction: 'in',
         id,
         noteId: id,
         occurrenceIndex: 0,

@@ -41,6 +41,45 @@ export function createPanelCss(dimensions: PanelDimensions): string {
     overflow: hidden;
 }
 
+.backlinks-navigator-tabs {
+    display: flex;
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--joplin-divider-color, #dddddd);
+}
+
+.backlinks-navigator-tab {
+    flex: 1 1 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background-color: transparent;
+    color: var(--joplin-color-faded, #7c8b9e);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+}
+
+.backlinks-navigator-tab:hover {
+    background-color: color-mix(in srgb, var(--joplin-selected-color, #e5e5e5) 40%, transparent);
+}
+
+.backlinks-navigator-tab.is-active {
+    color: var(--joplin-color, #32373f);
+    border-bottom-color: var(--joplin-color4, #2b6cb0);
+}
+
+.backlinks-navigator-tab-count {
+    font-size: 11px;
+    font-weight: 700;
+    opacity: 0.85;
+}
+
 .backlinks-navigator-input {
     padding: 8px;
     border: none;
@@ -220,6 +259,11 @@ export function createPanelCss(dimensions: PanelDimensions): string {
 .backlinks-navigator-panel.is-mobile .backlinks-navigator-input {
     padding: 12px;
     font-size: 16px; /* Prevents iOS zoom on focus */
+}
+
+.backlinks-navigator-panel.is-mobile .backlinks-navigator-tab {
+    padding: 12px 10px;
+    font-size: 15px;
 }
 `;
 }

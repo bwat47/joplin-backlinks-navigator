@@ -10,9 +10,16 @@ const LINK_ICON_SVG =
     '<path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>' +
     '</svg>';
 
+/** Counts of links related to the current note, by direction. */
+export interface IndicatorCounts {
+    backlinks: number;
+    outgoing: number;
+}
+
 /**
  * Small clickable badge mounted in the top-right of the editor that signals the current
- * note has backlinks. Shows a link icon and the backlink count; clicking it opens the panel.
+ * note has links. Shows a link icon and, per direction, the count of backlinks (inbound) and
+ * outgoing links (outbound); clicking it opens the panel.
  *
  * Mounted as a floating overlay in the editor's scroll DOM (not via CodeMirror's full-width
  * Panel API), positioned to mirror the backlinks panel.
@@ -22,7 +29,9 @@ export class BacklinkIndicator {
 
     private readonly button: HTMLButtonElement;
 
-    private readonly countEl: HTMLSpanElement;
+    private readonly backlinksCountEl: HTMLSpanElement;
+
+    private readonly outgoingCountEl: HTMLSpanElement;
 
     private readonly onClick: () => void;
 
@@ -33,18 +42,21 @@ export class BacklinkIndicator {
         this.button = document.createElement('button');
         this.button.type = 'button';
         this.button.className = 'backlinks-navigator-indicator';
-        this.button.title = 'Show backlinks';
         this.button.style.display = 'none';
 
         const icon = document.createElement('span');
         icon.className = 'backlinks-navigator-indicator-icon';
         icon.innerHTML = LINK_ICON_SVG;
 
-        this.countEl = document.createElement('span');
-        this.countEl.className = 'backlinks-navigator-indicator-count';
+        // "←" = inbound (backlinks), "→" = outbound (outgoing links).
+        this.backlinksCountEl = document.createElement('span');
+        this.backlinksCountEl.className = 'backlinks-navigator-indicator-count is-backlinks';
+        this.outgoingCountEl = document.createElement('span');
+        this.outgoingCountEl.className = 'backlinks-navigator-indicator-count is-outgoing';
 
         this.button.appendChild(icon);
-        this.button.appendChild(this.countEl);
+        this.button.appendChild(this.backlinksCountEl);
+        this.button.appendChild(this.outgoingCountEl);
 
         this.button.addEventListener('click', (event: MouseEvent) => {
             event.preventDefault();
@@ -53,12 +65,21 @@ export class BacklinkIndicator {
         });
     }
 
-    /** Shows the indicator with the given backlink count. */
-    public show(count: number): void {
+    /** Shows the indicator with the given link counts, hiding the side that has none. */
+    public show(counts: IndicatorCounts): void {
         this.mount();
-        this.countEl.textContent = String(count);
-        this.button.title = `Show backlinks (${count})`;
-        this.button.setAttribute('aria-label', `${count} backlink${count === 1 ? '' : 's'}`);
+
+        const showBacklinks = counts.backlinks > 0;
+        const showOutgoing = counts.outgoing > 0;
+
+        this.backlinksCountEl.textContent = showBacklinks ? `← ${counts.backlinks}` : '';
+        this.backlinksCountEl.style.display = showBacklinks ? 'inline' : 'none';
+        this.outgoingCountEl.textContent = showOutgoing ? `→ ${counts.outgoing}` : '';
+        this.outgoingCountEl.style.display = showOutgoing ? 'inline' : 'none';
+
+        const label = describeCounts(counts);
+        this.button.title = `Show links (${label})`;
+        this.button.setAttribute('aria-label', label);
         this.button.style.display = 'inline-flex';
     }
 
@@ -88,6 +109,18 @@ export class BacklinkIndicator {
         const scrollbarWidth = scrollDOM.offsetWidth - scrollDOM.clientWidth;
         this.button.style.right = `${scrollbarWidth + INDICATOR_RIGHT_GAP_PX}px`;
     }
+}
+
+/** Builds a human-readable summary like "3 backlinks, 5 outgoing links" (omitting a zero side). */
+function describeCounts(counts: IndicatorCounts): string {
+    const parts: string[] = [];
+    if (counts.backlinks > 0) {
+        parts.push(`${counts.backlinks} backlink${counts.backlinks === 1 ? '' : 's'}`);
+    }
+    if (counts.outgoing > 0) {
+        parts.push(`${counts.outgoing} outgoing link${counts.outgoing === 1 ? '' : 's'}`);
+    }
+    return parts.join(', ');
 }
 
 function ensureIndicatorStyles(view: EditorView): void {

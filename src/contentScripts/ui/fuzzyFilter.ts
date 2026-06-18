@@ -1,28 +1,28 @@
 /**
- * Fuzzy search filtering and highlighting for backlink entries.
+ * Fuzzy search filtering and highlighting for link entries.
  *
  * Uses fuzzysort for Sublime Text-like fuzzy matching against note titles.
  */
 
 import fuzzysort from 'fuzzysort';
-import type { BacklinkItem } from '../../types';
+import type { LinkItem } from '../../types';
 
 const FUZZY_THRESHOLD = -10000;
 const FUZZY_LIMIT = 200;
 
 /**
- * Filters and ranks backlinks by fuzzy match score against their title.
+ * Filters and ranks links by fuzzy match score against their title.
  *
- * When query is empty, returns the backlinks in their original (title-sorted) order.
+ * When query is empty, returns the links in their original (title-sorted) order.
  */
-export function fuzzyFilter(query: string, backlinks: BacklinkItem[]): BacklinkItem[] {
+export function fuzzyFilter(query: string, links: LinkItem[]): LinkItem[] {
     const normalized = query.trim();
 
     if (!normalized) {
-        return [...backlinks];
+        return [...links];
     }
 
-    const results = fuzzysort.go(normalized, backlinks, {
+    const results = fuzzysort.go(normalized, links, {
         key: 'title',
         limit: FUZZY_LIMIT,
         threshold: FUZZY_THRESHOLD,
