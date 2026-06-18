@@ -49,8 +49,10 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             // the note we came from. On Desktop, the same EditorView is reused across note switches, so this
             // closure state survives the navigation.
             let pendingScroll: { targetNoteId: string; needle: string; occurrenceIndex: number } | null = null;
-            // Links for the current note, cached when the indicator is enabled so the panel can
-            // open instantly. `null` means "not fetched" (indicator off, or not yet loaded).
+            // Link counts backing the indicator badge, populated only when the indicator is enabled.
+            // `null` means "indicator off / not fetched"; that null-vs-array distinction also acts as
+            // the "is the indicator enabled?" proxy when the panel refreshes these after a fresh load.
+            // The panel itself always fetches fresh and does not read these.
             let currentNoteBacklinks: LinkItem[] | null = null;
             let currentNoteOutgoing: LinkItem[] | null = null;
             let indicatorSeq = 0;
@@ -264,7 +266,13 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     if (seq !== requestSeq || !panel?.isOpen()) {
                         return;
                     }
-                    panel.setLinks('in', Array.isArray(response) ? response : []);
+                    const backlinks = Array.isArray(response) ? response : [];
+                    panel.setLinks('in', backlinks);
+                    // Keep the badge's count fresh, but only when the indicator is enabled
+                    // (a non-null cache is the proxy for "enabled").
+                    if (currentNoteBacklinks !== null) {
+                        currentNoteBacklinks = backlinks;
+                    }
                 } catch (error) {
                     logger.error('Failed to load backlinks', error);
                     if (seq === requestSeq && panel?.isOpen()) {
@@ -280,7 +288,13 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     if (seq !== requestSeq || !panel?.isOpen()) {
                         return;
                     }
-                    panel.setLinks('out', Array.isArray(response) ? response : []);
+                    const outgoing = Array.isArray(response) ? response : [];
+                    panel.setLinks('out', outgoing);
+                    // Keep the badge's count fresh, but only when the indicator is enabled
+                    // (a non-null cache is the proxy for "enabled").
+                    if (currentNoteOutgoing !== null) {
+                        currentNoteOutgoing = outgoing;
+                    }
                 } catch (error) {
                     logger.error('Failed to load outgoing links', error);
                     if (seq === requestSeq && panel?.isOpen()) {
@@ -304,18 +318,11 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 requestSeq += 1;
                 const seq = requestSeq;
 
-                // Use the indicator's cached results for an instant open when available, else fetch.
-                if (currentNoteBacklinks) {
-                    activePanel.setLinks('in', currentNoteBacklinks);
-                } else {
-                    void loadBacklinks(noteId, seq);
-                }
-
-                if (currentNoteOutgoing) {
-                    activePanel.setLinks('out', currentNoteOutgoing);
-                } else {
-                    void loadOutgoing(noteId, seq);
-                }
+                // Always fetch fresh so the panel can't show stale results (e.g. after editing links
+                // since the note loaded). The load handlers also refresh the indicator's cached
+                // counts, so clicking the badge brings it up to date too.
+                void loadBacklinks(noteId, seq);
+                void loadOutgoing(noteId, seq);
             };
 
             const refreshIndicator = async (attempt = 0): Promise<void> => {

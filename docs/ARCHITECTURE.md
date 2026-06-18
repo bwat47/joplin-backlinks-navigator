@@ -65,9 +65,9 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
 
 - `src/contentScripts/backlinksNavigator.ts` — reads the note id from
   `editorControl.joplinExtensions.noteIdFacet`, registers the `togglePanel` editor command,
-  opens the panel in a loading state, fetches **both** backlinks and outgoing links in parallel
-  (`setLinks('in', …)` / `setLinks('out', …)`), and forwards clicks to the host. A monotonic request
-  token prevents a slow response from populating a stale/closed panel. When a **backlink** is
+  opens the panel in a loading state, always fetches **both** backlinks and outgoing links fresh in
+  parallel (`setLinks('in', …)` / `setLinks('out', …)`), and forwards clicks to the host. A monotonic
+  request token prevents a slow response from populating a stale/closed panel. When a **backlink** is
   selected it records a "pending scroll" (the target note id, the `:/<currentNoteId>` needle, and
   the selected occurrence index) before navigating; once the target note loads it scrolls to that
   occurrence. **Outgoing** links just open the target note (there's no reference-back to scroll to). The cursor is placed at the start of the
@@ -96,8 +96,10 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
   counts, `← n` backlinks / `→ n` outgoing, each shown only when non-zero) floated in the editor's
   top-right when the current note has any links. Gated by the "show indicator" setting (default
   off). On note load the entry sends `getIndicatorState` (debounced); when enabled it caches both
-  directions so the badge shows the counts and clicking it (`openPanel`) opens the panel instantly
-  from cache. The badge hides while the panel is open (same corner) and clears on note switch.
+  directions purely to drive the badge counts (the panel does not read this cache). The badge hides
+  while the panel is open (same corner) and clears on note switch. The panel always fetches fresh
+  on open (see below), and those fresh results refresh the badge cache too, so clicking a
+  temporarily-stale badge brings both the panel and the badge up to date.
 - `src/contentScripts/ui/noteIdWatcher.ts` — a transaction extender that reports note-id
   changes (note switch); the entry uses it to close the panel and trigger the pending scroll.
 - `src/contentScripts/theme/panelTheme.ts` — CSS using `var(--joplin-*)` theme variables,
