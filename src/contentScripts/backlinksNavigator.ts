@@ -18,8 +18,14 @@ import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL } from '../constants';
-import type { BacklinkItem, PanelDimensions } from '../types';
-import type { ContentScriptToPluginMessage, GetBacklinksResponse, IndicatorState } from '../messages';
+import type { LinkItem, PanelDimensions, PanelSettings } from '../types';
+import { DEFAULT_LINK_PREVIEW_SETTINGS } from '../types';
+import type {
+    ContentScriptToPluginMessage,
+    GetBacklinksResponse,
+    GetOutgoingLinksResponse,
+    IndicatorState,
+} from '../messages';
 import { normalizePanelDimensions } from '../panelDimensions';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
@@ -37,16 +43,22 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             // destroys the editor (note close, plugin disable), they are cleaned up automatically.
             const view = editorControl.editor as EditorView;
             let panel: BacklinksPanel | null = null;
-            let panelDimensions: PanelDimensions = normalizePanelDimensions();
+            let panelSettings: PanelSettings = {
+                dimensions: normalizePanelDimensions(),
+                preview: { ...DEFAULT_LINK_PREVIEW_SETTINGS },
+            };
             // Monotonic token so a slow backlink response can't populate a stale/closed panel.
             let requestSeq = 0;
             // After navigating to a backlink, scroll the target note to the line that references
             // the note we came from. On Desktop, the same EditorView is reused across note switches, so this
             // closure state survives the navigation.
             let pendingScroll: { targetNoteId: string; needle: string; occurrenceIndex: number } | null = null;
-            // Backlinks for the current note, cached when the indicator is enabled so the panel
-            // can open instantly. `null` means "not fetched" (indicator off, or not yet loaded).
-            let currentNoteBacklinks: BacklinkItem[] | null = null;
+            // Link counts backing the indicator badge, populated only when the indicator is enabled.
+            // `null` means "indicator off / not fetched"; that null-vs-array distinction also acts as
+            // the "is the indicator enabled?" proxy when the panel refreshes these after a fresh load.
+            // The panel itself always fetches fresh and does not read these.
+            let currentNoteBacklinks: LinkItem[] | null = null;
+            let currentNoteOutgoing: LinkItem[] | null = null;
             let indicatorSeq = 0;
             let indicatorTimer: number | null = null;
             const noteIdFacet = editorControl.joplinExtensions?.noteIdFacet;
@@ -78,9 +90,10 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     indicator.hide();
                     return;
                 }
-                const count = currentNoteBacklinks?.length ?? 0;
-                if (count > 0) {
-                    indicator.show(count);
+                const backlinks = currentNoteBacklinks?.length ?? 0;
+                const outgoing = currentNoteOutgoing?.length ?? 0;
+                if (backlinks + outgoing > 0) {
+                    indicator.show({ backlinks, outgoing });
                 } else {
                     indicator.hide();
                 }
@@ -97,40 +110,42 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             };
 
             const navigateTo = async (
-                backlink: BacklinkItem,
+                link: LinkItem,
                 mode: 'current' | 'ctrlClick' | 'ctrlEnter' = 'current'
             ): Promise<void> => {
                 if (mode !== 'current') {
                     const message: ContentScriptToPluginMessage = {
                         type: 'openNote',
-                        noteId: backlink.noteId,
+                        noteId: link.noteId,
                         mode,
                     };
                     try {
                         await context.postMessage(message);
                     } catch (error) {
-                        logger.error('Failed to open backlink with alternate behavior', { mode, error });
+                        logger.error('Failed to open link with alternate behavior', { mode, error });
                     }
                     return;
                 }
 
-                // Record where to scroll once the target note loads: the occurrence that links back to
-                // the note we're currently viewing (`:/<currentNoteId>`).
+                // For a backlink, record where to scroll once the target note loads: the occurrence
+                // that links back to the note we're currently viewing (`:/<currentNoteId>`). Outgoing
+                // links just open the target note (there's no reference-back to scroll to).
                 const currentNoteId = resolveNoteId();
-                pendingScroll = currentNoteId
-                    ? {
-                          targetNoteId: backlink.noteId,
-                          needle: `:/${currentNoteId}`,
-                          occurrenceIndex: backlink.occurrenceIndex,
-                      }
-                    : null;
+                pendingScroll =
+                    link.direction === 'in' && currentNoteId
+                        ? {
+                              targetNoteId: link.noteId,
+                              needle: `:/${currentNoteId}`,
+                              occurrenceIndex: link.occurrenceIndex,
+                          }
+                        : null;
 
-                const message: ContentScriptToPluginMessage = { type: 'openNote', noteId: backlink.noteId };
+                const message: ContentScriptToPluginMessage = { type: 'openNote', noteId: link.noteId };
                 closePanel(false);
                 try {
                     await context.postMessage(message);
                 } catch (error) {
-                    logger.error('Failed to navigate to backlink', error);
+                    logger.error('Failed to navigate to link', error);
                     pendingScroll = null;
                 }
             };
@@ -206,8 +221,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             };
 
             const handleNoteChange = (noteId: string): void => {
-                // New note: drop the stale cache (and its indicator) before closing the panel.
+                // New note: drop the stale caches (and their indicator) before closing the panel.
                 currentNoteBacklinks = null;
+                currentNoteOutgoing = null;
                 closePanel(false);
 
                 if (pendingScroll) {
@@ -226,20 +242,20 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     panel = new BacklinksPanel(
                         view,
                         {
-                            onSelect: (backlink) => {
-                                void navigateTo(backlink);
+                            onSelect: (link) => {
+                                void navigateTo(link);
                             },
-                            onCtrlClickSelect: (backlink) => {
-                                return navigateTo(backlink, 'ctrlClick');
+                            onCtrlClickSelect: (link) => {
+                                return navigateTo(link, 'ctrlClick');
                             },
-                            onCtrlEnterSelect: (backlink) => {
-                                return navigateTo(backlink, 'ctrlEnter');
+                            onCtrlEnterSelect: (link) => {
+                                return navigateTo(link, 'ctrlEnter');
                             },
                             onClose: (reason: PanelCloseReason) => {
                                 closePanel(reason === 'escape');
                             },
                         },
-                        panelDimensions,
+                        panelSettings,
                         isMobile
                     );
                 }
@@ -254,11 +270,39 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     if (seq !== requestSeq || !panel?.isOpen()) {
                         return;
                     }
-                    panel.setBacklinks(Array.isArray(response) ? response : []);
+                    const backlinks = Array.isArray(response) ? response : [];
+                    panel.setLinks('in', backlinks);
+                    // Keep the badge's count fresh, but only when the indicator is enabled
+                    // (a non-null cache is the proxy for "enabled").
+                    if (currentNoteBacklinks !== null) {
+                        currentNoteBacklinks = backlinks;
+                    }
                 } catch (error) {
                     logger.error('Failed to load backlinks', error);
                     if (seq === requestSeq && panel?.isOpen()) {
-                        panel.setError('Failed to load backlinks');
+                        panel.setError('in', 'Failed to load backlinks');
+                    }
+                }
+            };
+
+            const loadOutgoing = async (noteId: string, seq: number): Promise<void> => {
+                const message: ContentScriptToPluginMessage = { type: 'getOutgoingLinks', noteId };
+                try {
+                    const response = (await context.postMessage(message)) as GetOutgoingLinksResponse;
+                    if (seq !== requestSeq || !panel?.isOpen()) {
+                        return;
+                    }
+                    const outgoing = Array.isArray(response) ? response : [];
+                    panel.setLinks('out', outgoing);
+                    // Keep the badge's count fresh, but only when the indicator is enabled
+                    // (a non-null cache is the proxy for "enabled").
+                    if (currentNoteOutgoing !== null) {
+                        currentNoteOutgoing = outgoing;
+                    }
+                } catch (error) {
+                    logger.error('Failed to load outgoing links', error);
+                    if (seq === requestSeq && panel?.isOpen()) {
+                        panel.setError('out', 'Failed to load outgoing links');
                     }
                 }
             };
@@ -270,18 +314,19 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 indicator.hide(); // The panel occupies the indicator's corner.
 
                 if (!noteId) {
-                    activePanel.setError('Could not determine the current note');
-                    return;
-                }
-
-                // Use the indicator's cached results for an instant open when available.
-                if (currentNoteBacklinks) {
-                    activePanel.setBacklinks(currentNoteBacklinks);
+                    activePanel.setError('in', 'Could not determine the current note');
+                    activePanel.setError('out', 'Could not determine the current note');
                     return;
                 }
 
                 requestSeq += 1;
-                void loadBacklinks(noteId, requestSeq);
+                const seq = requestSeq;
+
+                // Always fetch fresh so the panel can't show stale results (e.g. after editing links
+                // since the note loaded). The load handlers also refresh the indicator's cached
+                // counts, so clicking the badge brings it up to date too.
+                void loadBacklinks(noteId, seq);
+                void loadOutgoing(noteId, seq);
             };
 
             const refreshIndicator = async (attempt = 0): Promise<void> => {
@@ -312,6 +357,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 }
 
                 currentNoteBacklinks = state?.enabled ? (Array.isArray(state.backlinks) ? state.backlinks : []) : null;
+                currentNoteOutgoing = state?.enabled ? (Array.isArray(state.outgoing) ? state.outgoing : []) : null;
                 syncIndicator();
             };
 
@@ -325,10 +371,26 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 }, INDICATOR_DEBOUNCE_MS);
             };
 
-            const togglePanel = (dimensions?: PanelDimensions, isMobile?: boolean): void => {
-                if (dimensions) {
-                    panelDimensions = normalizePanelDimensions(dimensions);
-                    panel?.setOptions(panelDimensions);
+            const normalizeIncomingPanelSettings = (settings?: PanelSettings | PanelDimensions): PanelSettings => {
+                if (settings && 'dimensions' in settings) {
+                    return {
+                        dimensions: normalizePanelDimensions(settings.dimensions),
+                        preview: {
+                            ...DEFAULT_LINK_PREVIEW_SETTINGS,
+                            ...settings.preview,
+                        },
+                    };
+                }
+                return {
+                    dimensions: normalizePanelDimensions(settings),
+                    preview: { ...DEFAULT_LINK_PREVIEW_SETTINGS },
+                };
+            };
+
+            const togglePanel = (settings?: PanelSettings | PanelDimensions, isMobile?: boolean): void => {
+                if (settings) {
+                    panelSettings = normalizeIncomingPanelSettings(settings);
+                    panel?.setSettings(panelSettings);
                 }
 
                 if (panel?.isOpen()) {

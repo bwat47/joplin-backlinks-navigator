@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import type { BacklinkItem, PanelDimensions } from '../../types';
+import type { LinkDirection, LinkItem, PanelSettings } from '../../types';
 import { createPanelCss } from '../theme/panelTheme';
 import { fuzzyFilter, highlightMatch } from './fuzzyFilter';
 
@@ -9,8 +9,8 @@ const PANEL_RIGHT_GAP_PX = 8;
 
 export type PanelCloseReason = 'escape' | 'blur';
 
-type PanelState = 'loading' | 'ready' | 'error';
-type SelectCallback = (backlink: BacklinkItem) => Promise<void> | void;
+type TabState = 'loading' | 'ready' | 'error';
+type SelectCallback = (link: LinkItem) => Promise<void> | void;
 
 export interface PanelCallbacks {
     onSelect: SelectCallback;
@@ -19,39 +19,59 @@ export interface PanelCallbacks {
     onClose: (reason: PanelCloseReason) => void;
 }
 
+interface TabModel {
+    items: LinkItem[];
+    state: TabState;
+    error: string;
+}
+
+const TAB_LABELS: Record<LinkDirection, string> = {
+    in: 'Backlinks',
+    out: 'Links',
+};
+
 /**
- * Floating panel UI listing the backlinks for the current note.
+ * Floating panel UI listing the links related to the current note, split into two tabs:
+ * inbound backlinks (`in`) and outbound links (`out`).
  *
- * Renders a filterable, keyboard-navigable list of notes that link to the current
- * note. The panel opens in a loading state; the content script then populates it
- * with results (or an error message) once the plugin host responds.
+ * Renders a filterable, keyboard-navigable list for the active tab. The panel opens in a loading
+ * state; the content script then populates each tab (or an error message) once the plugin host
+ * responds. The active tab is auto-selected from the resolved counts (backlinks if any exist,
+ * otherwise outgoing) until the user manually switches.
  *
- * Each entry shows the linking note's title, its parent notebook, and a snippet of
- * the line containing the link. Selecting an entry invokes `onSelect`, which the
- * content script forwards to the host for navigation.
+ * Each entry shows the linked note's title, its parent notebook, and a snippet of the line
+ * containing the link. Selecting an entry invokes `onSelect`, which the content script forwards
+ * to the host for navigation (using the entry's `direction` to decide the behavior).
  */
 export class BacklinksPanel {
     private readonly view: EditorView;
 
     private readonly container: HTMLDivElement;
 
+    private readonly tabBar: HTMLDivElement;
+
+    private readonly tabButtons: Record<LinkDirection, HTMLButtonElement>;
+
     private readonly input: HTMLInputElement;
 
     private readonly list: HTMLUListElement;
 
-    private backlinks: BacklinkItem[] = [];
+    private readonly tabs: Record<LinkDirection, TabModel> = {
+        in: { items: [], state: 'loading', error: '' },
+        out: { items: [], state: 'loading', error: '' },
+    };
 
-    private filtered: BacklinkItem[] = [];
+    private activeTab: LinkDirection = 'in';
+
+    private userSwitchedTab = false;
+
+    private filtered: LinkItem[] = [];
 
     private selectedId: string | null = null;
 
     private filterText = '';
 
-    private state: PanelState = 'loading';
-
-    private errorMessage = '';
-
-    private options: PanelDimensions;
+    private settings: PanelSettings;
 
     private filterDebounceTimer: number | null = null;
 
@@ -69,6 +89,8 @@ export class BacklinksPanel {
 
     private readonly handleListClickListener: (event: MouseEvent) => void;
 
+    private readonly handleTabClickListener: (event: MouseEvent) => void;
+
     private readonly handleDocumentMouseDownListener: (event: MouseEvent) => void;
 
     private scrollerObserver: ResizeObserver | null = null;
@@ -76,7 +98,7 @@ export class BacklinksPanel {
     public constructor(
         view: EditorView,
         callbacks: PanelCallbacks,
-        options: PanelDimensions,
+        settings: PanelSettings,
         private readonly isMobile = false
     ) {
         this.view = view;
@@ -84,7 +106,7 @@ export class BacklinksPanel {
         this.onCtrlClickSelect = callbacks.onCtrlClickSelect;
         this.onCtrlEnterSelect = callbacks.onCtrlEnterSelect;
         this.onClose = callbacks.onClose;
-        this.options = options;
+        this.settings = settings;
 
         this.container = document.createElement('div');
         this.container.className = 'backlinks-navigator-panel';
@@ -92,9 +114,19 @@ export class BacklinksPanel {
             this.container.classList.add('is-mobile');
         }
 
+        this.tabBar = document.createElement('div');
+        this.tabBar.className = 'backlinks-navigator-tabs';
+        this.tabButtons = {
+            in: this.createTabButton('in'),
+            out: this.createTabButton('out'),
+        };
+        this.tabBar.appendChild(this.tabButtons.in);
+        this.tabBar.appendChild(this.tabButtons.out);
+        this.container.appendChild(this.tabBar);
+
         this.input = document.createElement('input');
         this.input.type = 'search';
-        this.input.placeholder = 'Filter backlinks';
+        this.input.placeholder = 'Filter';
         this.input.className = 'backlinks-navigator-input';
         this.container.appendChild(this.input);
 
@@ -105,6 +137,7 @@ export class BacklinksPanel {
         this.handleInputListener = () => this.scheduleFilterUpdate();
         this.handleKeyDownListener = (event: KeyboardEvent) => this.handleKeyDown(event);
         this.handleListClickListener = (event: MouseEvent) => this.handleListClick(event);
+        this.handleTabClickListener = (event: MouseEvent) => this.handleTabClick(event);
         this.handleDocumentMouseDownListener = (event: MouseEvent) => {
             const target = event.target as Node | null;
             if (target && !this.container.contains(target)) {
@@ -115,6 +148,7 @@ export class BacklinksPanel {
         this.input.addEventListener('input', this.handleInputListener);
         this.input.addEventListener('keydown', this.handleKeyDownListener);
         this.list.addEventListener('click', this.handleListClickListener);
+        this.tabBar.addEventListener('click', this.handleTabClickListener);
         this.view.dom.ownerDocument!.addEventListener('mousedown', this.handleDocumentMouseDownListener, true);
     }
 
@@ -126,9 +160,12 @@ export class BacklinksPanel {
         this.input.value = '';
         this.filterText = '';
         this.selectedId = null;
-        this.backlinks = [];
         this.filtered = [];
-        this.state = 'loading';
+        this.activeTab = 'in';
+        this.userSwitchedTab = false;
+        this.tabs.in = { items: [], state: 'loading', error: '' };
+        this.tabs.out = { items: [], state: 'loading', error: '' };
+        this.updateTabButtons();
         this.render();
         requestAnimationFrame(() => {
             if (this.isOpen()) {
@@ -138,27 +175,26 @@ export class BacklinksPanel {
     }
 
     /**
-     * Populates the panel with the resolved backlinks (terminal "ready" state).
+     * Populates a tab with its resolved links (terminal "ready" state).
      */
-    public setBacklinks(backlinks: BacklinkItem[]): void {
-        this.backlinks = backlinks;
-        this.state = 'ready';
-        this.applyFilter(this.input.value);
+    public setLinks(direction: LinkDirection, links: LinkItem[]): void {
+        this.tabs[direction] = { items: links, state: 'ready', error: '' };
+        this.afterTabResolved(direction);
     }
 
     /**
-     * Shows an error message in place of the list.
+     * Shows an error message in place of a tab's list.
      */
-    public setError(message: string): void {
-        this.state = 'error';
-        this.errorMessage = message;
-        this.render();
+    public setError(direction: LinkDirection, message: string): void {
+        this.tabs[direction] = { items: [], state: 'error', error: message };
+        this.afterTabResolved(direction);
     }
 
     public destroy(): void {
         this.input.removeEventListener('input', this.handleInputListener);
         this.input.removeEventListener('keydown', this.handleKeyDownListener);
         this.list.removeEventListener('click', this.handleListClickListener);
+        this.tabBar.removeEventListener('click', this.handleTabClickListener);
         this.view.dom.ownerDocument!.removeEventListener('mousedown', this.handleDocumentMouseDownListener, true);
 
         if (this.filterDebounceTimer !== null) {
@@ -178,13 +214,108 @@ export class BacklinksPanel {
         return Boolean(this.container.parentElement);
     }
 
-    public setOptions(options: PanelDimensions): void {
-        this.options = options;
-        ensurePanelStyles(this.view, this.options);
+    public setSettings(settings: PanelSettings): void {
+        this.settings = settings;
+        ensurePanelStyles(this.view, this.settings);
+        this.render();
+    }
+
+    private createTabButton(direction: LinkDirection): HTMLButtonElement {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'backlinks-navigator-tab';
+        button.dataset.tab = direction;
+
+        const label = document.createElement('span');
+        label.textContent = TAB_LABELS[direction];
+        button.appendChild(label);
+
+        const count = document.createElement('span');
+        count.className = 'backlinks-navigator-tab-count';
+        button.appendChild(count);
+
+        return button;
+    }
+
+    /**
+     * Updates tab counts and, unless the user has manually switched tabs, re-evaluates which tab
+     * should be active given the directions resolved so far. Then refreshes the active list.
+     */
+    private afterTabResolved(direction: LinkDirection): void {
+        const previousActive = this.activeTab;
+        const nextActive = this.applyDefaultTab();
+        const activeChanged = nextActive !== previousActive;
+        if (activeChanged) {
+            this.activeTab = nextActive;
+            this.selectedId = null;
+        }
+        this.updateTabButtons();
+        // Re-filter when the active tab changed or the tab on screen just got its data.
+        if (activeChanged || direction === this.activeTab) {
+            this.applyFilter(this.input.value);
+        }
+    }
+
+    /**
+     * Computes the tab to show based on resolved counts: backlinks if any exist, else outgoing if
+     * any exist, else backlinks. Tabs still loading are left undecided (keeps the current tab).
+     */
+    private applyDefaultTab(): LinkDirection {
+        if (this.userSwitchedTab) {
+            return this.activeTab;
+        }
+        const inResolved = this.tabs.in.state !== 'loading';
+        const outResolved = this.tabs.out.state !== 'loading';
+        const inCount = this.tabs.in.state === 'ready' ? this.tabs.in.items.length : 0;
+        const outCount = this.tabs.out.state === 'ready' ? this.tabs.out.items.length : 0;
+
+        if (inResolved && inCount > 0) {
+            return 'in';
+        }
+        if (outResolved && outCount > 0) {
+            return 'out';
+        }
+        if (inResolved && outResolved) {
+            return 'in';
+        }
+        return this.activeTab;
+    }
+
+    private updateTabButtons(): void {
+        (['in', 'out'] as LinkDirection[]).forEach((direction) => {
+            const button = this.tabButtons[direction];
+            const tab = this.tabs[direction];
+            button.classList.toggle('is-active', direction === this.activeTab);
+            const countEl = button.querySelector<HTMLSpanElement>('.backlinks-navigator-tab-count');
+            if (countEl) {
+                countEl.textContent = tab.state === 'ready' ? String(tab.items.length) : '';
+            }
+        });
+    }
+
+    private handleTabClick(event: MouseEvent): void {
+        const target = event.target as HTMLElement | null;
+        const button = target?.closest<HTMLButtonElement>('.backlinks-navigator-tab');
+        const direction = button?.dataset.tab as LinkDirection | undefined;
+        if (!direction || direction === this.activeTab) {
+            return;
+        }
+        this.switchTab(direction);
+    }
+
+    private switchTab(direction: LinkDirection): void {
+        this.userSwitchedTab = true;
+        this.activeTab = direction;
+        this.selectedId = null;
+        this.updateTabButtons();
+        this.applyFilter(this.input.value);
+        if (this.isOpen()) {
+            this.input.focus();
+        }
     }
 
     private mount(): void {
-        ensurePanelStyles(this.view, this.options);
+        ensurePanelStyles(this.view, this.settings);
 
         if (!this.container.parentElement) {
             const scrollRoot = this.view.scrollDOM.parentElement;
@@ -223,9 +354,14 @@ export class BacklinksPanel {
         }
     }
 
+    private get activeModel(): TabModel {
+        return this.tabs[this.activeTab];
+    }
+
     private applyFilter(filterText: string): void {
         this.filterText = filterText.trim();
-        this.filtered = this.state === 'ready' ? fuzzyFilter(this.filterText, this.backlinks) : [];
+        const model = this.activeModel;
+        this.filtered = model.state === 'ready' ? fuzzyFilter(this.filterText, model.items) : [];
 
         if (this.filtered.length === 0) {
             this.selectedId = null;
@@ -245,6 +381,10 @@ export class BacklinksPanel {
                 break;
             case 'Tab':
                 event.preventDefault();
+                if (event.ctrlKey) {
+                    this.switchTab(this.activeTab === 'in' ? 'out' : 'in');
+                    break;
+                }
                 this.flushPendingFilter();
                 this.moveSelection(event.shiftKey ? -1 : 1);
                 break;
@@ -281,12 +421,12 @@ export class BacklinksPanel {
         if (!this.selectedId) {
             return;
         }
-        const backlink = this.filtered.find((b) => b.id === this.selectedId);
-        if (backlink) {
+        const link = this.filtered.find((b) => b.id === this.selectedId);
+        if (link) {
             if (useCtrlEnterBehavior) {
-                this.refocusInputAfter(this.onCtrlEnterSelect(backlink));
+                this.refocusInputAfter(this.onCtrlEnterSelect(link));
             } else {
-                this.onSelect(backlink);
+                this.onSelect(link);
             }
         }
     }
@@ -297,18 +437,18 @@ export class BacklinksPanel {
         if (!itemElement) {
             return;
         }
-        const id = itemElement.dataset.backlinkId;
+        const id = itemElement.dataset.linkId;
         if (!id) {
             return;
         }
-        const backlink = this.filtered.find((b) => b.id === id);
-        if (backlink) {
+        const link = this.filtered.find((b) => b.id === id);
+        if (link) {
             this.selectedId = id;
             this.updateSelection();
             if (event.ctrlKey) {
-                this.refocusInputAfter(this.onCtrlClickSelect(backlink));
+                this.refocusInputAfter(this.onCtrlClickSelect(link));
             } else {
-                this.onSelect(backlink);
+                this.onSelect(link);
             }
         }
     }
@@ -324,16 +464,20 @@ export class BacklinksPanel {
     }
 
     private render(): void {
-        if (this.state === 'loading') {
-            this.renderMessage('Loading backlinks…');
+        const model = this.activeModel;
+        const noun = this.activeTab === 'in' ? 'backlinks' : 'links';
+
+        if (model.state === 'loading') {
+            this.renderMessage(`Loading ${noun}…`);
             return;
         }
-        if (this.state === 'error') {
-            this.renderMessage(this.errorMessage || 'Failed to load backlinks');
+        if (model.state === 'error') {
+            this.renderMessage(model.error || `Failed to load ${noun}`);
             return;
         }
         if (!this.filtered.length) {
-            this.renderMessage(this.filterText ? 'No matching backlinks' : 'No backlinks found');
+            const empty = this.activeTab === 'in' ? 'No backlinks found' : 'No outgoing links';
+            this.renderMessage(this.filterText ? `No matching ${noun}` : empty);
             return;
         }
         this.renderItems();
@@ -350,17 +494,17 @@ export class BacklinksPanel {
 
     private renderItems(): void {
         const fragment = document.createDocumentFragment();
-        for (const backlink of this.filtered) {
-            fragment.appendChild(this.createItem(backlink));
+        for (const link of this.filtered) {
+            fragment.appendChild(this.createItem(link));
         }
         this.list.replaceChildren(fragment);
     }
 
-    private createItem(backlink: BacklinkItem): HTMLLIElement {
+    private createItem(link: LinkItem): HTMLLIElement {
         const item = document.createElement('li');
         item.className = 'backlinks-navigator-item';
-        item.dataset.backlinkId = backlink.id;
-        if (backlink.id === this.selectedId) {
+        item.dataset.linkId = link.id;
+        if (link.id === this.selectedId) {
             item.classList.add('is-selected');
         }
 
@@ -369,12 +513,11 @@ export class BacklinksPanel {
 
         const title = document.createElement('span');
         title.className = 'backlinks-navigator-item-title';
-        title.appendChild(highlightMatch(backlink.title, this.filterText));
+        title.appendChild(highlightMatch(link.title, this.filterText));
         header.appendChild(title);
 
-        const occurrenceLabel =
-            backlink.occurrenceCount > 1 ? `${backlink.occurrenceIndex + 1}/${backlink.occurrenceCount}` : '';
-        const metadata = [backlink.notebookName, occurrenceLabel].filter(Boolean).join(' - ');
+        const occurrenceLabel = this.formatOccurrenceLabel(link);
+        const metadata = [link.notebookName, occurrenceLabel].filter(Boolean).join(' - ');
 
         if (metadata) {
             const notebook = document.createElement('span');
@@ -385,27 +528,38 @@ export class BacklinksPanel {
 
         item.appendChild(header);
 
-        if (backlink.section) {
+        const previewMode = this.settings.preview[link.direction];
+        const showSnippet = previewMode === 'titleSnippet' || previewMode === 'titleSnippetHeading';
+        const showHeading = previewMode === 'titleSnippetHeading';
+
+        if (showHeading && link.section) {
             const section = document.createElement('span');
             section.className = 'backlinks-navigator-item-section';
-            section.textContent = `§ ${backlink.section}`;
+            section.textContent = `§ ${link.section}`;
             item.appendChild(section);
         }
 
-        if (backlink.snippet) {
+        if (showSnippet && link.snippet) {
             const snippet = document.createElement('span');
             snippet.className = 'backlinks-navigator-item-snippet';
-            snippet.textContent = backlink.snippet;
+            snippet.textContent = link.snippet;
             item.appendChild(snippet);
         }
 
         return item;
     }
 
+    private formatOccurrenceLabel(link: LinkItem): string {
+        if (link.direction !== 'in' || link.occurrenceCount <= 1) {
+            return '';
+        }
+        return `${link.occurrenceIndex + 1}/${link.occurrenceCount}`;
+    }
+
     private updateSelection(): void {
         const items = this.list.querySelectorAll<HTMLLIElement>('.backlinks-navigator-item');
         items.forEach((item) => {
-            item.classList.toggle('is-selected', item.dataset.backlinkId === this.selectedId);
+            item.classList.toggle('is-selected', item.dataset.linkId === this.selectedId);
         });
     }
 
@@ -438,9 +592,10 @@ export class BacklinksPanel {
     }
 }
 
-function ensurePanelStyles(view: EditorView, options: PanelDimensions): void {
+function ensurePanelStyles(view: EditorView, settings: PanelSettings): void {
     const doc = view.dom.ownerDocument!;
     // Cache key based only on dimensions since CSS variables handle theme changes automatically.
+    const options = settings.dimensions;
     const signature = [options.width.toString(), options.maxHeightRatio.toFixed(4)].join('|');
 
     let style = doc.getElementById(PANEL_STYLE_ID) as HTMLStyleElement | null;

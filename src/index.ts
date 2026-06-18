@@ -27,8 +27,14 @@ import {
     loadShowIndicatorSetting,
     registerSettings,
 } from './settings';
-import type { ContentScriptToPluginMessage, GetBacklinksResponse, IndicatorState } from './messages';
+import type {
+    ContentScriptToPluginMessage,
+    GetBacklinksResponse,
+    GetOutgoingLinksResponse,
+    IndicatorState,
+} from './messages';
 import { findBacklinks } from './backlinksService';
+import { findOutgoingLinks } from './outgoingLinksService';
 import type { BacklinkOpenBehavior } from './types';
 
 type ResolvedOpenNoteMode = 'current' | BacklinkOpenBehavior;
@@ -87,9 +93,14 @@ async function findBacklinksWithSettings(noteId: string): Promise<GetBacklinksRe
     return findBacklinks(noteId, { ignoredNoteIds });
 }
 
+async function findOutgoingLinksWithSettings(noteId: string): Promise<GetOutgoingLinksResponse> {
+    const ignoredNoteIds = await loadIgnoredBacklinkNoteIdsSetting();
+    return findOutgoingLinks(noteId, { ignoredNoteIds });
+}
+
 async function handleMessage(
     message: ContentScriptToPluginMessage
-): Promise<GetBacklinksResponse | IndicatorState | void> {
+): Promise<GetBacklinksResponse | GetOutgoingLinksResponse | IndicatorState | void> {
     if (!message || typeof message !== 'object') {
         return;
     }
@@ -97,12 +108,19 @@ async function handleMessage(
     switch (message.type) {
         case 'getBacklinks':
             return findBacklinksWithSettings(message.noteId);
-        case 'getIndicatorState':
-            // Honor the setting before doing any backlink search.
+        case 'getOutgoingLinks':
+            return findOutgoingLinksWithSettings(message.noteId);
+        case 'getIndicatorState': {
+            // Honor the setting before doing any link discovery.
             if (!(await loadShowIndicatorSetting())) {
                 return { enabled: false };
             }
-            return { enabled: true, backlinks: await findBacklinksWithSettings(message.noteId) };
+            const [backlinks, outgoing] = await Promise.all([
+                findBacklinksWithSettings(message.noteId),
+                findOutgoingLinksWithSettings(message.noteId),
+            ]);
+            return { enabled: true, backlinks, outgoing };
+        }
         case 'openNote':
             await openNote(message.noteId, await resolveOpenNoteMode(message));
             return;
@@ -127,7 +145,7 @@ async function registerContentScripts(): Promise<void> {
 async function registerCommands(): Promise<void> {
     await joplin.commands.register({
         name: COMMAND_SHOW_BACKLINKS,
-        label: 'Show Backlinks',
+        label: 'Show Links',
         iconName: 'fas fa-link',
         execute: async () => {
             logger.info('Show Backlinks command triggered');
@@ -137,7 +155,7 @@ async function registerCommands(): Promise<void> {
 
             await joplin.commands.execute('editor.execCommand', {
                 name: EDITOR_COMMAND_TOGGLE_PANEL,
-                args: [panelSettings.dimensions, isMobile],
+                args: [panelSettings, isMobile],
             });
         },
     });

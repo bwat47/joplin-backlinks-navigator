@@ -11,17 +11,23 @@
  * - index.ts - Plugin host that receives and processes messages
  */
 
-import type { BacklinkItem } from './types';
+import type { LinkItem } from './types';
 
-/** Request the list of backlink occurrences that link to `noteId`. Host responds with `BacklinkItem[]`. */
+/** Request the list of backlink occurrences that link to `noteId`. Host responds with `LinkItem[]`. */
 export interface GetBacklinksMessage {
     type: 'getBacklinks';
     noteId: string;
 }
 
+/** Request the list of distinct notes that `noteId` links to. Host responds with `LinkItem[]`. */
+export interface GetOutgoingLinksMessage {
+    type: 'getOutgoingLinks';
+    noteId: string;
+}
+
 /**
  * Sent when a note loads to drive the top-right indicator. The host checks the
- * "show indicator" setting first and only runs a backlink search when it is enabled,
+ * "show indicator" setting first and only runs link discovery when it is enabled,
  * so this is cheap when the indicator is turned off. Host responds with {@link IndicatorState}.
  */
 export interface GetIndicatorStateMessage {
@@ -47,15 +53,20 @@ export interface OpenPanelMessage {
 
 export type ContentScriptToPluginMessage =
     | GetBacklinksMessage
+    | GetOutgoingLinksMessage
     | GetIndicatorStateMessage
     | OpenNoteMessage
     | OpenPanelMessage;
 
 /** Response returned by the host for a {@link GetBacklinksMessage}. */
-export type GetBacklinksResponse = BacklinkItem[];
+export type GetBacklinksResponse = LinkItem[];
+
+/** Response returned by the host for a {@link GetOutgoingLinksMessage}. */
+export type GetOutgoingLinksResponse = LinkItem[];
 
 /**
  * Response for a {@link GetIndicatorStateMessage}.
- * `enabled` is false when the indicator setting is off (no search was performed).
+ * `enabled` is false when the indicator setting is off (no search was performed); otherwise it
+ * carries both link directions so the badge can show both counts.
  */
-export type IndicatorState = { enabled: false } | { enabled: true; backlinks: BacklinkItem[] };
+export type IndicatorState = { enabled: false } | { enabled: true; backlinks: LinkItem[]; outgoing: LinkItem[] };

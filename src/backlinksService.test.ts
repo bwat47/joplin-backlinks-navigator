@@ -71,6 +71,7 @@ describe('findBacklinks', () => {
 
         await expect(findBacklinks(TARGET_NOTE_ID)).resolves.toEqual([
             {
+                direction: 'in',
                 id: 'note-a:0',
                 noteId: 'note-a',
                 occurrenceIndex: 0,
@@ -81,6 +82,7 @@ describe('findBacklinks', () => {
                 snippet: 'Diagram see Target',
             },
             {
+                direction: 'in',
                 id: 'note-z:0',
                 noteId: 'note-z',
                 occurrenceIndex: 0,
@@ -91,6 +93,7 @@ describe('findBacklinks', () => {
                 snippet: 'Current note and site',
             },
             {
+                direction: 'in',
                 id: 'note-z:1',
                 noteId: 'note-z',
                 occurrenceIndex: 1,
@@ -149,6 +152,7 @@ describe('findBacklinks', () => {
 
         await expect(findBacklinks(TARGET_NOTE_ID, { ignoredNoteIds: new Set(['note-z']) })).resolves.toEqual([
             {
+                direction: 'in',
                 id: 'note-a:0',
                 noteId: 'note-a',
                 occurrenceIndex: 0,

@@ -1,9 +1,12 @@
 # Architecture
 
-Backlinks Navigator shows a floating popup **inside the CodeMirror 6 markdown editor**
-listing every note that links to the current note. Clicking an entry navigates to that
-note. It deliberately does **not** use Joplin's panel/webview API — the UI is a `<div>`
-mounted into the editor's scroll DOM.
+Backlinks Navigator shows a floating popup **inside the CodeMirror 6 markdown editor** with two
+tabs: **Backlinks** (every note that links to the current note) and **Links** (every distinct note
+the current note links to). Clicking an entry navigates to that note. It deliberately does **not**
+use Joplin's panel/webview API — the UI is a `<div>` mounted into the editor's scroll DOM.
+
+The two directions share one row type, `LinkItem` (`src/types.ts`), distinguished by a `direction`
+field (`'in'` = backlink, `'out'` = outgoing link).
 
 ## Two execution contexts
 
@@ -22,25 +25,39 @@ Joplin's `postMessage` bridge.
 `context.postMessage(...)` resolves to whatever the host's `onMessage` handler returns, so
 this plugin uses real request/response (see `src/messages.ts`):
 
-- `{ type: 'getBacklinks', noteId }` → host returns `BacklinkItem[]`.
+- `{ type: 'getBacklinks', noteId }` → host returns `LinkItem[]` (backlinks).
+- `{ type: 'getOutgoingLinks', noteId }` → host returns `LinkItem[]` (distinct notes the current
+  note links to).
 - `{ type: 'getIndicatorState', noteId }` → host returns `{ enabled: false }` when the
-  "show indicator" setting is off (no search performed), otherwise `{ enabled: true, backlinks }`.
+  "show indicator" setting is off (no search performed), otherwise
+  `{ enabled: true, backlinks, outgoing }` (both directions, so the badge can show both counts).
 - `{ type: 'openNote', noteId, mode? }` → host opens the note in the current editor, or resolves the
   configured Ctrl-click/Ctrl-Enter behavior to open it in a new window or through Note Tabs, returns `void`.
 - `{ type: 'openPanel' }` → host runs the `Show Backlinks` command (so the panel opens with the
   configured dimensions and correct mobile flag), returns `void`.
 
-## Backlink discovery (host)
+## Link discovery (host)
 
-`src/backlinksService.ts`:
+Shared, Joplin-free helpers live in `src/linkExtraction.ts` (snippet cleaning, section lookup,
+occurrence/offset scanning, and `extractNoteLinks`/`extractOccurrenceContexts`). Note/notebook
+metadata resolution (with per-call memoization) lives in `src/noteMetadata.ts`, and the common row
+comparator in `src/linkSort.ts`.
+
+**Backlinks** — `src/backlinksService.ts`:
 
 1. Paginate `joplin.data.get(['search'], { query: noteId, fields: [...] })`. A 32-char note
    id is a single FTS token, so this returns candidate linking notes.
 2. Verify each candidate's body actually contains `:/<noteId>` (drops loose FTS matches) and
-   create one backlink row for each matching occurrence, using that occurrence's line as the
-   context snippet.
+   create one backlink row (`direction: 'in'`) for each matching occurrence, using that
+   occurrence's line as the context snippet.
 3. Resolve each note's parent notebook title (cached per call).
 4. Sort by title, then occurrence order within each note.
+
+**Outgoing links** — `src/outgoingLinksService.ts`: no FTS search needed. Fetch the current note's
+body, `extractNoteLinks` finds every `:/<id>` occurrence in document order, group **per distinct
+target note** (one row, `direction: 'out'`, `occurrenceCount` = number of links, snippet/section from
+the first occurrence). Self-links, ignored notes, and broken (unresolvable) links are skipped. Sort
+by title.
 
 Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
 
@@ -48,11 +65,12 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
 
 - `src/contentScripts/backlinksNavigator.ts` — reads the note id from
   `editorControl.joplinExtensions.noteIdFacet`, registers the `togglePanel` editor command,
-  opens the panel in a loading state, fetches backlinks, and forwards clicks to the host. A
-  monotonic request token prevents a slow response from populating a stale/closed panel.
-  When a backlink is selected it records a "pending scroll" (the target note id, the
-  `:/<currentNoteId>` needle, and the selected occurrence index) before navigating; once the
-  target note loads it scrolls to that occurrence. The cursor is placed at the start of the
+  opens the panel in a loading state, always fetches **both** backlinks and outgoing links fresh in
+  parallel (`setLinks('in', …)` / `setLinks('out', …)`), and forwards clicks to the host. A monotonic
+  request token prevents a slow response from populating a stale/closed panel. When a **backlink** is
+  selected it records a "pending scroll" (the target note id, the `:/<currentNoteId>` needle, and
+  the selected occurrence index) before navigating; once the target note loads it scrolls to that
+  occurrence. **Outgoing** links just open the target note (there's no reference-back to scroll to). The cursor is placed at the start of the
   enclosing markdown link (see `markdownLinkPosition.ts`) rather than inside the URL, and the
   matched reference is briefly highlighted (see `referenceHighlight.ts`). The same `EditorView`
   is reused across note switches on desktop, so this closure state survives navigation; a short
@@ -67,14 +85,23 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
   decorates the matched reference range with a `mark` highlight. The highlight is applied via
   `setReferenceHighlightEffect` and cleared automatically on the next selection change that isn't
   the originating dispatch, so it disappears as soon as the user moves the cursor.
-- `src/contentScripts/ui/backlinksPanel.ts` — the floating panel UI: filter input, fuzzy
-  filtering, keyboard navigation (arrows/Tab/Enter/Escape), and loading/empty/error states.
-- `src/contentScripts/ui/backlinkIndicator.ts` — an optional clickable badge (icon + count)
-  floated in the editor's top-right when the current note has backlinks. Gated by the
-  "show indicator" setting (default off). On note load the entry sends `getIndicatorState`
-  (debounced); when enabled it caches the result so the badge shows the count and clicking it
-  (`openPanel`) opens the panel instantly from cache. The badge hides while the panel is open
-  (same corner) and clears on note switch.
+- `src/contentScripts/ui/backlinksPanel.ts` — the floating panel UI: a two-tab strip
+  (Backlinks / Links, each with a live count), filter input, fuzzy filtering, keyboard navigation
+  (arrows/Tab/Enter/Escape, plus `Ctrl+Tab` to switch tabs), and per-tab loading/empty/error
+  states. The active list feeds the shared filter/render machinery. Preview detail is a render-time
+  setting, separately configurable for backlinks and outgoing links (`title`, `title + snippet`,
+  or `title + snippet + nearest heading`). The panel owns the **default-tab** policy: after each
+  tab resolves, and until the user manually switches, it selects backlinks if any exist, otherwise
+  outgoing if any exist, otherwise backlinks — so this rule governs every entry point
+  (command/toolbar and indicator alike).
+- `src/contentScripts/ui/backlinkIndicator.ts` — an optional clickable badge (icon + per-direction
+  counts, `← n` backlinks / `→ n` outgoing, each shown only when non-zero) floated in the editor's
+  top-right when the current note has any links. Gated by the "show indicator" setting (default
+  off). On note load the entry sends `getIndicatorState` (debounced); when enabled it caches both
+  directions purely to drive the badge counts (the panel does not read this cache). The badge hides
+  while the panel is open (same corner) and clears on note switch. The panel always fetches fresh
+  on open (see below), and those fresh results refresh the badge cache too, so clicking a
+  temporarily-stale badge brings both the panel and the badge up to date.
 - `src/contentScripts/ui/noteIdWatcher.ts` — a transaction extender that reports note-id
   changes (note switch); the entry uses it to close the panel and trigger the pending scroll.
 - `src/contentScripts/theme/panelTheme.ts` — CSS using `var(--joplin-*)` theme variables,

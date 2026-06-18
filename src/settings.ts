@@ -1,5 +1,5 @@
 /**
- * Joplin settings registration and loading for the backlinks panel.
+ * Joplin settings registration and loading for the links panel.
  *
  * Integrates panel configuration into Joplin's preferences UI.
  *
@@ -11,7 +11,8 @@
 import joplin from 'api';
 import { SettingItemType } from 'api/types';
 import logger from './logger';
-import type { BacklinkOpenBehavior, PanelDimensions } from './types';
+import type { BacklinkOpenBehavior, LinkPreviewMode, PanelSettings } from './types';
+import { DEFAULT_LINK_PREVIEW_SETTINGS } from './types';
 import {
     DEFAULT_PANEL_HEIGHT_PERCENTAGE,
     DEFAULT_PANEL_WIDTH,
@@ -30,21 +31,24 @@ const SETTING_SHOW_INDICATOR = 'backlinksNavigator.showIndicator';
 const SETTING_IGNORED_BACKLINK_NOTE_IDS = 'backlinksNavigator.ignoredBacklinkNoteIds';
 const SETTING_CTRL_CLICK_BEHAVIOR = 'backlinksNavigator.ctrlClickBehavior';
 const SETTING_CTRL_ENTER_BEHAVIOR = 'backlinksNavigator.ctrlEnterBehavior';
+const SETTING_BACKLINK_PREVIEW_MODE = 'backlinksNavigator.backlinkPreviewMode';
+const SETTING_OUTGOING_PREVIEW_MODE = 'backlinksNavigator.outgoingPreviewMode';
 const SETTING_DEBUG = 'backlinksNavigator.debug';
 const DEFAULT_BACKLINK_OPEN_BEHAVIOR: BacklinkOpenBehavior = 'newWindow';
 const BACKLINK_OPEN_BEHAVIOR_OPTIONS: Record<BacklinkOpenBehavior, string> = {
     newWindow: 'Open note in new window',
     newTab: 'Open note in Note Tabs tab',
 };
+const LINK_PREVIEW_MODE_OPTIONS: Record<LinkPreviewMode, string> = {
+    title: 'Note Title',
+    titleSnippet: 'Note Title + Snippet',
+    titleSnippetHeading: 'Note Title + Snippet + Nearest Heading',
+};
 
 /**
  * Matches one raw Joplin note id token, e.g. `bb12adaa3c704ff3bf09c0d7f7ad0c38`.
  */
 const NOTE_ID_RE = /^[0-9a-f]{32}$/i;
-
-export interface PanelSettings {
-    dimensions: PanelDimensions;
-}
 
 function normalizeBooleanSetting(value: unknown, defaultValue: boolean): { value: boolean; changed: boolean } {
     if (typeof value === 'boolean') {
@@ -68,6 +72,17 @@ export function normalizeCtrlClickBehavior(value: unknown): { value: BacklinkOpe
 
 export function normalizeCtrlEnterBehavior(value: unknown): { value: BacklinkOpenBehavior; changed: boolean } {
     return normalizeBacklinkOpenBehavior(value);
+}
+
+export function normalizeLinkPreviewMode(
+    value: unknown,
+    defaultValue: LinkPreviewMode
+): { value: LinkPreviewMode; changed: boolean } {
+    if (value === 'title' || value === 'titleSnippet' || value === 'titleSnippetHeading') {
+        return { value, changed: false };
+    }
+
+    return { value: defaultValue, changed: true };
 }
 
 export function normalizeIgnoredBacklinkNoteIds(value: unknown): { value: string[]; changed: boolean } {
@@ -113,7 +128,7 @@ export async function registerSettings(): Promise<void> {
     await joplin.settings.registerSection(SECTION_ID, {
         label: 'Backlinks Navigator',
         iconName: 'fas fa-link',
-        description: 'Backlinks Navigator options',
+        description: 'Backlinks and outgoing links panel options',
     });
 
     await joplin.settings.registerSettings({
@@ -123,7 +138,7 @@ export async function registerSettings(): Promise<void> {
             public: true,
             section: SECTION_ID,
             label: 'Panel width (px)',
-            description: '[Desktop Only] Set the width of the backlinks panel (min: 240px, max: 640px).',
+            description: '[Desktop Only] Set the width of the links panel (min: 240px, max: 640px).',
             minimum: MIN_PANEL_WIDTH,
             maximum: MAX_PANEL_WIDTH,
             step: 10,
@@ -145,19 +160,19 @@ export async function registerSettings(): Promise<void> {
             type: SettingItemType.Bool,
             public: true,
             section: SECTION_ID,
-            label: 'Show backlink indicator',
+            label: 'Show link indicator',
             description:
-                'Show a clickable badge in the top-right of the editor when the current note has backlinks. ' +
-                'This checks for backlinks each time a note is opened.',
+                'Show a clickable badge in the top-right of the editor when the current note has backlinks or outgoing links. ' +
+                'This checks links each time a note is opened.',
         },
         [SETTING_IGNORED_BACKLINK_NOTE_IDS]: {
             value: '',
             type: SettingItemType.String,
             public: true,
             section: SECTION_ID,
-            label: 'Ignored backlink note IDs',
+            label: 'Ignored note IDs',
             description:
-                'Comma-separated note IDs to exclude from backlink results and counts. Example: ' +
+                'Comma-separated note IDs to exclude from link results and counts. Example: ' +
                 'bb12adaa3c704ff3bf09c0d7f7ad0c38, 14270a1ea65546319c1ed3db0e362c37',
         },
         [SETTING_CTRL_CLICK_BEHAVIOR]: {
@@ -166,9 +181,9 @@ export async function registerSettings(): Promise<void> {
             isEnum: true,
             public: true,
             section: SECTION_ID,
-            label: 'Ctrl-click backlink behavior',
+            label: 'Ctrl-click link behavior',
             description:
-                'Choose where Ctrl-click opens a backlink. Opening in a new tab requires the Note Tabs plugin.',
+                '[Desktop Only] Choose where Ctrl-click opens a link. Opening in a new tab requires the Note Tabs plugin.',
             options: BACKLINK_OPEN_BEHAVIOR_OPTIONS,
         },
         [SETTING_CTRL_ENTER_BEHAVIOR]: {
@@ -177,10 +192,30 @@ export async function registerSettings(): Promise<void> {
             isEnum: true,
             public: true,
             section: SECTION_ID,
-            label: 'Ctrl-Enter backlink behavior',
+            label: 'Ctrl-Enter link behavior',
             description:
-                'Choose where Ctrl-Enter opens the selected backlink. Opening in a new tab requires the Note Tabs plugin.',
+                '[Desktop Only] Choose where Ctrl-Enter opens the selected link. Opening in a new tab requires the Note Tabs plugin.',
             options: BACKLINK_OPEN_BEHAVIOR_OPTIONS,
+        },
+        [SETTING_BACKLINK_PREVIEW_MODE]: {
+            value: DEFAULT_LINK_PREVIEW_SETTINGS.in,
+            type: SettingItemType.String,
+            isEnum: true,
+            public: true,
+            section: SECTION_ID,
+            label: 'Backlink context preview',
+            description: 'Choose how much context to show for backlinks in the panel.',
+            options: LINK_PREVIEW_MODE_OPTIONS,
+        },
+        [SETTING_OUTGOING_PREVIEW_MODE]: {
+            value: DEFAULT_LINK_PREVIEW_SETTINGS.out,
+            type: SettingItemType.String,
+            isEnum: true,
+            public: true,
+            section: SECTION_ID,
+            label: 'Outgoing link context preview',
+            description: 'Choose how much context to show for outgoing links in the panel.',
+            options: LINK_PREVIEW_MODE_OPTIONS,
         },
         [SETTING_DEBUG]: {
             value: false,
@@ -206,7 +241,12 @@ async function persistNormalizedSetting(key: string, value: unknown): Promise<vo
 }
 
 export async function loadPanelSettings(): Promise<PanelSettings> {
-    const values = await joplin.settings.values([SETTING_PANEL_WIDTH, SETTING_PANEL_MAX_HEIGHT]);
+    const values = await joplin.settings.values([
+        SETTING_PANEL_WIDTH,
+        SETTING_PANEL_MAX_HEIGHT,
+        SETTING_BACKLINK_PREVIEW_MODE,
+        SETTING_OUTGOING_PREVIEW_MODE,
+    ]);
 
     const widthResult = normalizePanelWidth(values[SETTING_PANEL_WIDTH]);
     if (widthResult.changed) {
@@ -220,10 +260,38 @@ export async function loadPanelSettings(): Promise<PanelSettings> {
         await persistNormalizedSetting(SETTING_PANEL_MAX_HEIGHT, heightResult.value);
     }
 
+    const backlinkPreviewResult = normalizeLinkPreviewMode(
+        values[SETTING_BACKLINK_PREVIEW_MODE],
+        DEFAULT_LINK_PREVIEW_SETTINGS.in
+    );
+    if (backlinkPreviewResult.changed) {
+        logger.warn(
+            `Invalid backlink context preview setting: ${values[SETTING_BACKLINK_PREVIEW_MODE]}. ` +
+                `Using ${backlinkPreviewResult.value}.`
+        );
+        await persistNormalizedSetting(SETTING_BACKLINK_PREVIEW_MODE, backlinkPreviewResult.value);
+    }
+
+    const outgoingPreviewResult = normalizeLinkPreviewMode(
+        values[SETTING_OUTGOING_PREVIEW_MODE],
+        DEFAULT_LINK_PREVIEW_SETTINGS.out
+    );
+    if (outgoingPreviewResult.changed) {
+        logger.warn(
+            `Invalid outgoing link context preview setting: ${values[SETTING_OUTGOING_PREVIEW_MODE]}. ` +
+                `Using ${outgoingPreviewResult.value}.`
+        );
+        await persistNormalizedSetting(SETTING_OUTGOING_PREVIEW_MODE, outgoingPreviewResult.value);
+    }
+
     return {
         dimensions: {
             width: widthResult.value,
             maxHeightRatio: heightResult.value / 100,
+        },
+        preview: {
+            in: backlinkPreviewResult.value,
+            out: outgoingPreviewResult.value,
         },
     };
 }
@@ -242,7 +310,7 @@ export async function loadIgnoredBacklinkNoteIdsSetting(): Promise<Set<string>> 
     const value = await joplin.settings.value(SETTING_IGNORED_BACKLINK_NOTE_IDS);
     const result = normalizeIgnoredBacklinkNoteIds(value);
     if (result.changed) {
-        logger.warn('Ignored backlink note IDs setting contained invalid, duplicate, or normalized entries.');
+        logger.warn('Ignored note IDs setting contained invalid, duplicate, or normalized entries.');
         await persistNormalizedSetting(SETTING_IGNORED_BACKLINK_NOTE_IDS, result.value.join(', '));
     }
     return new Set(result.value);
