@@ -6,42 +6,45 @@
 
 # Backlinks Navigator
 
-A Joplin plugin for viewing and navigating to backlinks in the Markdown editor.
+A Joplin plugin for viewing and navigating backlinks and outgoing links in the Markdown editor.
 
 ![backlinks-navigator-demo](https://github.com/bwat47/joplin-backlinks-navigator/blob/main/images/backlinks_examples.gif)
 
 ## Features
 
 - Shows notes that link to the current note
+- Shows notes linked from the current note
 - Shows each link occurrence when a note links more than once
-- Opens backlinks from a compact floating panel in the markdown editor
-- Filters backlinks by note title
+- Opens related notes from a compact floating panel in the markdown editor
+- Filters links by note title
 - Shows notebook, section, and link context when available
-- Optionally shows a backlink count indicator in the editor (which can also be used to open the panel)
+- Optionally shows a link count indicator in the editor (which can also be used to open the panel)
 - Works on desktop and mobile
 
 ## Usage
 
-Open the backlinks panel from the editor toolbar, editor indicator icon (if enabled in settings), the Edit menu, or the `Show Backlinks` command.
+Open the links panel from the editor toolbar, editor indicator icon (if enabled in settings), the Edit menu, or the `Show Links` command.
 
 > [!note]
-> There isn't a default keyboard shortcut, you can assign one under Tools | Options | Keyboard Shortcuts | "Show Backlinks" command.
+> There isn't a default keyboard shortcut, you can assign one under Tools | Options | Keyboard Shortcuts | "Show Links" command.
 
-Click a backlink to open the note that links to the current note. On desktop, the editor will try to scroll to the line that contains the link back to the previous note after note switch.
+Click a backlink to open the note that links to the current note, or click an outgoing link to open the note linked from the current note. On desktop, the editor will try to scroll to the backlink occurrence after note switch.
 
 ## Settings
 
 - Panel width
 - Panel max height
-- Show backlink indicator - recommend using with a max editor width set in joplin settings | editor tab to avoid overlapping content
-- Ignored backlink note IDs - comma-separated note IDs to exclude from backlink results and counts
-- Ctrl-click backlink behavior - open in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
-- Ctrl-Enter backlink behavior - open the selected backlink in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
+- Show link indicator - recommend using with a max editor width set in joplin settings | editor tab to avoid overlapping content
+- Ignored note IDs - comma-separated note IDs to exclude from link results and counts
+- Ctrl-click link behavior - open in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
+- Ctrl-Enter link behavior - open the selected link in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
+- Backlink context preview
+- Outgoing link context preview
 - Enable debug logging
 
 ## Limitations
 
-- Scrolling to backlink occurrence after note switch only works on desktop (and does not work when opening the note in new window or pinning with note tabs).
+- Scrolling to backlink occurrence after note switch only works on desktop and only applies to backlinks (not outgoing links). It does not work when opening the note in a new window or pinning with Note Tabs.
 
 ## Development
 
