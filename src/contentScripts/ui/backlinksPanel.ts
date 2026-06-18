@@ -516,7 +516,7 @@ export class BacklinksPanel {
         title.appendChild(highlightMatch(link.title, this.filterText));
         header.appendChild(title);
 
-        const occurrenceLabel = link.occurrenceCount > 1 ? this.formatOccurrenceLabel(link) : '';
+        const occurrenceLabel = this.formatOccurrenceLabel(link);
         const metadata = [link.notebookName, occurrenceLabel].filter(Boolean).join(' - ');
 
         if (metadata) {
@@ -549,13 +549,9 @@ export class BacklinksPanel {
         return item;
     }
 
-    /**
-     * Outgoing rows are deduped per target note, so the count is a total ("×N"); backlink rows are
-     * per occurrence, so the count is positional ("i/N").
-     */
     private formatOccurrenceLabel(link: LinkItem): string {
-        if (link.direction === 'out') {
-            return `×${link.occurrenceCount}`;
+        if (link.direction !== 'in' || link.occurrenceCount <= 1) {
+            return '';
         }
         return `${link.occurrenceIndex + 1}/${link.occurrenceCount}`;
     }
