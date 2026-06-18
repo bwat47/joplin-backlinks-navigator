@@ -14,7 +14,7 @@ A Joplin plugin for viewing and navigating backlinks and outgoing links in the M
 
 - Shows notes that link to the current note
 - Shows notes linked from the current note
-- Shows each link occurrence when a note links more than once
+- (Backlinks only) Shows each link occurrence when a note links more than once
 - Opens related notes from a compact floating panel in the markdown editor
 - Filters links by note title
 - Shows notebook, section, and link context when available
