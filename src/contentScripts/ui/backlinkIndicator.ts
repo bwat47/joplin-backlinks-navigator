@@ -72,9 +72,9 @@ export class BacklinkIndicator {
         const showBacklinks = counts.backlinks > 0;
         const showOutgoing = counts.outgoing > 0;
 
-        this.backlinksCountEl.textContent = showBacklinks ? `← ${counts.backlinks}` : '';
+        this.backlinksCountEl.textContent = showBacklinks ? `🡨 ${counts.backlinks}` : '';
         this.backlinksCountEl.style.display = showBacklinks ? 'inline' : 'none';
-        this.outgoingCountEl.textContent = showOutgoing ? `→ ${counts.outgoing}` : '';
+        this.outgoingCountEl.textContent = showOutgoing ? `🡪 ${counts.outgoing}` : '';
         this.outgoingCountEl.style.display = showOutgoing ? 'inline' : 'none';
 
         const label = describeCounts(counts);
