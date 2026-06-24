@@ -63,20 +63,12 @@ function normalizeBooleanSetting(value: unknown, defaultValue: boolean): { value
     return { value: defaultValue, changed: true };
 }
 
-function normalizeBacklinkOpenBehavior(value: unknown): { value: BacklinkOpenBehavior; changed: boolean } {
+export function normalizeBacklinkOpenBehavior(value: unknown): { value: BacklinkOpenBehavior; changed: boolean } {
     if (value === 'newWindow' || value === 'newTab') {
         return { value, changed: false };
     }
 
     return { value: DEFAULT_BACKLINK_OPEN_BEHAVIOR, changed: true };
-}
-
-export function normalizeCtrlClickBehavior(value: unknown): { value: BacklinkOpenBehavior; changed: boolean } {
-    return normalizeBacklinkOpenBehavior(value);
-}
-
-export function normalizeCtrlEnterBehavior(value: unknown): { value: BacklinkOpenBehavior; changed: boolean } {
-    return normalizeBacklinkOpenBehavior(value);
 }
 
 export function normalizeLinkPreviewMode(
@@ -248,6 +240,19 @@ async function persistNormalizedSetting(key: string, value: unknown): Promise<vo
     }
 }
 
+async function loadNormalizedSetting<T>(
+    key: string,
+    normalize: (value: unknown) => { value: T; changed: boolean },
+    label: string
+): Promise<T> {
+    const result = normalize(await joplin.settings.value(key));
+    if (result.changed) {
+        logger.warn(`Invalid ${label} setting. Using ${String(result.value)}.`);
+        await persistNormalizedSetting(key, result.value);
+    }
+    return result.value;
+}
+
 export async function loadPanelSettings(): Promise<PanelSettings> {
     const values = await joplin.settings.values([
         SETTING_PANEL_WIDTH,
@@ -311,13 +316,11 @@ export async function loadContentScriptSettings(): Promise<ContentScriptSettings
 }
 
 export async function loadShowIndicatorSetting(): Promise<boolean> {
-    const value = await joplin.settings.value(SETTING_SHOW_INDICATOR);
-    const result = normalizeBooleanSetting(value, false);
-    if (result.changed) {
-        logger.warn(`Invalid show indicator setting: ${value}. Using ${result.value}.`);
-        await persistNormalizedSetting(SETTING_SHOW_INDICATOR, result.value);
-    }
-    return result.value;
+    return loadNormalizedSetting(
+        SETTING_SHOW_INDICATOR,
+        (value) => normalizeBooleanSetting(value, false),
+        'show indicator'
+    );
 }
 
 export async function loadIgnoredBacklinkNoteIdsSetting(): Promise<Set<string>> {
@@ -331,33 +334,15 @@ export async function loadIgnoredBacklinkNoteIdsSetting(): Promise<Set<string>> 
 }
 
 export async function loadCtrlClickBehaviorSetting(): Promise<BacklinkOpenBehavior> {
-    const value = await joplin.settings.value(SETTING_CTRL_CLICK_BEHAVIOR);
-    const result = normalizeCtrlClickBehavior(value);
-    if (result.changed) {
-        logger.warn(`Invalid Ctrl-click behavior setting: ${value}. Using ${result.value}.`);
-        await persistNormalizedSetting(SETTING_CTRL_CLICK_BEHAVIOR, result.value);
-    }
-    return result.value;
+    return loadNormalizedSetting(SETTING_CTRL_CLICK_BEHAVIOR, normalizeBacklinkOpenBehavior, 'Ctrl-click behavior');
 }
 
 export async function loadCtrlEnterBehaviorSetting(): Promise<BacklinkOpenBehavior> {
-    const value = await joplin.settings.value(SETTING_CTRL_ENTER_BEHAVIOR);
-    const result = normalizeCtrlEnterBehavior(value);
-    if (result.changed) {
-        logger.warn(`Invalid Ctrl-Enter behavior setting: ${value}. Using ${result.value}.`);
-        await persistNormalizedSetting(SETTING_CTRL_ENTER_BEHAVIOR, result.value);
-    }
-    return result.value;
+    return loadNormalizedSetting(SETTING_CTRL_ENTER_BEHAVIOR, normalizeBacklinkOpenBehavior, 'Ctrl-Enter behavior');
 }
 
 export async function loadDebugSetting(): Promise<boolean> {
-    const value = await joplin.settings.value(SETTING_DEBUG);
-    const result = normalizeBooleanSetting(value, false);
-    if (result.changed) {
-        logger.warn(`Invalid debug setting: ${value}. Using ${result.value}.`);
-        await persistNormalizedSetting(SETTING_DEBUG, result.value);
-    }
-    return result.value;
+    return loadNormalizedSetting(SETTING_DEBUG, (value) => normalizeBooleanSetting(value, false), 'debug');
 }
 
 /** Setting key for the debug toggle, exposed so the host can watch for changes. */
