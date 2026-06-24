@@ -60,8 +60,8 @@ body, `extractNoteLinks` finds every `:/<id>` occurrence in document order, grou
 target note** (one row, `direction: 'out'`, `occurrenceCount` = number of links). Each target's
 title, parent notebook, and body are resolved in one Data API call (`resolveNoteMeta` with
 `includeBody`); the snippet previews the **opening of the linked note** (`extractNoteOpening`, which
-skips a leading heading/title and thematic breaks) rather than the context around the link in the
-current note, and `section` is always empty (outgoing links have no nearest-heading preview).
+skips a leading heading/title, thematic breaks, and GitHub/Obsidian alert markers) rather than the
+context around the link in the current note, and `section` is always empty (outgoing links have no nearest-heading preview).
 Self-links, ignored notes, and broken (unresolvable) links are skipped. Sort by title.
 
 Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.

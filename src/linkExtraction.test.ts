@@ -56,6 +56,14 @@ describe('extractNoteOpening', () => {
         expect(extractNoteOpening('- [ ] A task with a [link](https://example.com)')).toBe('A task with a link');
     });
 
+    it('skips a GitHub alert marker on its own line and uses the callout body', () => {
+        expect(extractNoteOpening('> [!NOTE]\n> Read this carefully.')).toBe('Read this carefully.');
+    });
+
+    it('drops an alert marker but keeps an inline callout title', () => {
+        expect(extractNoteOpening('> [!tip]+ Pro tip\n> body')).toBe('Pro tip');
+    });
+
     it('falls back to the first heading when the note is only headings', () => {
         expect(extractNoteOpening('# Only A Heading\n## Subheading')).toBe('Only A Heading');
     });
