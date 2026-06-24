@@ -31,8 +31,9 @@ this plugin uses real request/response (see `src/messages.ts`):
 - `{ type: 'getIndicatorState', noteId }` → host returns `{ enabled: false }` when the
   "show indicator" setting is off (no search performed), otherwise
   `{ enabled: true, backlinks, outgoing, backlinkPreviewMode }` (both directions so the badge can
-  show both counts, plus the backlink preview mode so the badge can collapse occurrences the same
-  way the panel does even before the panel command has delivered settings — see the indicator note).
+  show both counts; in title-only backlink mode `backlinks` is already collapsed to one row per
+  source note, with `backlinkPreviewMode` included so the content script can keep its local settings
+  aligned before the panel command has run — see the indicator note).
 - `{ type: 'openNote', noteId, mode? }` → host opens the note in the current editor, or resolves the
   configured Ctrl-click/Ctrl-Enter behavior to open it in a new window or through Note Tabs, returns `void`.
 - `{ type: 'openPanel' }` → host runs the `Show Backlinks` command (so the panel opens with the
@@ -110,13 +111,13 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
   top-right when the current note has any links. Gated by the "show indicator" setting (default
   off). On note load the entry sends `getIndicatorState` (debounced); when enabled it caches both
   directions purely to drive the badge counts (the panel does not read this cache). In the
-  title-only backlink mode the backlink count is deduped per note (`dedupeByNoteId`) so it matches
-  the collapsed panel list; the indicator state carries `backlinkPreviewMode` so this works on a
-  cold launch too (the content script otherwise only learns the preview mode when the panel command
-  first runs, so the badge would briefly show the raw occurrence count). The badge hides
-  while the panel is open (same corner) and clears on note switch. The panel always fetches fresh
-  on open (see below), and those fresh results refresh the badge cache too, so clicking a
-  temporarily-stale badge brings both the panel and the badge up to date.
+  title-only backlink mode the host sends backlinks already deduped per note (`dedupeByNoteId`) so
+  the first badge count matches the collapsed panel list even before the content script has received
+  command-delivered settings; the content script keeps an idempotent dedupe fallback when its local
+  preview mode is title-only. The badge hides while the panel is open (same corner) and clears on
+  note switch. The panel always fetches fresh on open (see below), and those fresh results refresh
+  the badge cache too, so clicking a temporarily-stale badge brings both the panel and the badge up
+  to date.
 - `src/contentScripts/ui/noteIdWatcher.ts` — a transaction extender that reports note-id
   changes (note switch); the entry uses it to close the panel and trigger the pending scroll.
 - `src/contentScripts/theme/panelTheme.ts` — CSS using `var(--joplin-*)` theme variables,

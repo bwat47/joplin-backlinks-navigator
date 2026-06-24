@@ -67,9 +67,9 @@ export type GetOutgoingLinksResponse = LinkItem[];
 /**
  * Response for a {@link GetIndicatorStateMessage}.
  * `enabled` is false when the indicator setting is off (no search was performed); otherwise it
- * carries both link directions so the badge can show both counts, plus the backlink preview mode
- * so the badge can match the panel's title-only collapsing before the panel has ever been opened
- * (the content script otherwise only learns the preview mode when the panel command first runs).
+ * carries both link directions so the badge can show both counts. In title-only backlink mode,
+ * `backlinks` is already collapsed to one row per source note so first-load indicator counts match
+ * the panel even before the content script has received command-delivered settings.
  */
 export type IndicatorState =
     | { enabled: false }

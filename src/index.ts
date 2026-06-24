@@ -35,6 +35,7 @@ import type {
 } from './messages';
 import { findBacklinks } from './backlinksService';
 import { findOutgoingLinks } from './outgoingLinksService';
+import { dedupeByNoteId } from './linkSort';
 import type { BacklinkOpenBehavior } from './types';
 
 type ResolvedOpenNoteMode = 'current' | BacklinkOpenBehavior;
@@ -120,7 +121,13 @@ async function handleMessage(
                 findOutgoingLinksWithSettings(message.noteId),
                 loadPanelSettings(),
             ]);
-            return { enabled: true, backlinks, outgoing, backlinkPreviewMode: panelSettings.preview.in };
+            const indicatorBacklinks = panelSettings.preview.in === 'title' ? dedupeByNoteId(backlinks) : backlinks;
+            return {
+                enabled: true,
+                backlinks: indicatorBacklinks,
+                outgoing,
+                backlinkPreviewMode: panelSettings.preview.in,
+            };
         }
         case 'openNote':
             await openNote(message.noteId, await resolveOpenNoteMode(message));
