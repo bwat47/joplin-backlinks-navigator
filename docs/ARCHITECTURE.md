@@ -1,146 +1,118 @@
-# Architecture
+# Backlinks Navigator Architecture
 
-Backlinks Navigator shows a floating popup **inside the CodeMirror 6 markdown editor** with two
-tabs: **Backlinks** (every note that links to the current note) and **Links** (every distinct note
-the current note links to). Clicking an entry navigates to that note. It deliberately does **not**
-use Joplin's panel/webview API — the UI is a `<div>` mounted into the editor's scroll DOM.
+Backlinks Navigator adds a floating popup to Joplin's CodeMirror 6 Markdown editor. The popup has
+two tabs: Backlinks for notes that link to the current note, and Outgoing Links for notes the current note
+links to. Selecting an entry opens the target note.
 
-The two directions share one row type, `LinkItem` (`src/types.ts`), distinguished by a `direction`
-field (`'in'` = backlink, `'out'` = outgoing link).
+The UI is mounted directly in the editor scroll DOM. It does not use Joplin's panel or webview API.
 
-## Two execution contexts
+## Request Flow
 
-- **Plugin host** (`src/index.ts` and its helpers) — runs with full Joplin API access.
-  Registers the content script, the `Show Backlinks` command, the toolbar button, the Edit
-  menu item, and settings. It answers messages from the content script.
-- **Content script** (`src/contentScripts/`) — runs in the editor with CodeMirror access but
-  no Joplin API. It reads the current note id, renders the panel, and asks the host for data
-  and navigation.
+1. The content script reads the current note id from the editor.
+2. The user opens the popup through the command, toolbar button, menu item, or indicator badge.
+3. The popup asks the plugin host for backlinks and outgoing links.
+4. The host searches or parses note bodies, resolves note metadata, and returns `LinkItem` rows.
+5. The content script filters, displays, and keyboard-navigates those rows.
+6. Selecting a row asks the host to open the note. Backlink selections also try to scroll to the
+   matched reference in the target note.
 
-The host has Data API access; the content script has the editor. They communicate over
-Joplin's `postMessage` bridge.
+## Main Pieces
 
-## Messaging (request/response)
+### Plugin Shell
 
-`context.postMessage(...)` resolves to whatever the host's `onMessage` handler returns, so
-this plugin uses real request/response (see `src/messages.ts`):
+- `src/index.ts` boots the plugin, registers commands, settings, toolbar/menu integration, the
+  content script, and the message handler.
+- `src/settings.ts` defines user-facing settings.
+- `src/messages.ts` defines the request and response shapes shared across the host/content-script
+  boundary.
+- `src/types.ts` defines shared domain types, including `LinkItem`.
 
-- `{ type: 'getBacklinks', noteId }` → host returns `LinkItem[]` (backlinks).
-- `{ type: 'getOutgoingLinks', noteId }` → host returns `LinkItem[]` (distinct notes the current
-  note links to).
-- `{ type: 'getIndicatorState', noteId }` → host returns `{ enabled: false }` when the
-  "show indicator" setting is off (no search performed), otherwise
-  `{ enabled: true, backlinks, outgoing }` (raw rows for both directions; the content script applies
-  the current display policy locally — see the indicator note).
-- `{ type: 'getContentScriptSettings' }` → host returns the `ContentScriptSettings` consumed by the
-  editor (panel dimensions, per-direction preview modes, and the show-indicator flag). The content
-  script requests this once on startup to seed its settings facet before the first indicator render —
-  see the settings note.
-- `{ type: 'openNote', noteId, mode? }` → host opens the note in the current editor, or resolves the
-  configured Ctrl-click/Ctrl-Enter behavior to open it in a new window or through Note Tabs, returns `void`.
-- `{ type: 'openPanel' }` → host runs the `Show Backlinks` command (so the panel opens with the
-  correct mobile flag), returns `void`. The panel reads its dimensions from the settings facet, not
-  from command arguments.
+### Link Discovery
 
-## Link discovery (host)
+- `src/backlinksService.ts` finds notes that contain `:/<currentNoteId>`, verifies each match, and
+  returns one backlink row per occurrence.
+- `src/outgoingLinksService.ts` reads the current note, extracts distinct `:/<noteId>` targets, and
+  returns one outgoing-link row per target note.
+- `src/linkExtraction.ts` contains Joplin-free parsing helpers for note links, snippets, sections,
+  and occurrence offsets.
+- `src/noteMetadata.ts` resolves note and notebook metadata with per-call caching.
+- `src/linkSort.ts` centralizes row ordering.
 
-Shared, Joplin-free helpers live in `src/linkExtraction.ts` (snippet cleaning, section lookup,
-occurrence/offset scanning, and `extractNoteLinks`/`extractOccurrenceContexts`). Note/notebook
-metadata resolution (with per-call memoization) lives in `src/noteMetadata.ts`, and the common row
-comparator in `src/linkSort.ts`.
+### Editor Integration
 
-**Backlinks** — `src/backlinksService.ts`:
+- `src/contentScripts/backlinksNavigator.ts` is the content-script entry point. It reads the current
+  note id, opens/closes the popup, fetches link data, forwards navigation requests, and coordinates
+  backlink scrolling after note changes.
+- `src/contentScripts/pluginSettings.ts` stores editor-side settings in a CodeMirror facet so UI
+  behavior can update without rebuilding the editor extension.
+- `src/contentScripts/ui/noteIdWatcher.ts` reports note changes inside the reused editor view.
+- `src/contentScripts/markdownLinkPosition.ts` locates the full Markdown link around a matched
+  `:/<noteId>` reference.
+- `src/contentScripts/referenceHighlight.ts` briefly highlights the matched reference after
+  navigation.
 
-1. Paginate `joplin.data.get(['search'], { query: noteId, fields: [...] })`. A 32-char note
-   id is a single FTS token, so this returns candidate linking notes.
-2. Verify each candidate's body actually contains `:/<noteId>` (drops loose FTS matches) and
-   create one backlink row (`direction: 'in'`) for each matching occurrence, using that
-   occurrence's line as the context snippet.
-3. Resolve each note's parent notebook title (cached per call).
-4. Sort by title, then occurrence order within each note.
+### UI
 
-**Outgoing links** — `src/outgoingLinksService.ts`: no FTS search needed. Fetch the current note's
-body, `extractNoteLinks` finds every `:/<id>` occurrence in document order, group **per distinct
-target note** (one row, `direction: 'out'`, `occurrenceCount` = number of links). Each target's
-title, parent notebook, and body are resolved in one Data API call (`resolveNoteMeta` with
-`includeBody`); the snippet previews the **opening of the linked note** (`extractNoteOpening`, which
-skips a leading heading/title, thematic breaks, and GitHub/Obsidian alert markers) rather than the
-context around the link in the current note, and `section` is always empty (outgoing links have no nearest-heading preview).
-Self-links, ignored notes, and broken (unresolvable) links are skipped. Sort by title.
+- `src/contentScripts/ui/backlinksPanel.ts` renders the floating two-tab popup, filter input,
+  keyboard navigation, loading/empty/error states, and row previews.
+- `src/contentScripts/ui/backlinkIndicator.ts` renders the optional editor-corner badge showing
+  inbound and outbound counts.
+- `src/linkDisplay.ts` contains the shared display policy used by both the popup and the indicator.
+  In title-only backlink mode, inbound rows are collapsed to one row per source note.
+- `src/contentScripts/ui/fuzzyFilter.ts` handles popup filtering.
+- `src/contentScripts/theme/panelTheme.ts` injects the popup and indicator CSS using Joplin theme
+  variables.
 
-Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
+## Message Boundary
 
-## Panel lifecycle (content script)
+Joplin gives the plugin host API access and the content script editor access. The two sides
+communicate through `context.postMessage(...)`, which behaves like request/response:
 
-- `src/contentScripts/backlinksNavigator.ts` — reads the note id from
-  `editorControl.joplinExtensions.noteIdFacet`, registers the `togglePanel` and `updateSettings`
-  editor commands, seeds the settings facet on startup (see settings note),
-  opens the panel in a loading state, always fetches **both** backlinks and outgoing links fresh in
-  parallel (`setLinks('in', …)` / `setLinks('out', …)`), and forwards clicks to the host. A monotonic
-  request token prevents a slow response from populating a stale/closed panel. When a **backlink** is
-  selected it records a "pending scroll" (the target note id, the `:/<currentNoteId>` needle, and
-  the selected occurrence index) before navigating; once the target note loads it scrolls to that
-  occurrence. The exception is the **title-only** backlink preview mode: those rows are collapsed to
-  one per note (not a specific occurrence), so no pending scroll is recorded. **Outgoing** links just
-  open the target note (there's no reference-back to scroll to). The cursor is placed at the start of the
-  enclosing markdown link (see `markdownLinkPosition.ts`) rather than inside the URL, and the
-  matched reference is briefly highlighted (see `referenceHighlight.ts`). The same `EditorView`
-  is reused across note switches on desktop, so this closure state survives navigation; a short
-  retry handles the gap before the new content settles, and the scroll is re-asserted once after
-  Joplin's own post-load cursor restoration.
-- `src/contentScripts/pluginSettings.ts` — owns the content script's settings as a CodeMirror facet
-  (`ContentScriptSettings`: panel dimensions, per-direction preview modes, show-indicator flag),
-  held in a compartment so it can be reconfigured at runtime. `syncInitialContentScriptSettings`
-  fetches the host's settings (`getContentScriptSettings`) and seeds the facet before the first
-  indicator refresh is scheduled, so the badge renders with the correct preview mode on a cold
-  launch. The host pushes later changes via the `updateSettings` editor command (fired from
-  `index.ts` whenever an editor-affecting setting changes), which re-applies the facet. Incoming
-  values are normalized/validated here, so a malformed payload falls back to defaults.
-- `src/linkDisplay.ts` — the single source of the **display policy** shared by the panel and the
-  indicator: `getDisplayLinks`/`getDisplayLinkCount` collapse inbound backlinks to one row per note
-  in title-only mode (via `dedupeByNoteId`) and otherwise pass rows through unchanged. Centralizing
-  it here keeps the panel list, tab counts, and badge count consistent.
-- `src/contentScripts/markdownLinkPosition.ts` — given the position of a found `:/<noteId>` URL,
-  resolves the range of the enclosing inline markdown link (`[label](:/id)`, including a leading
-  `!` for embed syntax) on the same line. Falls back to just the URL range for raw note
-  references or when no same-line link encloses the URL. Used to choose the cursor target and the
-  highlight range.
-- `src/contentScripts/referenceHighlight.ts` — a CodeMirror `StateField`/`StateEffect` pair that
-  decorates the matched reference range with a `mark` highlight. The highlight is applied via
-  `setReferenceHighlightEffect` and cleared automatically on the next selection change that isn't
-  the originating dispatch, so it disappears as soon as the user moves the cursor.
-- `src/contentScripts/ui/backlinksPanel.ts` — the floating panel UI: a two-tab strip
-  (Backlinks / Links, each with a live count), filter input, fuzzy filtering, keyboard navigation
-  (arrows/Tab/Enter/Escape, plus `Ctrl+Tab` to switch tabs), and per-tab loading/empty/error
-  states. The active list feeds the shared filter/render machinery. Preview detail is a render-time
-  setting, separately configurable for backlinks (`title`, `title + snippet`, or
-  `title + snippet + nearest heading`) and outgoing links (`title` or `title + snippet` only — the
-  outgoing snippet previews the linked note's opening, which has no enclosing heading to show). In the
-  title-only backlink mode the panel collapses backlinks to one row per note (`displayItems`), since
-  without a snippet the per-occurrence rows would be indistinguishable; the tab count and occurrence
-  label follow suit. The panel owns the **default-tab** policy: after each
-  tab resolves, and until the user manually switches, it selects backlinks if any exist, otherwise
-  outgoing if any exist, otherwise backlinks — so this rule governs every entry point
-  (command/toolbar and indicator alike).
-- `src/contentScripts/ui/backlinkIndicator.ts` — an optional clickable badge (icon + per-direction
-  counts, `← n` backlinks / `→ n` outgoing, each shown only when non-zero) floated in the editor's
-  top-right when the current note has any links. Gated by the "show indicator" setting (default
-  off). On note load the entry sends `getIndicatorState` (debounced); when enabled it caches both
-  directions (the raw rows) purely to drive the badge counts (the panel does not read this cache).
-  The badge count is derived by applying the shared display policy (`getDisplayLinkCount`, see the
-  settings note) to those cached rows, so in title-only backlink mode it counts one row per source
-  note and matches the collapsed panel list. The badge hides while the panel is open (same corner)
-  and clears on note switch. The panel always fetches fresh on open (see below), and those fresh
-  results refresh the badge cache too, so clicking a temporarily-stale badge brings both the panel
-  and the badge up to date.
-- `src/contentScripts/ui/noteIdWatcher.ts` — a transaction extender that reports note-id
-  changes (note switch); the entry uses it to close the panel and trigger the pending scroll.
-- `src/contentScripts/theme/panelTheme.ts` — CSS using `var(--joplin-*)` theme variables,
-  injected as a single `<style>` element.
+- `getBacklinks` returns backlink rows.
+- `getOutgoingLinks` returns outgoing-link rows.
+- `getIndicatorState` returns the counts data needed by the badge, unless the indicator is disabled.
+- `getContentScriptSettings` returns editor-side settings.
+- `openNote` opens a target note, using the configured current-window/new-window/Note Tabs behavior.
+- `openPanel` runs the host command that opens the popup.
+
+## Link Model
+
+Both tabs use `LinkItem`. The `direction` field distinguishes rows:
+
+- `in` means a backlink from another note to the current note.
+- `out` means an outgoing link from the current note to another note.
+
+Backlinks are occurrence-based because the same source note can link to the current note many times.
+Outgoing links are target-based because the Links tab is meant to show distinct destination notes.
+
+## Navigation Model
+
+Outgoing-link navigation simply opens the destination note.
+
+Backlink navigation opens the source note and, when the row represents a specific occurrence, scrolls
+to the matching `:/<currentNoteId>` reference. The content script records the pending scroll before
+navigation, waits for the next note id change, then places the cursor at the enclosing Markdown link
+and highlights it briefly.
+
+Title-only backlink previews collapse multiple occurrences into one row per source note, so those
+rows do not scroll to a specific occurrence.
 
 ## Build
 
-`npm run dist` runs three webpack passes (main, extra scripts, archive). The content script
-entry is declared in `plugin.config.json` (`extraScripts`) and registered in
-`src/manifest.json` (`content_scripts`). CodeMirror/Lezer modules are treated as externals —
-Joplin provides them at runtime.
+`npm run dist` runs the webpack build and creates the plugin archive in `publish/*.jpl`.
+
+The content script entry is listed in `plugin.config.json` as an `extraScripts` entry and registered
+in `src/manifest.json`. CodeMirror and Lezer packages are externalized because Joplin provides them
+at runtime.
+
+## Design Intent
+
+The project keeps a few boundaries clear:
+
+- Joplin API work stays in the plugin host.
+- Editor and DOM work stays in the content script.
+- Link parsing stays in shared, Joplin-free helpers.
+- Display rules stay in one place so the panel and indicator agree.
+- Settings are normalized before they reach editor UI code.
+
+The result is a small loop: read note id, find links, display rows, open the selected note.
