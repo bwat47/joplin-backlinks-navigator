@@ -34,10 +34,10 @@ describe('findOutgoingLinks', () => {
                 return { id: SOURCE_NOTE_ID, body };
             }
             if (path[0] === 'notes' && path[1] === NOTE_A) {
-                return { id: NOTE_A, title: 'Alpha', parent_id: 'folder-1' };
+                return { id: NOTE_A, title: 'Alpha', parent_id: 'folder-1', body: '# Alpha\n\nAlpha opening line.' };
             }
             if (path[0] === 'notes' && path[1] === NOTE_B) {
-                return { id: NOTE_B, title: 'Beta', parent_id: 'folder-2' };
+                return { id: NOTE_B, title: 'Beta', parent_id: 'folder-2', body: 'Beta opening line.' };
             }
             if (path[0] === 'folders' && path[1] === 'folder-1') {
                 return { id: 'folder-1', title: 'Projects' };
@@ -57,8 +57,8 @@ describe('findOutgoingLinks', () => {
                 occurrenceCount: 1,
                 title: 'Alpha',
                 notebookName: 'Projects',
-                section: 'Intro',
-                snippet: 'See Beta and Alpha.',
+                section: '',
+                snippet: 'Alpha opening line.',
             },
             {
                 direction: 'out',
@@ -68,8 +68,8 @@ describe('findOutgoingLinks', () => {
                 occurrenceCount: 2,
                 title: 'Beta',
                 notebookName: 'Archive',
-                section: 'Intro',
-                snippet: 'See Beta and Alpha.',
+                section: '',
+                snippet: 'Beta opening line.',
             },
         ]);
     });
@@ -84,7 +84,7 @@ describe('findOutgoingLinks', () => {
                 return { id: SOURCE_NOTE_ID, body };
             }
             if (path[0] === 'notes' && path[1] === NOTE_A) {
-                return { id: NOTE_A, title: 'Alpha', parent_id: 'folder-1' };
+                return { id: NOTE_A, title: 'Alpha', parent_id: 'folder-1', body: 'Alpha opening line.' };
             }
             if (path[0] === 'notes' && path[1] === NOTE_MISSING) {
                 throw new Error('not found');
@@ -105,7 +105,7 @@ describe('findOutgoingLinks', () => {
                 title: 'Alpha',
                 notebookName: 'Projects',
                 section: '',
-                snippet: 'Alpha Ignored Broken.',
+                snippet: 'Alpha opening line.',
             },
         ]);
 

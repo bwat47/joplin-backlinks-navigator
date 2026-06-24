@@ -1,6 +1,7 @@
 import {
     cleanSnippetLine,
     extractNoteLinks,
+    extractNoteOpening,
     extractOccurrenceContexts,
     findOccurrenceOffsets,
     findSection,
@@ -39,6 +40,29 @@ describe('findSection', () => {
 
     it('returns empty string when there is no heading above', () => {
         expect(findSection(['just text', 'more'], 1)).toBe('');
+    });
+});
+
+describe('extractNoteOpening', () => {
+    it('returns the first line of prose, skipping a leading heading', () => {
+        expect(extractNoteOpening('# Title\n\nFirst paragraph of the note.')).toBe('First paragraph of the note.');
+    });
+
+    it('skips blank lines and thematic breaks', () => {
+        expect(extractNoteOpening('---\n\n***\nActual content.')).toBe('Actual content.');
+    });
+
+    it('cleans markdown markers from the opening line', () => {
+        expect(extractNoteOpening('- [ ] A task with a [link](https://example.com)')).toBe('A task with a link');
+    });
+
+    it('falls back to the first heading when the note is only headings', () => {
+        expect(extractNoteOpening('# Only A Heading\n## Subheading')).toBe('Only A Heading');
+    });
+
+    it('returns an empty string for an empty note', () => {
+        expect(extractNoteOpening('')).toBe('');
+        expect(extractNoteOpening('\n\n   \n')).toBe('');
     });
 });
 

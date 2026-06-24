@@ -9,9 +9,9 @@ export type LinkDirection = 'in' | 'out';
  *   and the occurrence's line; `occurrenceIndex`/`occurrenceCount` enumerate the occurrences
  *   inside the linking note (used to scroll to the right one).
  * - `direction: 'out'` (outgoing link) — one distinct note that the current note links to (deduped).
- *   `noteId` is the target note; `title`/`notebookName` describe it; `snippet`/`section` describe the
- *   first occurrence in the current note; `occurrenceIndex` is always 0 and `occurrenceCount` is the
- *   number of links to that target.
+ *   `noteId` is the target note; `title`/`notebookName` describe it; `snippet` previews the opening
+ *   of the linked note (where the link leads) and `section` is always empty; `occurrenceIndex` is
+ *   always 0 and `occurrenceCount` is the number of links to that target.
  */
 export interface LinkItem {
     /** Whether this is an inbound (backlink) or outbound (outgoing) link. */

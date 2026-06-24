@@ -44,6 +44,11 @@ const LINK_PREVIEW_MODE_OPTIONS: Record<LinkPreviewMode, string> = {
     titleSnippet: 'Note Title + Snippet',
     titleSnippetHeading: 'Note Title + Snippet + Nearest Heading',
 };
+// Outgoing links preview the linked note's opening, which has no enclosing heading to show.
+const OUTGOING_LINK_PREVIEW_MODE_OPTIONS: Record<'title' | 'titleSnippet', string> = {
+    title: 'Note Title',
+    titleSnippet: 'Note Title + Snippet',
+};
 
 /**
  * Matches one raw Joplin note id token, e.g. `bb12adaa3c704ff3bf09c0d7f7ad0c38`.
@@ -76,9 +81,11 @@ export function normalizeCtrlEnterBehavior(value: unknown): { value: BacklinkOpe
 
 export function normalizeLinkPreviewMode(
     value: unknown,
-    defaultValue: LinkPreviewMode
+    defaultValue: LinkPreviewMode,
+    options: { allowHeading?: boolean } = {}
 ): { value: LinkPreviewMode; changed: boolean } {
-    if (value === 'title' || value === 'titleSnippet' || value === 'titleSnippetHeading') {
+    const allowHeading = options.allowHeading ?? true;
+    if (value === 'title' || value === 'titleSnippet' || (allowHeading && value === 'titleSnippetHeading')) {
         return { value, changed: false };
     }
 
@@ -214,8 +221,9 @@ export async function registerSettings(): Promise<void> {
             public: true,
             section: SECTION_ID,
             label: 'Outgoing link context preview',
-            description: 'Choose how much context to show for outgoing links in the panel.',
-            options: LINK_PREVIEW_MODE_OPTIONS,
+            description:
+                'Choose how much context to show for outgoing links in the panel. The snippet previews the opening of the linked note.',
+            options: OUTGOING_LINK_PREVIEW_MODE_OPTIONS,
         },
         [SETTING_DEBUG]: {
             value: false,
@@ -274,7 +282,8 @@ export async function loadPanelSettings(): Promise<PanelSettings> {
 
     const outgoingPreviewResult = normalizeLinkPreviewMode(
         values[SETTING_OUTGOING_PREVIEW_MODE],
-        DEFAULT_LINK_PREVIEW_SETTINGS.out
+        DEFAULT_LINK_PREVIEW_SETTINGS.out,
+        { allowHeading: false }
     );
     if (outgoingPreviewResult.changed) {
         logger.warn(

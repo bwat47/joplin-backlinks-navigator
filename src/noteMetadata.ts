@@ -13,6 +13,13 @@ import logger from './logger';
 export interface NoteMeta {
     title: string;
     parent_id: string;
+    /** The note's body, fetched only when `resolveNoteMeta` is called with `includeBody`; '' otherwise. */
+    body: string;
+}
+
+interface ResolveNoteMetaOptions {
+    /** Also fetch the note `body` (used to derive an outgoing link's opening snippet). */
+    includeBody?: boolean;
 }
 
 /**
@@ -43,16 +50,22 @@ export async function resolveNotebookName(parentId: string, cache: Map<string, s
  *
  * @returns The note metadata, or `null` if the note can't be fetched (e.g. a broken link).
  */
-export async function resolveNoteMeta(noteId: string, cache: Map<string, NoteMeta | null>): Promise<NoteMeta | null> {
+export async function resolveNoteMeta(
+    noteId: string,
+    cache: Map<string, NoteMeta | null>,
+    options: ResolveNoteMetaOptions = {}
+): Promise<NoteMeta | null> {
     const cached = cache.get(noteId);
     if (cached !== undefined) {
         return cached;
     }
+    const fields = options.includeBody ? ['id', 'title', 'parent_id', 'body'] : ['id', 'title', 'parent_id'];
     try {
-        const note = await joplin.data.get(['notes', noteId], { fields: ['id', 'title', 'parent_id'] });
+        const note = await joplin.data.get(['notes', noteId], { fields });
         const meta: NoteMeta = {
             title: typeof note?.title === 'string' && note.title ? note.title : 'Untitled',
             parent_id: typeof note?.parent_id === 'string' ? note.parent_id : '',
+            body: typeof note?.body === 'string' ? note.body : '',
         };
         cache.set(noteId, meta);
         return meta;

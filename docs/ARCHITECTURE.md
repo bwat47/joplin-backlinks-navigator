@@ -55,9 +55,12 @@ comparator in `src/linkSort.ts`.
 
 **Outgoing links** — `src/outgoingLinksService.ts`: no FTS search needed. Fetch the current note's
 body, `extractNoteLinks` finds every `:/<id>` occurrence in document order, group **per distinct
-target note** (one row, `direction: 'out'`, `occurrenceCount` = number of links, snippet/section from
-the first occurrence). Self-links, ignored notes, and broken (unresolvable) links are skipped. Sort
-by title.
+target note** (one row, `direction: 'out'`, `occurrenceCount` = number of links). Each target's
+title, parent notebook, and body are resolved in one Data API call (`resolveNoteMeta` with
+`includeBody`); the snippet previews the **opening of the linked note** (`extractNoteOpening`, which
+skips a leading heading/title and thematic breaks) rather than the context around the link in the
+current note, and `section` is always empty (outgoing links have no nearest-heading preview).
+Self-links, ignored notes, and broken (unresolvable) links are skipped. Sort by title.
 
 Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
 
@@ -89,8 +92,9 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
   (Backlinks / Links, each with a live count), filter input, fuzzy filtering, keyboard navigation
   (arrows/Tab/Enter/Escape, plus `Ctrl+Tab` to switch tabs), and per-tab loading/empty/error
   states. The active list feeds the shared filter/render machinery. Preview detail is a render-time
-  setting, separately configurable for backlinks and outgoing links (`title`, `title + snippet`,
-  or `title + snippet + nearest heading`). The panel owns the **default-tab** policy: after each
+  setting, separately configurable for backlinks (`title`, `title + snippet`, or
+  `title + snippet + nearest heading`) and outgoing links (`title` or `title + snippet` only — the
+  outgoing snippet previews the linked note's opening, which has no enclosing heading to show). The panel owns the **default-tab** policy: after each
   tab resolves, and until the user manually switches, it selects backlinks if any exist, otherwise
   outgoing if any exist, otherwise backlinks — so this rule governs every entry point
   (command/toolbar and indicator alike).
