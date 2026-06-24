@@ -1,7 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import type { LinkDirection, LinkItem, PanelSettings } from '../../types';
 import { createPanelCss } from '../theme/panelTheme';
-import { dedupeByNoteId } from '../../linkSort';
+import { getDisplayLinkCount, getDisplayLinks } from '../../linkDisplay';
 import { fuzzyFilter, highlightMatch } from './fuzzyFilter';
 
 const PANEL_STYLE_ID = 'backlinks-navigator-styles';
@@ -230,11 +230,7 @@ export class BacklinksPanel {
      * Items arrive sorted by title then occurrence, so the kept row is each note's first occurrence.
      */
     private displayItems(direction: LinkDirection): LinkItem[] {
-        const items = this.tabs[direction].items;
-        if (direction !== 'in' || this.settings.preview.in !== 'title') {
-            return items;
-        }
-        return dedupeByNoteId(items);
+        return getDisplayLinks(this.tabs[direction].items, direction, this.settings.preview[direction]);
     }
 
     private createTabButton(direction: LinkDirection): HTMLButtonElement {
@@ -283,8 +279,14 @@ export class BacklinksPanel {
         }
         const inResolved = this.tabs.in.state !== 'loading';
         const outResolved = this.tabs.out.state !== 'loading';
-        const inCount = this.tabs.in.state === 'ready' ? this.tabs.in.items.length : 0;
-        const outCount = this.tabs.out.state === 'ready' ? this.tabs.out.items.length : 0;
+        const inCount =
+            this.tabs.in.state === 'ready'
+                ? getDisplayLinkCount(this.tabs.in.items, 'in', this.settings.preview.in)
+                : 0;
+        const outCount =
+            this.tabs.out.state === 'ready'
+                ? getDisplayLinkCount(this.tabs.out.items, 'out', this.settings.preview.out)
+                : 0;
 
         if (inResolved && inCount > 0) {
             return 'in';
@@ -305,7 +307,10 @@ export class BacklinksPanel {
             button.classList.toggle('is-active', direction === this.activeTab);
             const countEl = button.querySelector<HTMLSpanElement>('.backlinks-navigator-tab-count');
             if (countEl) {
-                countEl.textContent = tab.state === 'ready' ? String(this.displayItems(direction).length) : '';
+                countEl.textContent =
+                    tab.state === 'ready'
+                        ? String(getDisplayLinkCount(tab.items, direction, this.settings.preview[direction]))
+                        : '';
             }
         });
     }

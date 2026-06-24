@@ -17,22 +17,26 @@
 import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
-import { EDITOR_COMMAND_TOGGLE_PANEL } from '../constants';
-import type { LinkItem, PanelDimensions, PanelSettings } from '../types';
-import { DEFAULT_LINK_PREVIEW_SETTINGS } from '../types';
+import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
+import type { LinkItem } from '../types';
 import type {
     ContentScriptToPluginMessage,
     GetBacklinksResponse,
     GetOutgoingLinksResponse,
     IndicatorState,
 } from '../messages';
-import { normalizePanelDimensions } from '../panelDimensions';
-import { dedupeByNoteId } from '../linkSort';
+import { getDisplayLinkCount } from '../linkDisplay';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
 import { createNoteIdWatcher } from './ui/noteIdWatcher';
 import { findMarkdownLinkRange, type MarkdownLinkRange } from './markdownLinkPosition';
 import { referenceHighlightExtension, setReferenceHighlightEffect } from './referenceHighlight';
+import {
+    applyContentScriptSettings,
+    createSettingsExtension,
+    getContentScriptSettings,
+    syncInitialContentScriptSettings,
+} from './pluginSettings';
 import logger from '../logger';
 
 const INDICATOR_DEBOUNCE_MS = 350;
@@ -44,10 +48,6 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             // destroys the editor (note close, plugin disable), they are cleaned up automatically.
             const view = editorControl.editor as EditorView;
             let panel: BacklinksPanel | null = null;
-            let panelSettings: PanelSettings = {
-                dimensions: normalizePanelDimensions(),
-                preview: { ...DEFAULT_LINK_PREVIEW_SETTINGS },
-            };
             // Monotonic token so a slow backlink response can't populate a stale/closed panel.
             let requestSeq = 0;
             // After navigating to a backlink, scroll the target note to the line that references
@@ -66,6 +66,11 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             const indicator = new BacklinkIndicator(view, () => {
                 void context.postMessage({ type: 'openPanel' } as ContentScriptToPluginMessage);
             });
+
+            const clearIndicatorCache = (): void => {
+                currentNoteBacklinks = null;
+                currentNoteOutgoing = null;
+            };
 
             const resolveNoteId = (): string | null => {
                 if (!noteIdFacet) {
@@ -87,17 +92,14 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             // Shows the indicator if it has a positive cached count and the panel isn't open
             // (the panel occupies the same top-right corner).
             const syncIndicator = (): void => {
+                const settings = getContentScriptSettings(view.state);
                 if (panel?.isOpen()) {
                     indicator.hide();
                     return;
                 }
-                // Title-only mode collapses backlinks to one row per note in the panel, so the badge
-                // counts distinct notes too (rather than total occurrences) to stay consistent.
-                const backlinkItems =
-                    currentNoteBacklinks && panelSettings.preview.in === 'title'
-                        ? dedupeByNoteId(currentNoteBacklinks)
-                        : currentNoteBacklinks;
-                const backlinks = backlinkItems?.length ?? 0;
+                const backlinks = currentNoteBacklinks
+                    ? getDisplayLinkCount(currentNoteBacklinks, 'in', settings.panel.preview.in)
+                    : 0;
                 const outgoing = currentNoteOutgoing?.length ?? 0;
                 if (backlinks + outgoing > 0) {
                     indicator.show({ backlinks, outgoing });
@@ -140,7 +142,8 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 // title-only mode backlinks are collapsed to one row per note (not a specific
                 // occurrence), so don't attempt to scroll to a reference.
                 const currentNoteId = resolveNoteId();
-                const scrollToOccurrence = link.direction === 'in' && panelSettings.preview.in !== 'title';
+                const scrollToOccurrence =
+                    link.direction === 'in' && getContentScriptSettings(view.state).panel.preview.in !== 'title';
                 pendingScroll =
                     scrollToOccurrence && currentNoteId
                         ? {
@@ -232,8 +235,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
 
             const handleNoteChange = (noteId: string): void => {
                 // New note: drop the stale caches (and their indicator) before closing the panel.
-                currentNoteBacklinks = null;
-                currentNoteOutgoing = null;
+                clearIndicatorCache();
                 closePanel(false);
 
                 if (pendingScroll) {
@@ -265,7 +267,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                                 closePanel(reason === 'escape');
                             },
                         },
-                        panelSettings,
+                        getContentScriptSettings(view.state).panel,
                         isMobile
                     );
                 }
@@ -368,21 +370,13 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
 
                 currentNoteBacklinks = state?.enabled ? (Array.isArray(state.backlinks) ? state.backlinks : []) : null;
                 currentNoteOutgoing = state?.enabled ? (Array.isArray(state.outgoing) ? state.outgoing : []) : null;
-                // Adopt the host's backlink preview mode so the badge collapses occurrences the same
-                // way the panel does, even on a cold launch before the panel command has run (which
-                // is otherwise the only path that delivers the real settings to this content script).
-                if (state?.enabled && state.backlinkPreviewMode) {
-                    panelSettings = {
-                        ...panelSettings,
-                        preview: { ...panelSettings.preview, in: state.backlinkPreviewMode },
-                    };
-                }
                 syncIndicator();
             };
 
             const scheduleIndicatorRefresh = (): void => {
                 if (indicatorTimer !== null) {
                     clearTimeout(indicatorTimer);
+                    indicatorTimer = null;
                 }
                 indicatorTimer = window.setTimeout(() => {
                     indicatorTimer = null;
@@ -390,28 +384,19 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 }, INDICATOR_DEBOUNCE_MS);
             };
 
-            const normalizeIncomingPanelSettings = (settings?: PanelSettings | PanelDimensions): PanelSettings => {
-                if (settings && 'dimensions' in settings) {
-                    return {
-                        dimensions: normalizePanelDimensions(settings.dimensions),
-                        preview: {
-                            ...DEFAULT_LINK_PREVIEW_SETTINGS,
-                            ...settings.preview,
-                        },
-                    };
+            const applySettingsUpdate = (settings: unknown): void => {
+                const nextSettings = applyContentScriptSettings(view, settings);
+                panel?.setSettings(nextSettings.panel);
+                if (!nextSettings.showIndicator) {
+                    clearIndicatorCache();
+                    indicator.hide();
+                    return;
                 }
-                return {
-                    dimensions: normalizePanelDimensions(settings),
-                    preview: { ...DEFAULT_LINK_PREVIEW_SETTINGS },
-                };
+                syncIndicator();
+                scheduleIndicatorRefresh();
             };
 
-            const togglePanel = (settings?: PanelSettings | PanelDimensions, isMobile?: boolean): void => {
-                if (settings) {
-                    panelSettings = normalizeIncomingPanelSettings(settings);
-                    panel?.setSettings(panelSettings);
-                }
-
+            const togglePanel = (isMobile?: boolean): void => {
                 if (panel?.isOpen()) {
                     closePanel(true);
                 } else {
@@ -424,12 +409,14 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             if (noteIdFacet) {
                 editorControl.addExtension(createNoteIdWatcher(noteIdFacet, handleNoteChange));
             }
+            editorControl.addExtension(createSettingsExtension());
             editorControl.addExtension(referenceHighlightExtension);
 
+            editorControl.registerCommand(EDITOR_COMMAND_UPDATE_SETTINGS, applySettingsUpdate);
             editorControl.registerCommand(EDITOR_COMMAND_TOGGLE_PANEL, togglePanel);
 
-            // Check the initial note (the watcher only fires on subsequent switches).
-            scheduleIndicatorRefresh();
+            // Check the initial note after settings arrive (the watcher only fires on subsequent switches).
+            void syncInitialContentScriptSettings(context, view).finally(scheduleIndicatorRefresh);
         },
     };
 }

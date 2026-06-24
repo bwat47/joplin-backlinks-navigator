@@ -30,14 +30,17 @@ this plugin uses real request/response (see `src/messages.ts`):
   note links to).
 - `{ type: 'getIndicatorState', noteId }` → host returns `{ enabled: false }` when the
   "show indicator" setting is off (no search performed), otherwise
-  `{ enabled: true, backlinks, outgoing, backlinkPreviewMode }` (both directions so the badge can
-  show both counts; in title-only backlink mode `backlinks` is already collapsed to one row per
-  source note, with `backlinkPreviewMode` included so the content script can keep its local settings
-  aligned before the panel command has run — see the indicator note).
+  `{ enabled: true, backlinks, outgoing }` (raw rows for both directions; the content script applies
+  the current display policy locally — see the indicator note).
+- `{ type: 'getContentScriptSettings' }` → host returns the `ContentScriptSettings` consumed by the
+  editor (panel dimensions, per-direction preview modes, and the show-indicator flag). The content
+  script requests this once on startup to seed its settings facet before the first indicator render —
+  see the settings note.
 - `{ type: 'openNote', noteId, mode? }` → host opens the note in the current editor, or resolves the
   configured Ctrl-click/Ctrl-Enter behavior to open it in a new window or through Note Tabs, returns `void`.
 - `{ type: 'openPanel' }` → host runs the `Show Backlinks` command (so the panel opens with the
-  configured dimensions and correct mobile flag), returns `void`.
+  correct mobile flag), returns `void`. The panel reads its dimensions from the settings facet, not
+  from command arguments.
 
 ## Link discovery (host)
 
@@ -70,7 +73,8 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
 ## Panel lifecycle (content script)
 
 - `src/contentScripts/backlinksNavigator.ts` — reads the note id from
-  `editorControl.joplinExtensions.noteIdFacet`, registers the `togglePanel` editor command,
+  `editorControl.joplinExtensions.noteIdFacet`, registers the `togglePanel` and `updateSettings`
+  editor commands, seeds the settings facet on startup (see settings note),
   opens the panel in a loading state, always fetches **both** backlinks and outgoing links fresh in
   parallel (`setLinks('in', …)` / `setLinks('out', …)`), and forwards clicks to the host. A monotonic
   request token prevents a slow response from populating a stale/closed panel. When a **backlink** is
@@ -84,6 +88,18 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
   is reused across note switches on desktop, so this closure state survives navigation; a short
   retry handles the gap before the new content settles, and the scroll is re-asserted once after
   Joplin's own post-load cursor restoration.
+- `src/contentScripts/pluginSettings.ts` — owns the content script's settings as a CodeMirror facet
+  (`ContentScriptSettings`: panel dimensions, per-direction preview modes, show-indicator flag),
+  held in a compartment so it can be reconfigured at runtime. `syncInitialContentScriptSettings`
+  fetches the host's settings (`getContentScriptSettings`) and seeds the facet before the first
+  indicator refresh is scheduled, so the badge renders with the correct preview mode on a cold
+  launch. The host pushes later changes via the `updateSettings` editor command (fired from
+  `index.ts` whenever an editor-affecting setting changes), which re-applies the facet. Incoming
+  values are normalized/validated here, so a malformed payload falls back to defaults.
+- `src/linkDisplay.ts` — the single source of the **display policy** shared by the panel and the
+  indicator: `getDisplayLinks`/`getDisplayLinkCount` collapse inbound backlinks to one row per note
+  in title-only mode (via `dedupeByNoteId`) and otherwise pass rows through unchanged. Centralizing
+  it here keeps the panel list, tab counts, and badge count consistent.
 - `src/contentScripts/markdownLinkPosition.ts` — given the position of a found `:/<noteId>` URL,
   resolves the range of the enclosing inline markdown link (`[label](:/id)`, including a leading
   `!` for embed syntax) on the same line. Falls back to just the URL range for raw note
@@ -110,14 +126,13 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
   counts, `← n` backlinks / `→ n` outgoing, each shown only when non-zero) floated in the editor's
   top-right when the current note has any links. Gated by the "show indicator" setting (default
   off). On note load the entry sends `getIndicatorState` (debounced); when enabled it caches both
-  directions purely to drive the badge counts (the panel does not read this cache). In the
-  title-only backlink mode the host sends backlinks already deduped per note (`dedupeByNoteId`) so
-  the first badge count matches the collapsed panel list even before the content script has received
-  command-delivered settings; the content script keeps an idempotent dedupe fallback when its local
-  preview mode is title-only. The badge hides while the panel is open (same corner) and clears on
-  note switch. The panel always fetches fresh on open (see below), and those fresh results refresh
-  the badge cache too, so clicking a temporarily-stale badge brings both the panel and the badge up
-  to date.
+  directions (the raw rows) purely to drive the badge counts (the panel does not read this cache).
+  The badge count is derived by applying the shared display policy (`getDisplayLinkCount`, see the
+  settings note) to those cached rows, so in title-only backlink mode it counts one row per source
+  note and matches the collapsed panel list. The badge hides while the panel is open (same corner)
+  and clears on note switch. The panel always fetches fresh on open (see below), and those fresh
+  results refresh the badge cache too, so clicking a temporarily-stale badge brings both the panel
+  and the badge up to date.
 - `src/contentScripts/ui/noteIdWatcher.ts` — a transaction extender that reports note-id
   changes (note switch); the entry uses it to close the panel and trigger the pending scroll.
 - `src/contentScripts/theme/panelTheme.ts` — CSS using `var(--joplin-*)` theme variables,

@@ -51,6 +51,11 @@ export interface PanelSettings {
     preview: LinkPreviewSettings;
 }
 
+export interface ContentScriptSettings {
+    panel: PanelSettings;
+    showIndicator: boolean;
+}
+
 export type BacklinkOpenBehavior = 'newWindow' | 'newTab';
 
 export const DEFAULT_PANEL_DIMENSIONS: PanelDimensions = {
