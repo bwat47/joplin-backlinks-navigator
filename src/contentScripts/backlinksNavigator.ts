@@ -19,6 +19,7 @@ import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
 import type { LinkItem } from '../types';
+import { findOccurrenceOffsets } from '../linkExtraction';
 import type {
     ContentScriptToPluginMessage,
     GetBacklinksResponse,
@@ -165,25 +166,6 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 }
             };
 
-            const findOccurrencePosition = (text: string, needle: string, occurrenceIndex: number): number => {
-                let fromIndex = 0;
-                let remainingOccurrences = occurrenceIndex;
-
-                while (fromIndex < text.length) {
-                    const pos = text.indexOf(needle, fromIndex);
-                    if (pos === -1) {
-                        return -1;
-                    }
-                    if (remainingOccurrences === 0) {
-                        return pos;
-                    }
-                    remainingOccurrences -= 1;
-                    fromIndex = pos + needle.length;
-                }
-
-                return -1;
-            };
-
             // Scrolls the (just-loaded) target note to the selected occurrence containing `needle`.
             // The note content may not be present the instant the id changes, so retry briefly.
             const scrollToReference = (targetNoteId: string, needle: string, occurrenceIndex: number): void => {
@@ -213,7 +195,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     }
 
                     const text = view.state.doc.toString();
-                    const pos = findOccurrencePosition(text, needle, occurrenceIndex);
+                    const pos = findOccurrenceOffsets(text, needle)[occurrenceIndex] ?? -1;
                     if (pos === -1) {
                         attempt += 1;
                         if (attempt <= MAX_ATTEMPTS) {
