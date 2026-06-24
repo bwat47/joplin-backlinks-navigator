@@ -12,7 +12,7 @@ import joplin from 'api';
 import { SettingItemType } from 'api/types';
 import logger from './logger';
 import type { BacklinkOpenBehavior, ContentScriptSettings, LinkPreviewMode, PanelSettings } from './types';
-import { DEFAULT_LINK_PREVIEW_SETTINGS } from './types';
+import { DEFAULT_LINK_PREVIEW_SETTINGS, isLinkPreviewMode } from './types';
 import {
     DEFAULT_PANEL_HEIGHT_PERCENTAGE,
     DEFAULT_PANEL_WIDTH,
@@ -76,8 +76,7 @@ export function normalizeLinkPreviewMode(
     defaultValue: LinkPreviewMode,
     options: { allowHeading?: boolean } = {}
 ): { value: LinkPreviewMode; changed: boolean } {
-    const allowHeading = options.allowHeading ?? true;
-    if (value === 'title' || value === 'titleSnippet' || (allowHeading && value === 'titleSnippetHeading')) {
+    if (isLinkPreviewMode(value, options.allowHeading ?? true)) {
         return { value, changed: false };
     }
 
