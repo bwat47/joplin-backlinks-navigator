@@ -61,5 +61,5 @@ export const DEFAULT_PANEL_DIMENSIONS: PanelDimensions = {
 
 export const DEFAULT_LINK_PREVIEW_SETTINGS: LinkPreviewSettings = {
     in: 'titleSnippet',
-    out: 'title',
+    out: 'titleSnippet',
 };
