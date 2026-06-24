@@ -3,32 +3,17 @@ jest.mock('api', () => ({
     default: {},
 }));
 
-import {
-    normalizeCtrlClickBehavior,
-    normalizeCtrlEnterBehavior,
-    normalizeIgnoredBacklinkNoteIds,
-    normalizeLinkPreviewMode,
-} from './settings';
+import { normalizeBacklinkOpenBehavior, normalizeIgnoredBacklinkNoteIds, normalizeLinkPreviewMode } from './settings';
 
 describe('settings normalization', () => {
-    it('accepts supported Ctrl-click backlink behaviors', () => {
-        expect(normalizeCtrlClickBehavior('newWindow')).toEqual({ value: 'newWindow', changed: false });
-        expect(normalizeCtrlClickBehavior('newTab')).toEqual({ value: 'newTab', changed: false });
+    it('accepts supported backlink open behaviors', () => {
+        expect(normalizeBacklinkOpenBehavior('newWindow')).toEqual({ value: 'newWindow', changed: false });
+        expect(normalizeBacklinkOpenBehavior('newTab')).toEqual({ value: 'newTab', changed: false });
     });
 
-    it('falls back to new window for invalid Ctrl-click backlink behaviors', () => {
-        expect(normalizeCtrlClickBehavior('current')).toEqual({ value: 'newWindow', changed: true });
-        expect(normalizeCtrlClickBehavior(undefined)).toEqual({ value: 'newWindow', changed: true });
-    });
-
-    it('accepts supported Ctrl-Enter backlink behaviors', () => {
-        expect(normalizeCtrlEnterBehavior('newWindow')).toEqual({ value: 'newWindow', changed: false });
-        expect(normalizeCtrlEnterBehavior('newTab')).toEqual({ value: 'newTab', changed: false });
-    });
-
-    it('falls back to new window for invalid Ctrl-Enter backlink behaviors', () => {
-        expect(normalizeCtrlEnterBehavior('current')).toEqual({ value: 'newWindow', changed: true });
-        expect(normalizeCtrlEnterBehavior(undefined)).toEqual({ value: 'newWindow', changed: true });
+    it('falls back to new window for invalid backlink open behaviors', () => {
+        expect(normalizeBacklinkOpenBehavior('current')).toEqual({ value: 'newWindow', changed: true });
+        expect(normalizeBacklinkOpenBehavior(undefined)).toEqual({ value: 'newWindow', changed: true });
     });
 
     it('accepts supported link preview modes', () => {

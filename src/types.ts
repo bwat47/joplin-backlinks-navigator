@@ -41,6 +41,17 @@ export interface PanelDimensions {
 
 export type LinkPreviewMode = 'title' | 'titleSnippet' | 'titleSnippetHeading';
 
+/**
+ * Type guard for a valid {@link LinkPreviewMode}. Shared by the host-side settings loader and the
+ * content-script payload validator so both agree on which modes are allowed.
+ *
+ * @param allowHeading - Whether `'titleSnippetHeading'` is accepted (outgoing links have no
+ *   enclosing heading to show, so that mode is rejected for them).
+ */
+export function isLinkPreviewMode(value: unknown, allowHeading: boolean): value is LinkPreviewMode {
+    return value === 'title' || value === 'titleSnippet' || (allowHeading && value === 'titleSnippetHeading');
+}
+
 export interface LinkPreviewSettings {
     in: LinkPreviewMode;
     out: LinkPreviewMode;

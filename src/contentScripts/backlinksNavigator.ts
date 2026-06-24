@@ -54,12 +54,11 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             // the note we came from. On Desktop, the same EditorView is reused across note switches, so this
             // closure state survives the navigation.
             let pendingScroll: { targetNoteId: string; needle: string; occurrenceIndex: number } | null = null;
-            // Link counts backing the indicator badge, populated only when the indicator is enabled.
-            // `null` means "indicator off / not fetched"; that null-vs-array distinction also acts as
-            // the "is the indicator enabled?" proxy when the panel refreshes these after a fresh load.
-            // The panel itself always fetches fresh and does not read these.
-            let currentNoteBacklinks: LinkItem[] | null = null;
-            let currentNoteOutgoing: LinkItem[] | null = null;
+            // Link rows backing the indicator badge. The panel always fetches fresh data and does
+            // not read these caches.
+            let indicatorEnabled = false;
+            let currentNoteBacklinks: LinkItem[] = [];
+            let currentNoteOutgoing: LinkItem[] = [];
             let indicatorSeq = 0;
             let indicatorTimer: number | null = null;
             const noteIdFacet = editorControl.joplinExtensions?.noteIdFacet;
@@ -68,8 +67,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             });
 
             const clearIndicatorCache = (): void => {
-                currentNoteBacklinks = null;
-                currentNoteOutgoing = null;
+                indicatorEnabled = false;
+                currentNoteBacklinks = [];
+                currentNoteOutgoing = [];
             };
 
             const resolveNoteId = (): string | null => {
@@ -97,10 +97,12 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     indicator.hide();
                     return;
                 }
-                const backlinks = currentNoteBacklinks
-                    ? getDisplayLinkCount(currentNoteBacklinks, 'in', settings.panel.preview.in)
-                    : 0;
-                const outgoing = currentNoteOutgoing?.length ?? 0;
+                if (!indicatorEnabled) {
+                    indicator.hide();
+                    return;
+                }
+                const backlinks = getDisplayLinkCount(currentNoteBacklinks, 'in', settings.panel.preview.in);
+                const outgoing = currentNoteOutgoing.length;
                 if (backlinks + outgoing > 0) {
                     indicator.show({ backlinks, outgoing });
                 } else {
@@ -284,9 +286,8 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     }
                     const backlinks = Array.isArray(response) ? response : [];
                     panel.setLinks('in', backlinks);
-                    // Keep the badge's count fresh, but only when the indicator is enabled
-                    // (a non-null cache is the proxy for "enabled").
-                    if (currentNoteBacklinks !== null) {
+                    // Keep the badge's count fresh, but only when the indicator is enabled.
+                    if (indicatorEnabled) {
                         currentNoteBacklinks = backlinks;
                     }
                 } catch (error) {
@@ -306,9 +307,8 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     }
                     const outgoing = Array.isArray(response) ? response : [];
                     panel.setLinks('out', outgoing);
-                    // Keep the badge's count fresh, but only when the indicator is enabled
-                    // (a non-null cache is the proxy for "enabled").
-                    if (currentNoteOutgoing !== null) {
+                    // Keep the badge's count fresh, but only when the indicator is enabled.
+                    if (indicatorEnabled) {
                         currentNoteOutgoing = outgoing;
                     }
                 } catch (error) {
@@ -368,8 +368,13 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     return;
                 }
 
-                currentNoteBacklinks = state?.enabled ? (Array.isArray(state.backlinks) ? state.backlinks : []) : null;
-                currentNoteOutgoing = state?.enabled ? (Array.isArray(state.outgoing) ? state.outgoing : []) : null;
+                if (state.enabled) {
+                    indicatorEnabled = true;
+                    currentNoteBacklinks = Array.isArray(state.backlinks) ? state.backlinks : [];
+                    currentNoteOutgoing = Array.isArray(state.outgoing) ? state.outgoing : [];
+                } else {
+                    clearIndicatorCache();
+                }
                 syncIndicator();
             };
 
