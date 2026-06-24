@@ -30,7 +30,9 @@ this plugin uses real request/response (see `src/messages.ts`):
   note links to).
 - `{ type: 'getIndicatorState', noteId }` → host returns `{ enabled: false }` when the
   "show indicator" setting is off (no search performed), otherwise
-  `{ enabled: true, backlinks, outgoing }` (both directions, so the badge can show both counts).
+  `{ enabled: true, backlinks, outgoing, backlinkPreviewMode }` (both directions so the badge can
+  show both counts, plus the backlink preview mode so the badge can collapse occurrences the same
+  way the panel does even before the panel command has delivered settings — see the indicator note).
 - `{ type: 'openNote', noteId, mode? }` → host opens the note in the current editor, or resolves the
   configured Ctrl-click/Ctrl-Enter behavior to open it in a new window or through Note Tabs, returns `void`.
 - `{ type: 'openPanel' }` → host runs the `Show Backlinks` command (so the panel opens with the
@@ -73,7 +75,9 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
   request token prevents a slow response from populating a stale/closed panel. When a **backlink** is
   selected it records a "pending scroll" (the target note id, the `:/<currentNoteId>` needle, and
   the selected occurrence index) before navigating; once the target note loads it scrolls to that
-  occurrence. **Outgoing** links just open the target note (there's no reference-back to scroll to). The cursor is placed at the start of the
+  occurrence. The exception is the **title-only** backlink preview mode: those rows are collapsed to
+  one per note (not a specific occurrence), so no pending scroll is recorded. **Outgoing** links just
+  open the target note (there's no reference-back to scroll to). The cursor is placed at the start of the
   enclosing markdown link (see `markdownLinkPosition.ts`) rather than inside the URL, and the
   matched reference is briefly highlighted (see `referenceHighlight.ts`). The same `EditorView`
   is reused across note switches on desktop, so this closure state survives navigation; a short
@@ -94,7 +98,10 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
   states. The active list feeds the shared filter/render machinery. Preview detail is a render-time
   setting, separately configurable for backlinks (`title`, `title + snippet`, or
   `title + snippet + nearest heading`) and outgoing links (`title` or `title + snippet` only — the
-  outgoing snippet previews the linked note's opening, which has no enclosing heading to show). The panel owns the **default-tab** policy: after each
+  outgoing snippet previews the linked note's opening, which has no enclosing heading to show). In the
+  title-only backlink mode the panel collapses backlinks to one row per note (`displayItems`), since
+  without a snippet the per-occurrence rows would be indistinguishable; the tab count and occurrence
+  label follow suit. The panel owns the **default-tab** policy: after each
   tab resolves, and until the user manually switches, it selects backlinks if any exist, otherwise
   outgoing if any exist, otherwise backlinks — so this rule governs every entry point
   (command/toolbar and indicator alike).
@@ -102,7 +109,11 @@ Navigation uses `joplin.commands.execute('openItem', ':/' + noteId)`.
   counts, `← n` backlinks / `→ n` outgoing, each shown only when non-zero) floated in the editor's
   top-right when the current note has any links. Gated by the "show indicator" setting (default
   off). On note load the entry sends `getIndicatorState` (debounced); when enabled it caches both
-  directions purely to drive the badge counts (the panel does not read this cache). The badge hides
+  directions purely to drive the badge counts (the panel does not read this cache). In the
+  title-only backlink mode the backlink count is deduped per note (`dedupeByNoteId`) so it matches
+  the collapsed panel list; the indicator state carries `backlinkPreviewMode` so this works on a
+  cold launch too (the content script otherwise only learns the preview mode when the panel command
+  first runs, so the badge would briefly show the raw occurrence count). The badge hides
   while the panel is open (same corner) and clears on note switch. The panel always fetches fresh
   on open (see below), and those fresh results refresh the badge cache too, so clicking a
   temporarily-stale badge brings both the panel and the badge up to date.

@@ -11,7 +11,7 @@
  * - index.ts - Plugin host that receives and processes messages
  */
 
-import type { LinkItem } from './types';
+import type { LinkItem, LinkPreviewMode } from './types';
 
 /** Request the list of backlink occurrences that link to `noteId`. Host responds with `LinkItem[]`. */
 export interface GetBacklinksMessage {
@@ -67,6 +67,10 @@ export type GetOutgoingLinksResponse = LinkItem[];
 /**
  * Response for a {@link GetIndicatorStateMessage}.
  * `enabled` is false when the indicator setting is off (no search was performed); otherwise it
- * carries both link directions so the badge can show both counts.
+ * carries both link directions so the badge can show both counts, plus the backlink preview mode
+ * so the badge can match the panel's title-only collapsing before the panel has ever been opened
+ * (the content script otherwise only learns the preview mode when the panel command first runs).
  */
-export type IndicatorState = { enabled: false } | { enabled: true; backlinks: LinkItem[]; outgoing: LinkItem[] };
+export type IndicatorState =
+    | { enabled: false }
+    | { enabled: true; backlinks: LinkItem[]; outgoing: LinkItem[]; backlinkPreviewMode: LinkPreviewMode };

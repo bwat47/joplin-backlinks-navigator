@@ -1,6 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import type { LinkDirection, LinkItem, PanelSettings } from '../../types';
 import { createPanelCss } from '../theme/panelTheme';
+import { dedupeByNoteId } from '../../linkSort';
 import { fuzzyFilter, highlightMatch } from './fuzzyFilter';
 
 const PANEL_STYLE_ID = 'backlinks-navigator-styles';
@@ -217,7 +218,23 @@ export class BacklinksPanel {
     public setSettings(settings: PanelSettings): void {
         this.settings = settings;
         ensurePanelStyles(this.view, this.settings);
-        this.render();
+        // Re-derive counts and the visible list: the backlink preview mode can change whether
+        // occurrences are collapsed to one row per note (see displayItems).
+        this.updateTabButtons();
+        this.applyFilter(this.input.value);
+    }
+
+    /**
+     * The items to display for a tab. Backlinks in title-only mode are collapsed to one row per
+     * linked note: with no snippet to tell occurrences apart, repeating the same title adds nothing.
+     * Items arrive sorted by title then occurrence, so the kept row is each note's first occurrence.
+     */
+    private displayItems(direction: LinkDirection): LinkItem[] {
+        const items = this.tabs[direction].items;
+        if (direction !== 'in' || this.settings.preview.in !== 'title') {
+            return items;
+        }
+        return dedupeByNoteId(items);
     }
 
     private createTabButton(direction: LinkDirection): HTMLButtonElement {
@@ -288,7 +305,7 @@ export class BacklinksPanel {
             button.classList.toggle('is-active', direction === this.activeTab);
             const countEl = button.querySelector<HTMLSpanElement>('.backlinks-navigator-tab-count');
             if (countEl) {
-                countEl.textContent = tab.state === 'ready' ? String(tab.items.length) : '';
+                countEl.textContent = tab.state === 'ready' ? String(this.displayItems(direction).length) : '';
             }
         });
     }
@@ -361,7 +378,7 @@ export class BacklinksPanel {
     private applyFilter(filterText: string): void {
         this.filterText = filterText.trim();
         const model = this.activeModel;
-        this.filtered = model.state === 'ready' ? fuzzyFilter(this.filterText, model.items) : [];
+        this.filtered = model.state === 'ready' ? fuzzyFilter(this.filterText, this.displayItems(this.activeTab)) : [];
 
         if (this.filtered.length === 0) {
             this.selectedId = null;
@@ -551,6 +568,11 @@ export class BacklinksPanel {
 
     private formatOccurrenceLabel(link: LinkItem): string {
         if (link.direction !== 'in' || link.occurrenceCount <= 1) {
+            return '';
+        }
+        // Title-only backlinks are collapsed to one row per note, so a per-occurrence index
+        // (e.g. "1/3") would be misleading; the row stands for the note, not one occurrence.
+        if (this.settings.preview.in === 'title') {
             return '';
         }
         return `${link.occurrenceIndex + 1}/${link.occurrenceCount}`;
