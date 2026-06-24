@@ -15,27 +15,33 @@
 
 import joplin from 'api';
 import { ContentScriptType, MenuItemLocation, ToastType, ToolbarButtonLocation } from 'api/types';
-import { CODEMIRROR_CONTENT_SCRIPT_ID, COMMAND_SHOW_BACKLINKS, EDITOR_COMMAND_TOGGLE_PANEL } from './constants';
+import {
+    CODEMIRROR_CONTENT_SCRIPT_ID,
+    COMMAND_SHOW_BACKLINKS,
+    EDITOR_COMMAND_TOGGLE_PANEL,
+    EDITOR_COMMAND_UPDATE_SETTINGS,
+} from './constants';
 import logger from './logger';
 import {
     DEBUG_SETTING_KEY,
+    isEditorAffectingSettingChanged,
+    loadContentScriptSettings,
     loadCtrlClickBehaviorSetting,
     loadCtrlEnterBehaviorSetting,
     loadDebugSetting,
     loadIgnoredBacklinkNoteIdsSetting,
-    loadPanelSettings,
     loadShowIndicatorSetting,
     registerSettings,
 } from './settings';
 import type {
     ContentScriptToPluginMessage,
     GetBacklinksResponse,
+    GetContentScriptSettingsResponse,
     GetOutgoingLinksResponse,
     IndicatorState,
 } from './messages';
 import { findBacklinks } from './backlinksService';
 import { findOutgoingLinks } from './outgoingLinksService';
-import { dedupeByNoteId } from './linkSort';
 import type { BacklinkOpenBehavior } from './types';
 
 type ResolvedOpenNoteMode = 'current' | BacklinkOpenBehavior;
@@ -101,7 +107,7 @@ async function findOutgoingLinksWithSettings(noteId: string): Promise<GetOutgoin
 
 async function handleMessage(
     message: ContentScriptToPluginMessage
-): Promise<GetBacklinksResponse | GetOutgoingLinksResponse | IndicatorState | void> {
+): Promise<GetBacklinksResponse | GetOutgoingLinksResponse | GetContentScriptSettingsResponse | IndicatorState | void> {
     if (!message || typeof message !== 'object') {
         return;
     }
@@ -111,22 +117,21 @@ async function handleMessage(
             return findBacklinksWithSettings(message.noteId);
         case 'getOutgoingLinks':
             return findOutgoingLinksWithSettings(message.noteId);
+        case 'getContentScriptSettings':
+            return loadContentScriptSettings();
         case 'getIndicatorState': {
             // Honor the setting before doing any link discovery.
             if (!(await loadShowIndicatorSetting())) {
                 return { enabled: false };
             }
-            const [backlinks, outgoing, panelSettings] = await Promise.all([
+            const [backlinks, outgoing] = await Promise.all([
                 findBacklinksWithSettings(message.noteId),
                 findOutgoingLinksWithSettings(message.noteId),
-                loadPanelSettings(),
             ]);
-            const indicatorBacklinks = panelSettings.preview.in === 'title' ? dedupeByNoteId(backlinks) : backlinks;
             return {
                 enabled: true,
-                backlinks: indicatorBacklinks,
+                backlinks,
                 outgoing,
-                backlinkPreviewMode: panelSettings.preview.in,
             };
         }
         case 'openNote':
@@ -157,16 +162,27 @@ async function registerCommands(): Promise<void> {
         iconName: 'fas fa-link',
         execute: async () => {
             logger.info('Show Backlinks command triggered');
-            const panelSettings = await loadPanelSettings();
             const versionInfo = await joplin.versionInfo();
             const isMobile = versionInfo.platform === 'mobile';
 
             await joplin.commands.execute('editor.execCommand', {
                 name: EDITOR_COMMAND_TOGGLE_PANEL,
-                args: [panelSettings, isMobile],
+                args: [isMobile],
             });
         },
     });
+}
+
+async function pushContentScriptSettings(): Promise<void> {
+    const settings = await loadContentScriptSettings();
+    try {
+        await joplin.commands.execute('editor.execCommand', {
+            name: EDITOR_COMMAND_UPDATE_SETTINGS,
+            args: [settings],
+        });
+    } catch (error) {
+        logger.warn('Failed to push updated content script settings', error);
+    }
 }
 
 async function registerMenuItems(): Promise<void> {
@@ -193,6 +209,9 @@ joplin.plugins.register({
         await joplin.settings.onChange(async ({ keys }) => {
             if (keys.includes(DEBUG_SETTING_KEY)) {
                 await applyDebugSetting();
+            }
+            if (isEditorAffectingSettingChanged(keys)) {
+                await pushContentScriptSettings();
             }
         });
         await registerContentScripts();

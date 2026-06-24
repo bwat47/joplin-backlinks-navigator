@@ -20,7 +20,7 @@ export function compareLinkItems(a: LinkItem, b: LinkItem): number {
  * given order. Used by the title-only backlink mode (panel list, tab count, and badge count),
  * where multiple occurrence rows for the same note carry no distinguishing snippet.
  */
-export function dedupeByNoteId(items: LinkItem[]): LinkItem[] {
+export function dedupeByNoteId(items: readonly LinkItem[]): LinkItem[] {
     const seen = new Set<string>();
     const collapsed: LinkItem[] = [];
     for (const item of items) {

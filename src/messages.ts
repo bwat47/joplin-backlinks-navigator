@@ -11,7 +11,7 @@
  * - index.ts - Plugin host that receives and processes messages
  */
 
-import type { LinkItem, LinkPreviewMode } from './types';
+import type { ContentScriptSettings, LinkItem } from './types';
 
 /** Request the list of backlink occurrences that link to `noteId`. Host responds with `LinkItem[]`. */
 export interface GetBacklinksMessage {
@@ -35,6 +35,11 @@ export interface GetIndicatorStateMessage {
     noteId: string;
 }
 
+/** Request settings consumed by the editor content script. Host responds with {@link ContentScriptSettings}. */
+export interface GetContentScriptSettingsMessage {
+    type: 'getContentScriptSettings';
+}
+
 /** Ask the host to navigate to `noteId`. Host responds with `void`. */
 export interface OpenNoteMessage {
     type: 'openNote';
@@ -55,6 +60,7 @@ export type ContentScriptToPluginMessage =
     | GetBacklinksMessage
     | GetOutgoingLinksMessage
     | GetIndicatorStateMessage
+    | GetContentScriptSettingsMessage
     | OpenNoteMessage
     | OpenPanelMessage;
 
@@ -64,13 +70,12 @@ export type GetBacklinksResponse = LinkItem[];
 /** Response returned by the host for a {@link GetOutgoingLinksMessage}. */
 export type GetOutgoingLinksResponse = LinkItem[];
 
+/** Response returned by the host for a {@link GetContentScriptSettingsMessage}. */
+export type GetContentScriptSettingsResponse = ContentScriptSettings;
+
 /**
  * Response for a {@link GetIndicatorStateMessage}.
  * `enabled` is false when the indicator setting is off (no search was performed); otherwise it
- * carries both link directions so the badge can show both counts. In title-only backlink mode,
- * `backlinks` is already collapsed to one row per source note so first-load indicator counts match
- * the panel even before the content script has received command-delivered settings.
+ * carries raw link rows for both directions so the content script can apply the current display policy.
  */
-export type IndicatorState =
-    | { enabled: false }
-    | { enabled: true; backlinks: LinkItem[]; outgoing: LinkItem[]; backlinkPreviewMode: LinkPreviewMode };
+export type IndicatorState = { enabled: false } | { enabled: true; backlinks: LinkItem[]; outgoing: LinkItem[] };

@@ -11,7 +11,7 @@
 import joplin from 'api';
 import { SettingItemType } from 'api/types';
 import logger from './logger';
-import type { BacklinkOpenBehavior, LinkPreviewMode, PanelSettings } from './types';
+import type { BacklinkOpenBehavior, ContentScriptSettings, LinkPreviewMode, PanelSettings } from './types';
 import { DEFAULT_LINK_PREVIEW_SETTINGS } from './types';
 import {
     DEFAULT_PANEL_HEIGHT_PERCENTAGE,
@@ -305,6 +305,11 @@ export async function loadPanelSettings(): Promise<PanelSettings> {
     };
 }
 
+export async function loadContentScriptSettings(): Promise<ContentScriptSettings> {
+    const [panel, showIndicator] = await Promise.all([loadPanelSettings(), loadShowIndicatorSetting()]);
+    return { panel, showIndicator };
+}
+
 export async function loadShowIndicatorSetting(): Promise<boolean> {
     const value = await joplin.settings.value(SETTING_SHOW_INDICATOR);
     const result = normalizeBooleanSetting(value, false);
@@ -357,3 +362,16 @@ export async function loadDebugSetting(): Promise<boolean> {
 
 /** Setting key for the debug toggle, exposed so the host can watch for changes. */
 export const DEBUG_SETTING_KEY = SETTING_DEBUG;
+
+const EDITOR_AFFECTING_SETTING_KEYS = new Set([
+    SETTING_PANEL_WIDTH,
+    SETTING_PANEL_MAX_HEIGHT,
+    SETTING_SHOW_INDICATOR,
+    SETTING_IGNORED_BACKLINK_NOTE_IDS,
+    SETTING_BACKLINK_PREVIEW_MODE,
+    SETTING_OUTGOING_PREVIEW_MODE,
+]);
+
+export function isEditorAffectingSettingChanged(keys: readonly string[]): boolean {
+    return keys.some((key) => EDITOR_AFFECTING_SETTING_KEYS.has(key));
+}
