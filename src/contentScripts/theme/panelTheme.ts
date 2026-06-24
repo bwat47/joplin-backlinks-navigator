@@ -306,13 +306,19 @@ export function createIndicatorCss(): string {
     outline: none;
 }
 
+.backlinks-navigator-indicator-direction {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
 .backlinks-navigator-indicator-icon {
     display: inline-flex;
 }
 
 .backlinks-navigator-indicator-icon svg {
-    width: 14px;
-    height: 14px;
+    width: 15px;
+    height: 15px;
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
