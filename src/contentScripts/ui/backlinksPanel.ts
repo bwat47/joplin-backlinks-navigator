@@ -27,7 +27,7 @@ interface TabModel {
 
 const TAB_LABELS: Record<LinkDirection, string> = {
     in: 'Backlinks',
-    out: 'Links',
+    out: 'Outgoing Links',
 };
 
 /**
