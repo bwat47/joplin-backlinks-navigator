@@ -9,7 +9,9 @@
  * 1. Fetch the current note's body.
  * 2. Extract every `:/<id>` occurrence, in document order.
  * 3. Group by target id (one row per distinct linked note), skipping self-links and ignored notes.
- * 4. Resolve each target's title + parent notebook, dropping broken links that can't be resolved.
+ * 4. Resolve each target's title, parent notebook, and body, dropping broken links that can't be
+ *    resolved. The snippet previews the opening of the linked note (where the link leads) rather
+ *    than the context around the link in the current note.
  *
  * Only the plugin host has Data API access, so this runs here rather than in the content script.
  */
@@ -17,7 +19,7 @@
 import joplin from 'api';
 import logger from './logger';
 import type { LinkItem } from './types';
-import { extractNoteLinks, extractOccurrenceContexts } from './linkExtraction';
+import { extractNoteLinks, extractNoteOpening } from './linkExtraction';
 import { resolveNoteMeta, resolveNotebookName, type NoteMeta } from './noteMetadata';
 import { compareLinkItems } from './linkSort';
 
@@ -53,18 +55,9 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
         return [];
     }
 
-    const contexts = extractOccurrenceContexts(
-        body,
-        occurrences.map((occurrence) => occurrence.offset)
-    );
-
-    // Group occurrences by target id, preserving the first occurrence's context (document order).
-    interface Group {
-        first: { snippet: string; section: string };
-        count: number;
-    }
-    const groups = new Map<string, Group>();
-    occurrences.forEach((occurrence, index) => {
+    // Group occurrences by target id, counting links per distinct note (document order).
+    const groups = new Map<string, { count: number }>();
+    occurrences.forEach((occurrence) => {
         const targetId = occurrence.targetId;
         if (targetId === noteId.toLowerCase() || ignoredNoteIds.has(targetId)) {
             return;
@@ -73,7 +66,7 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
         if (existing) {
             existing.count += 1;
         } else {
-            groups.set(targetId, { first: contexts[index], count: 1 });
+            groups.set(targetId, { count: 1 });
         }
     });
 
@@ -82,7 +75,7 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
     const outgoing: LinkItem[] = [];
 
     for (const [targetId, group] of groups) {
-        const meta = await resolveNoteMeta(targetId, noteMetaCache);
+        const meta = await resolveNoteMeta(targetId, noteMetaCache, { includeBody: true });
         if (!meta) {
             // Broken link (target note no longer exists) — nothing to navigate to.
             continue;
@@ -96,8 +89,9 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
             occurrenceCount: group.count,
             title: meta.title,
             notebookName,
-            section: group.first.section,
-            snippet: group.first.snippet,
+            // Outgoing links don't show a nearest-heading; the snippet previews the linked note's opening.
+            section: '',
+            snippet: extractNoteOpening(meta.body),
         });
     }
 

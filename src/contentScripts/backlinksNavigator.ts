@@ -27,6 +27,7 @@ import type {
     IndicatorState,
 } from '../messages';
 import { normalizePanelDimensions } from '../panelDimensions';
+import { dedupeByNoteId } from '../linkSort';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
 import { createNoteIdWatcher } from './ui/noteIdWatcher';
@@ -90,7 +91,13 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     indicator.hide();
                     return;
                 }
-                const backlinks = currentNoteBacklinks?.length ?? 0;
+                // Title-only mode collapses backlinks to one row per note in the panel, so the badge
+                // counts distinct notes too (rather than total occurrences) to stay consistent.
+                const backlinkItems =
+                    currentNoteBacklinks && panelSettings.preview.in === 'title'
+                        ? dedupeByNoteId(currentNoteBacklinks)
+                        : currentNoteBacklinks;
+                const backlinks = backlinkItems?.length ?? 0;
                 const outgoing = currentNoteOutgoing?.length ?? 0;
                 if (backlinks + outgoing > 0) {
                     indicator.show({ backlinks, outgoing });
@@ -129,10 +136,13 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
 
                 // For a backlink, record where to scroll once the target note loads: the occurrence
                 // that links back to the note we're currently viewing (`:/<currentNoteId>`). Outgoing
-                // links just open the target note (there's no reference-back to scroll to).
+                // links just open the target note (there's no reference-back to scroll to). In
+                // title-only mode backlinks are collapsed to one row per note (not a specific
+                // occurrence), so don't attempt to scroll to a reference.
                 const currentNoteId = resolveNoteId();
+                const scrollToOccurrence = link.direction === 'in' && panelSettings.preview.in !== 'title';
                 pendingScroll =
-                    link.direction === 'in' && currentNoteId
+                    scrollToOccurrence && currentNoteId
                         ? {
                               targetNoteId: link.noteId,
                               needle: `:/${currentNoteId}`,
@@ -358,6 +368,15 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
 
                 currentNoteBacklinks = state?.enabled ? (Array.isArray(state.backlinks) ? state.backlinks : []) : null;
                 currentNoteOutgoing = state?.enabled ? (Array.isArray(state.outgoing) ? state.outgoing : []) : null;
+                // Adopt the host's backlink preview mode so the badge collapses occurrences the same
+                // way the panel does, even on a cold launch before the panel command has run (which
+                // is otherwise the only path that delivers the real settings to this content script).
+                if (state?.enabled && state.backlinkPreviewMode) {
+                    panelSettings = {
+                        ...panelSettings,
+                        preview: { ...panelSettings.preview, in: state.backlinkPreviewMode },
+                    };
+                }
                 syncIndicator();
             };
 

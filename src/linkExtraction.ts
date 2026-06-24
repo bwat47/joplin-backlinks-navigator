@@ -12,6 +12,16 @@ const NOTE_LINK_RE = /:\/([0-9a-fA-F]{32})/g;
 /** Matches an ATX heading line, capturing the heading text. e.g. "## References" -> "References" */
 const HEADING_RE = /^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/;
 
+/** Matches a thematic break / horizontal rule, e.g. "---", "***", "___". */
+const THEMATIC_BREAK_RE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
+
+/**
+ * Matches a leading GitHub/Obsidian alert (callout) marker, e.g. "[!NOTE]", "[!warning]-",
+ * "[!tip]+ Title" — matched against a line already stripped of its blockquote `>`. The marker is
+ * dropped; any trailing title text on the same line is kept.
+ */
+const ALERT_MARKER_RE = /^\[!\w+\][+-]?\s*/;
+
 /** Builds the literal link prefix to look for in a note body. */
 export function linkNeedle(noteId: string): string {
     return `:/${noteId}`;
@@ -43,6 +53,37 @@ export function cleanSnippetLine(line: string): string {
         return cleaned;
     }
     return `${cleaned.slice(0, SNIPPET_MAX_LENGTH - 1)}…`;
+}
+
+/**
+ * Builds a snippet from the beginning of a note body, used to preview where an outgoing link
+ * leads (rather than the context around the link in the current note).
+ *
+ * Skips blank lines and thematic breaks, drops leading GitHub/Obsidian alert markers (`[!NOTE]`
+ * and friends), and skips a leading heading — the first heading is usually the note's own title,
+ * which the panel already shows separately — to surface the first line of actual prose. If the note
+ * contains only headings, the first heading's text is used as a fallback so the snippet is never
+ * empty for a non-empty note.
+ */
+export function extractNoteOpening(body: string): string {
+    let headingFallback = '';
+    for (const line of body.split('\n')) {
+        if (THEMATIC_BREAK_RE.test(line)) {
+            continue;
+        }
+        const cleaned = cleanSnippetLine(line).replace(ALERT_MARKER_RE, '');
+        if (!cleaned) {
+            continue;
+        }
+        if (HEADING_RE.test(line)) {
+            if (!headingFallback) {
+                headingFallback = cleaned;
+            }
+            continue;
+        }
+        return cleaned;
+    }
+    return headingFallback;
 }
 
 /**

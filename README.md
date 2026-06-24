@@ -14,7 +14,7 @@ A Joplin plugin for viewing and navigating backlinks and outgoing links in the M
 
 - Shows notes that link to the current note
 - Shows notes linked from the current note
-- (Backlinks only) Shows each link occurrence when a note links more than once
+- (Backlinks only) Can show each link occurrence when a note links more than once
 - Opens related notes from a compact floating panel in the markdown editor
 - Filters links by note title
 - Shows notebook, section, and link context when available
@@ -28,7 +28,9 @@ Open the links panel from the editor toolbar, editor indicator icon (if enabled 
 > [!note]
 > There isn't a default keyboard shortcut, you can assign one under Tools | Options | Keyboard Shortcuts | "Show Links" command.
 
-Click a backlink to open the note that links to the current note, or click an outgoing link to open the note linked from the current note. On desktop, the editor will try to scroll to the backlink occurrence after note switch.
+Click a backlink to open the note that links to the current note, or click an outgoing link to open the note linked from the current note.
+
+If backlink context preview is enabled, it will show each link occurrence when a note links more than once, and clicking a backlink will scroll to the specific link occurance after switching notes. If backlink context preview is set to Note title only, it will only show one occurance for each backlink, and will not scroll after switching notes.
 
 ## Settings
 
@@ -39,7 +41,9 @@ Click a backlink to open the note that links to the current note, or click an ou
 - Ctrl-click link behavior - open in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
 - Ctrl-Enter link behavior - open the selected link in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
 - Backlink context preview
+    - Snippet shows preview text from the line containing the backlink. Nearest heading displays the heading nearest to the backlink.
 - Outgoing link context preview
+    - Snippet shows preview text from the beginning of the linked note.
 - Enable debug logging
 
 ## Limitations

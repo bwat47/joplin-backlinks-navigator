@@ -43,6 +43,17 @@ describe('settings normalization', () => {
         });
     });
 
+    it('rejects the nearest-heading mode when headings are disallowed (outgoing links)', () => {
+        expect(normalizeLinkPreviewMode('titleSnippetHeading', 'title', { allowHeading: false })).toEqual({
+            value: 'title',
+            changed: true,
+        });
+        expect(normalizeLinkPreviewMode('titleSnippet', 'title', { allowHeading: false })).toEqual({
+            value: 'titleSnippet',
+            changed: false,
+        });
+    });
+
     it('falls back to the provided default for invalid link preview modes', () => {
         expect(normalizeLinkPreviewMode('snippet', 'titleSnippet')).toEqual({
             value: 'titleSnippet',

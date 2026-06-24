@@ -115,11 +115,12 @@ async function handleMessage(
             if (!(await loadShowIndicatorSetting())) {
                 return { enabled: false };
             }
-            const [backlinks, outgoing] = await Promise.all([
+            const [backlinks, outgoing, panelSettings] = await Promise.all([
                 findBacklinksWithSettings(message.noteId),
                 findOutgoingLinksWithSettings(message.noteId),
+                loadPanelSettings(),
             ]);
-            return { enabled: true, backlinks, outgoing };
+            return { enabled: true, backlinks, outgoing, backlinkPreviewMode: panelSettings.preview.in };
         }
         case 'openNote':
             await openNote(message.noteId, await resolveOpenNoteMode(message));
