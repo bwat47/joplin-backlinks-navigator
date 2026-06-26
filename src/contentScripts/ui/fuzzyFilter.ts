@@ -28,7 +28,34 @@ export function fuzzyFilter(query: string, links: LinkItem[]): LinkItem[] {
         threshold: FUZZY_THRESHOLD,
     });
 
-    return results.map((result) => result.obj);
+    return results
+        .map((result, index) => ({ result, index }))
+        .sort((a, b) => compareFuzzyResults(a, b))
+        .map(({ result }) => result.obj);
+}
+
+function compareFuzzyResults(
+    a: { result: Fuzzysort.KeyResult<LinkItem>; index: number },
+    b: { result: Fuzzysort.KeyResult<LinkItem>; index: number }
+): number {
+    const scoreDifference = b.result.score - a.result.score;
+
+    if (scoreDifference !== 0) {
+        return scoreDifference;
+    }
+
+    const aLink = a.result.obj;
+    const bLink = b.result.obj;
+
+    if (aLink.direction === 'in' && bLink.direction === 'in' && aLink.noteId === bLink.noteId) {
+        const occurrenceDifference = aLink.occurrenceIndex - bLink.occurrenceIndex;
+
+        if (occurrenceDifference !== 0) {
+            return occurrenceDifference;
+        }
+    }
+
+    return a.index - b.index;
 }
 
 /**
