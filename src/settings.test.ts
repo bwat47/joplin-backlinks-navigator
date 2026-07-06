@@ -1,4 +1,6 @@
-jest.mock('api', () => ({
+import { vi } from 'vitest';
+
+vi.mock('api', () => ({
     __esModule: true,
     default: {},
 }));

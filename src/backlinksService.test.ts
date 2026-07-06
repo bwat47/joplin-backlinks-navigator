@@ -1,16 +1,17 @@
+import { vi, type Mock } from 'vitest';
 import joplin from 'api';
 import { findBacklinks } from './backlinksService';
 
-jest.mock('api', () => ({
+vi.mock('api', () => ({
     __esModule: true,
     default: {
         data: {
-            get: jest.fn(),
+            get: vi.fn(),
         },
     },
 }));
 
-const mockDataGet = joplin.data.get as jest.Mock;
+const mockDataGet = joplin.data.get as Mock;
 const TARGET_NOTE_ID = '0123456789abcdef0123456789abcdef';
 
 describe('findBacklinks', () => {
