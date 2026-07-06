@@ -9,7 +9,7 @@ const PREFIX = '[Backlinks Navigator]';
 
 let debugEnabled = false;
 
-export const logger = {
+const logger = {
     setDebug(enabled: boolean): void {
         debugEnabled = enabled;
     },

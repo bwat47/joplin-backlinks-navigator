@@ -252,7 +252,7 @@ async function loadNormalizedSetting<T>(
     return result.value;
 }
 
-export async function loadPanelSettings(): Promise<PanelSettings> {
+async function loadPanelSettings(): Promise<PanelSettings> {
     const values = await joplin.settings.values([
         SETTING_PANEL_WIDTH,
         SETTING_PANEL_MAX_HEIGHT,

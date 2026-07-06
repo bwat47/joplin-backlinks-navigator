@@ -14,13 +14,13 @@
 import type { ContentScriptSettings, LinkItem } from './types';
 
 /** Request the list of backlink occurrences that link to `noteId`. Host responds with `LinkItem[]`. */
-export interface GetBacklinksMessage {
+interface GetBacklinksMessage {
     type: 'getBacklinks';
     noteId: string;
 }
 
 /** Request the list of distinct notes that `noteId` links to. Host responds with `LinkItem[]`. */
-export interface GetOutgoingLinksMessage {
+interface GetOutgoingLinksMessage {
     type: 'getOutgoingLinks';
     noteId: string;
 }
@@ -30,18 +30,18 @@ export interface GetOutgoingLinksMessage {
  * "show indicator" setting first and only runs link discovery when it is enabled,
  * so this is cheap when the indicator is turned off. Host responds with {@link IndicatorState}.
  */
-export interface GetIndicatorStateMessage {
+interface GetIndicatorStateMessage {
     type: 'getIndicatorState';
     noteId: string;
 }
 
 /** Request settings consumed by the editor content script. Host responds with {@link ContentScriptSettings}. */
-export interface GetContentScriptSettingsMessage {
+interface GetContentScriptSettingsMessage {
     type: 'getContentScriptSettings';
 }
 
 /** Ask the host to navigate to `noteId`. Host responds with `void`. */
-export interface OpenNoteMessage {
+interface OpenNoteMessage {
     type: 'openNote';
     noteId: string;
     mode?: 'ctrlClick' | 'ctrlEnter';
@@ -52,7 +52,7 @@ export interface OpenNoteMessage {
  * host runs the normal command, so the panel opens with the user's configured dimensions and
  * the correct mobile flag. Host responds with `void`.
  */
-export interface OpenPanelMessage {
+interface OpenPanelMessage {
     type: 'openPanel';
 }
 
