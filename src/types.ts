@@ -8,10 +8,13 @@ export type LinkDirection = 'in' | 'out';
  *   `noteId` is the linking note; `title`/`notebookName`/`snippet`/`section` describe that note
  *   and the occurrence's line; `occurrenceIndex`/`occurrenceCount` enumerate the occurrences
  *   inside the linking note (used to scroll to the right one).
- * - `direction: 'out'` (outgoing link) — one distinct note that the current note links to (deduped).
- *   `noteId` is the target note; `title`/`notebookName` describe it; `snippet` previews the opening
- *   of the linked note (where the link leads) and `section` is always empty; `occurrenceIndex` is
- *   always 0 and `occurrenceCount` is the number of links to that target.
+ * - `direction: 'out'` (outgoing link) — one distinct destination the current note links to,
+ *   where a destination is a target note plus an optional heading anchor: `[a](:/id)` and
+ *   `[b](:/id#some-heading)` are separate rows, but repeats of either are deduped. `noteId` is the
+ *   target note and `anchor` its heading slug (empty when the link targets the note as a whole);
+ *   `title`/`notebookName` describe the note; `snippet` previews the opening of the linked note (or
+ *   of the anchored section) and `section` names the anchored heading (empty without an anchor);
+ *   `occurrenceIndex` is always 0 and `occurrenceCount` is the number of links to that destination.
  */
 export interface LinkItem {
     /** Whether this is an inbound (backlink) or outbound (outgoing) link. */
@@ -20,6 +23,11 @@ export interface LinkItem {
     id: string;
     /** ID of the linked note (used for navigation via `:/<id>`). */
     noteId: string;
+    /**
+     * Heading anchor slug this row navigates to (`:/<id>#<anchor>`); empty when the row targets the
+     * note as a whole. Only set for outgoing links.
+     */
+    anchor: string;
     /** Zero-based occurrence index for this link inside its source note. */
     occurrenceIndex: number;
     /** Number of link occurrences this row represents. */

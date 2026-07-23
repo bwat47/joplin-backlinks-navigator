@@ -4,10 +4,16 @@
  * so this module is straightforward to unit test.
  */
 
+import uslug from '@joplin/fork-uslug';
+
 const SNIPPET_MAX_LENGTH = 120;
 
-/** Matches a 32-char hex Joplin note id immediately after `:/`. */
-const NOTE_LINK_RE = /:\/([0-9a-fA-F]{32})/g;
+/**
+ * Matches a 32-char hex Joplin note id immediately after `:/`, plus an optional heading anchor.
+ * e.g. `:/7013f475748d41819ff9d21f084663d5#getting-started` -> id, "getting-started".
+ * The anchor stops at whitespace or the closing `)` of the markdown link.
+ */
+const NOTE_LINK_RE = /:\/([0-9a-fA-F]{32})(?:#([^\s)\]]*))?/g;
 
 /** Matches an ATX heading line, capturing the heading text. e.g. "## References" -> "References" */
 const HEADING_RE = /^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/;
@@ -64,10 +70,13 @@ export function cleanSnippetLine(line: string): string {
  * which the panel already shows separately — to surface the first line of actual prose. If the note
  * contains only headings, the first heading's text is used as a fallback so the snippet is never
  * empty for a non-empty note.
+ *
+ * @param startLineIndex - Line to start scanning from. Links that target a heading anchor pass the
+ *   line after that heading so the snippet previews the section the link lands on.
  */
-export function extractNoteOpening(body: string): string {
+export function extractNoteOpening(body: string, startLineIndex = 0): string {
     let headingFallback = '';
-    for (const line of body.split('\n')) {
+    for (const line of body.split('\n').slice(startLineIndex)) {
         if (THEMATIC_BREAK_RE.test(line)) {
             continue;
         }
@@ -102,6 +111,80 @@ export function findSection(lines: string[], linkLineIndex: number): string {
 }
 
 /**
+ * Builds the anchor slug Joplin's renderer generates for a heading, using the same `uslug` fork the
+ * renderer itself uses so emoji (`✅` -> `white_check_mark`), non-Latin scripts, and punctuation all
+ * slugify identically.
+ *
+ * The renderer slugifies a heading's *rendered* inline text, so markdown that would otherwise leak
+ * into the slug is stripped first. uslug already drops `**`, `` ` ``, `==` and `++` on its own;
+ * links and `~~` are what it leaves behind.
+ *
+ * e.g. "Getting Started with **MERN** Stack" -> "getting-started-with-mern-stack"
+ */
+export function slugifyHeading(text: string): string {
+    const inlineText = text
+        // Images/links collapse to their alt/label text, as they do when rendered.
+        .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+        // uslug treats `~` as an allowed character, so strikethrough markers survive without this.
+        .replace(/~~/g, '');
+    return uslug(inlineText);
+}
+
+/** A heading in a note body matched by its anchor slug. */
+export interface HeadingAnchorMatch {
+    /** Heading text with the `#` markers removed. */
+    text: string;
+    /** Zero-based index of the heading's line. */
+    lineIndex: number;
+    /** Offset of the start of the heading line in the body. */
+    offset: number;
+    /** Length of the heading line, so callers can highlight the whole line. */
+    lineLength: number;
+}
+
+/**
+ * Locates the heading an anchor such as `#getting-started-with-mern-stack` refers to.
+ *
+ * Repeated slugs are disambiguated the way Joplin's renderer does it: the first heading keeps the
+ * bare slug and later ones are numbered from two (`intro`, `intro-2`, `intro-3`, …).
+ *
+ * @returns The matching heading, or `null` when the anchor doesn't name one (it may point at a
+ *   non-heading element, or the heading may have been renamed since the link was made).
+ */
+export function findHeadingByAnchor(body: string, anchor: string): HeadingAnchorMatch | null {
+    const target = anchor.trim().toLowerCase();
+    if (!target) {
+        return null;
+    }
+
+    const lines = body.split('\n');
+    const slugCounts = new Map<string, number>();
+    let offset = 0;
+
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+        const line = lines[lineIndex];
+        const match = HEADING_RE.exec(line);
+        if (match) {
+            const text = match[1].trim();
+            const baseSlug = slugifyHeading(text);
+            if (baseSlug) {
+                const seen = slugCounts.get(baseSlug) ?? 0;
+                slugCounts.set(baseSlug, seen + 1);
+                const slug = seen === 0 ? baseSlug : `${baseSlug}-${seen + 1}`;
+                if (slug === target) {
+                    return { text, lineIndex, offset, lineLength: line.length };
+                }
+            }
+        }
+        // +1 accounts for the newline removed by split().
+        offset += line.length + 1;
+    }
+
+    return null;
+}
+
+/**
  * Finds the offset of every occurrence of `needle` in `text` (ascending order).
  */
 export function findOccurrenceOffsets(text: string, needle: string): number[] {
@@ -124,19 +207,25 @@ export function findOccurrenceOffsets(text: string, needle: string): number[] {
 export interface NoteLinkOccurrence {
     /** Lowercased 32-char target note id. */
     targetId: string;
+    /** Heading anchor slug following the id (`#…`), lowercased; empty when the link has none. */
+    anchor: string;
     /** Offset of the `:/` in the body. */
     offset: number;
 }
 
 /**
- * Finds every internal note link (`:/<id>`) in `body`, in document order.
+ * Finds every internal note link (`:/<id>`, optionally `#<anchor>`) in `body`, in document order.
  */
 export function extractNoteLinks(body: string): NoteLinkOccurrence[] {
     const occurrences: NoteLinkOccurrence[] = [];
     NOTE_LINK_RE.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = NOTE_LINK_RE.exec(body)) !== null) {
-        occurrences.push({ targetId: match[1].toLowerCase(), offset: match.index });
+        occurrences.push({
+            targetId: match[1].toLowerCase(),
+            anchor: (match[2] ?? '').toLowerCase(),
+            offset: match.index,
+        });
     }
     return occurrences;
 }

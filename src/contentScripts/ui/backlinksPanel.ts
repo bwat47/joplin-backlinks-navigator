@@ -552,7 +552,9 @@ export class BacklinksPanel {
 
         const previewMode = this.settings.preview[link.direction];
         const showSnippet = previewMode === 'titleSnippet' || previewMode === 'titleSnippetHeading';
-        const showHeading = previewMode === 'titleSnippetHeading';
+        // An outgoing row that targets a heading anchor always names the heading: it shares its
+        // title with the row for the note itself, so the heading is what tells them apart.
+        const showHeading = previewMode === 'titleSnippetHeading' || Boolean(link.anchor);
 
         if (showHeading && link.section) {
             const section = document.createElement('span');
