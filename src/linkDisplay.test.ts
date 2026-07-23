@@ -5,6 +5,7 @@ const makeLink = (direction: LinkDirection, noteId: string, occurrenceIndex: num
     direction,
     id: `${direction}:${noteId}:${occurrenceIndex}`,
     noteId,
+    anchor: '',
     occurrenceIndex,
     occurrenceCount: 3,
     title: `Note ${noteId}`,

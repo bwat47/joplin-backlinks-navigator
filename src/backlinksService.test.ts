@@ -73,6 +73,7 @@ describe('findBacklinks', () => {
         await expect(findBacklinks(TARGET_NOTE_ID)).resolves.toEqual([
             {
                 direction: 'in',
+                anchor: '',
                 id: 'note-a:0',
                 noteId: 'note-a',
                 occurrenceIndex: 0,
@@ -84,6 +85,7 @@ describe('findBacklinks', () => {
             },
             {
                 direction: 'in',
+                anchor: '',
                 id: 'note-z:0',
                 noteId: 'note-z',
                 occurrenceIndex: 0,
@@ -95,6 +97,7 @@ describe('findBacklinks', () => {
             },
             {
                 direction: 'in',
+                anchor: '',
                 id: 'note-z:1',
                 noteId: 'note-z',
                 occurrenceIndex: 1,
@@ -154,6 +157,7 @@ describe('findBacklinks', () => {
         await expect(findBacklinks(TARGET_NOTE_ID, { ignoredNoteIds: new Set(['note-z']) })).resolves.toEqual([
             {
                 direction: 'in',
+                anchor: '',
                 id: 'note-a:0',
                 noteId: 'note-a',
                 occurrenceIndex: 0,

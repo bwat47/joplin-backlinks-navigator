@@ -6,6 +6,7 @@ function backlink(id: string, title: string, occurrenceIndex = 0, noteId = id): 
         direction: 'in',
         id,
         noteId,
+        anchor: '',
         occurrenceIndex,
         occurrenceCount: 1,
         title,

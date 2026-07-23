@@ -31,8 +31,8 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 
 - `src/backlinksService.ts` finds notes that contain `:/<currentNoteId>`, verifies each match, and
   returns one backlink row per occurrence.
-- `src/outgoingLinksService.ts` reads the current note, extracts distinct `:/<noteId>` targets, and
-  returns one outgoing-link row per target note.
+- `src/outgoingLinksService.ts` reads the current note, extracts distinct `:/<noteId>[#<anchor>]`
+  destinations, and returns one outgoing-link row per destination.
 - `src/linkExtraction.ts` contains Joplin-free parsing helpers for note links, snippets, sections,
   and occurrence offsets.
 - `src/noteMetadata.ts` resolves note and notebook metadata with per-call caching.
@@ -83,19 +83,28 @@ Both tabs use `LinkItem`. The `direction` field distinguishes rows:
 - `out` means an outgoing link from the current note to another note.
 
 Backlinks are occurrence-based because the same source note can link to the current note many times.
-Outgoing links are target-based because the Links tab is meant to show distinct destination notes.
+
+Outgoing links are destination-based, where a destination is a target note plus an optional heading
+anchor: `[a](:/id)` and `[b](:/id#some-heading)` produce separate rows, while repeats of either
+collapse into one row. The row's `anchor` holds the heading slug (empty for a whole-note row) and
+`section` names the heading it resolves to, which the panel always shows for anchored rows so they
+can be told apart from the note's own row.
+
+Heading anchors are resolved against the target note's body by re-deriving each heading's slug
+(`slugifyHeading` / `findHeadingByAnchor` in `linkExtraction.ts`), approximating what Joplin's
+renderer generates. An anchor that no longer names a heading falls back to displaying the raw slug.
 
 ## Navigation Model
 
-Outgoing-link navigation simply opens the destination note.
+Both directions can carry a pending scroll, recorded by the content script before navigation and
+applied after the next note id change: it places the cursor, scrolls the target into view, and
+highlights it briefly.
 
-Backlink navigation opens the source note and, when the row represents a specific occurrence, scrolls
-to the matching `:/<currentNoteId>` reference. The content script records the pending scroll before
-navigation, waits for the next note id change, then places the cursor at the enclosing Markdown link
-and highlights it briefly.
-
-Title-only backlink previews collapse multiple occurrences into one row per source note, so those
-rows do not scroll to a specific occurrence.
+- Backlinks scroll to the matching `:/<currentNoteId>` reference in the source note. Title-only
+  backlink previews collapse occurrences into one row per source note, so those rows don't scroll.
+- Outgoing links to a heading anchor scroll to that heading. The anchor is also passed to the host,
+  which opens `:/<id>#<anchor>` so Joplin's own navigation agrees.
+- Outgoing links without an anchor simply open the destination note.
 
 ## Build
 

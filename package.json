@@ -46,6 +46,7 @@
         "webpack-cli": "^7.0.2"
     },
     "dependencies": {
+        "@joplin/fork-uslug": "^2.0.6",
         "fuzzysort": "^3.1.0"
     },
     "overrides": {
