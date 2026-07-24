@@ -176,6 +176,12 @@ describe('parseMarkdownHeadings', () => {
             },
         ]);
     });
+
+    it('globally disambiguates empty slugs and collisions with their generated anchors', () => {
+        const body = '## !!!\n\n## ???\n\n## -2\n\n## !!!';
+
+        expect(parseMarkdownHeadings(body).map(({ anchor }) => anchor)).toEqual(['', '-2', '-2-2', '-3']);
+    });
 });
 
 describe('findHeadingByAnchor', () => {

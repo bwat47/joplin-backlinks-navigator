@@ -151,7 +151,10 @@ export function slugifyHeading(text: string): string {
 
 /** A Markdown heading and its generated anchor/source range. */
 export interface MarkdownHeading {
-    /** Generated anchor slug, including duplicate disambiguation; empty when text is unsluggable. */
+    /**
+     * Generated anchor slug, including duplicate disambiguation. The first unsluggable heading has
+     * an empty anchor; later unsluggable headings receive `-2`, `-3`, and so on.
+     */
     anchor: string;
     /** Rendered inline heading text. */
     text: string;
@@ -203,16 +206,13 @@ export function parseMarkdownHeadings(body: string): MarkdownHeading[] {
             .map((child) => child.content)
             .join('');
         const baseSlug = slugifyHeading(text);
-        let anchor = '';
-        if (baseSlug) {
-            anchor = baseSlug;
-            let counter = 1;
-            while (seenSlugs.has(anchor)) {
-                counter += 1;
-                anchor = `${baseSlug}-${counter}`;
-            }
-            seenSlugs.add(anchor);
+        let anchor = baseSlug;
+        let counter = 1;
+        while (seenSlugs.has(anchor)) {
+            counter += 1;
+            anchor = `${baseSlug}-${counter}`;
         }
+        seenSlugs.add(anchor);
 
         const [startLineIndex, endLineIndex] = token.map;
         const from = lineStarts[startLineIndex] ?? body.length;
