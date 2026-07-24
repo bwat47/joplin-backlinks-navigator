@@ -182,6 +182,43 @@ describe('findOutgoingLinks', () => {
         ]);
     });
 
+    it('resolves URL-encoded anchors and dedupes them with the equivalent decoded anchor', async () => {
+        const body = `[Encoded](:/${NOTE_A}#%E6%97%A5%E6%9C%AC%E8%AA%9E) and ` + `[Decoded](:/${NOTE_A}#日本語).`;
+
+        mockDataGet.mockImplementation(async (path: string[]) => {
+            if (path[0] === 'notes' && path[1] === SOURCE_NOTE_ID) {
+                return { id: SOURCE_NOTE_ID, body };
+            }
+            if (path[0] === 'notes' && path[1] === NOTE_A) {
+                return {
+                    id: NOTE_A,
+                    title: 'Alpha',
+                    parent_id: 'folder-1',
+                    body: '# Alpha\n\n## 日本語\n\n日本語の内容。',
+                };
+            }
+            if (path[0] === 'folders' && path[1] === 'folder-1') {
+                return { id: 'folder-1', title: 'Projects' };
+            }
+            throw new Error(`Unexpected Data API request: ${path.join('/')}`);
+        });
+
+        await expect(findOutgoingLinks(SOURCE_NOTE_ID)).resolves.toEqual([
+            {
+                direction: 'out',
+                id: `${NOTE_A}#日本語`,
+                noteId: NOTE_A,
+                anchor: '日本語',
+                occurrenceIndex: 0,
+                occurrenceCount: 2,
+                title: 'Alpha',
+                notebookName: 'Projects',
+                section: '日本語',
+                snippet: '日本語の内容。',
+            },
+        ]);
+    });
+
     it('does not let an empty anchored section preview prose from the next section', async () => {
         const body = `[Setup](:/${NOTE_A}#setup).`;
 

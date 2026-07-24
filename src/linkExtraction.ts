@@ -268,10 +268,24 @@ export function findOccurrenceOffsets(text: string, needle: string): number[] {
 export interface NoteLinkOccurrence {
     /** Lowercased 32-char target note id. */
     targetId: string;
-    /** Heading anchor slug following the id (`#…`), lowercased; empty when the link has none. */
+    /**
+     * URL-decoded, lowercased heading anchor following the id (`#…`); empty when the link has none.
+     */
     anchor: string;
     /** Offset of the `:/` in the body. */
     offset: number;
+}
+
+/**
+ * Decodes a resource URL fragment the same way Joplin does, including treating `+` as a space.
+ * Malformed percent escapes are preserved so one bad link cannot abort discovery for the note.
+ */
+function normalizeLinkAnchor(anchor: string): string {
+    try {
+        return decodeURIComponent(anchor.replace(/\+/g, '%20')).toLowerCase();
+    } catch {
+        return anchor.toLowerCase();
+    }
 }
 
 /**
@@ -284,7 +298,7 @@ export function extractNoteLinks(body: string): NoteLinkOccurrence[] {
     while ((match = NOTE_LINK_RE.exec(body)) !== null) {
         occurrences.push({
             targetId: match[1].toLowerCase(),
-            anchor: (match[2] ?? '').toLowerCase(),
+            anchor: normalizeLinkAnchor(match[2] ?? ''),
             offset: match.index,
         });
     }

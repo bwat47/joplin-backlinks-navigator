@@ -249,6 +249,22 @@ describe('extractNoteLinks', () => {
         ]);
     });
 
+    it('URL-decodes heading anchors before lowercasing them', () => {
+        const body = `[Japanese](:/${ID_A}#%E6%97%A5%E6%9C%AC%E8%AA%9E)`;
+
+        expect(extractNoteLinks(body)).toEqual([
+            { targetId: ID_A, anchor: '日本語', offset: body.indexOf(`:/${ID_A}`) },
+        ]);
+    });
+
+    it('preserves malformed URL escapes without aborting link extraction', () => {
+        const body = `[Broken](:/${ID_A}#Bad%E0%A4%A)`;
+
+        expect(extractNoteLinks(body)).toEqual([
+            { targetId: ID_A, anchor: 'bad%e0%a4%a', offset: body.indexOf(`:/${ID_A}`) },
+        ]);
+    });
+
     it('ignores non-note URLs and malformed ids', () => {
         expect(extractNoteLinks('[web](https://example.com) and [short](:/abc)')).toEqual([]);
     });
