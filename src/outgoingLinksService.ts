@@ -21,7 +21,8 @@
 import joplin from 'api';
 import logger from './logger';
 import type { LinkItem } from './types';
-import { extractNoteLinks, extractNoteOpening, findHeadingByAnchor } from './linkExtraction';
+import { extractHeadingAnchors, findHeadingByAnchor, type HeadingAnchor } from './headingAnchors';
+import { extractNoteLinks, extractNoteOpening } from './linkExtraction';
 import { resolveNoteMeta, resolveNotebookName, type NoteMeta } from './noteMetadata';
 import { compareLinkItems } from './linkSort';
 
@@ -81,6 +82,7 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
 
     const noteMetaCache = new Map<string, NoteMeta | null>();
     const notebookCache = new Map<string, string>();
+    const headingCache = new Map<string, readonly HeadingAnchor[]>();
     const outgoing: LinkItem[] = [];
 
     for (const [key, group] of groups) {
@@ -93,7 +95,16 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
         // An anchored link lands on a heading, so name that heading and preview the section under
         // it. If the anchor no longer resolves (heading renamed, or it points at something that
         // isn't a heading) fall back to the raw slug and the note's opening.
-        const heading = group.anchor ? findHeadingByAnchor(meta.body, group.anchor) : null;
+        let headings: readonly HeadingAnchor[] = [];
+        let heading: HeadingAnchor | null = null;
+        if (group.anchor) {
+            headings = headingCache.get(group.targetId) ?? extractHeadingAnchors(meta.body);
+            headingCache.set(group.targetId, headings);
+            heading = findHeadingByAnchor(headings, group.anchor);
+        }
+        const nextSectionHeading = heading
+            ? headings.find((candidate) => candidate.lineIndex > heading.lineIndex && candidate.level <= heading.level)
+            : null;
         outgoing.push({
             direction: 'out',
             id: key,
@@ -104,7 +115,7 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
             title: meta.title,
             notebookName,
             section: heading ? heading.text : group.anchor,
-            snippet: extractNoteOpening(meta.body, heading ? heading.lineIndex + 1 : 0),
+            snippet: extractNoteOpening(meta.body, heading ? heading.endLineIndex : 0, nextSectionHeading?.lineIndex),
         });
     }
 

@@ -182,6 +182,43 @@ describe('findOutgoingLinks', () => {
         ]);
     });
 
+    it('resolves Setext headings and does not preview content from the next sibling section', async () => {
+        const body = `[Setup](:/${NOTE_A}#setup)`;
+
+        mockDataGet.mockImplementation(async (path: string[]) => {
+            if (path[0] === 'notes' && path[1] === SOURCE_NOTE_ID) {
+                return { id: SOURCE_NOTE_ID, body };
+            }
+            if (path[0] === 'notes' && path[1] === NOTE_A) {
+                return {
+                    id: NOTE_A,
+                    title: 'Alpha',
+                    parent_id: 'folder-1',
+                    body: 'Setup\n=====\n\nNext\n====\n\nDo not show this.',
+                };
+            }
+            if (path[0] === 'folders' && path[1] === 'folder-1') {
+                return { id: 'folder-1', title: 'Projects' };
+            }
+            throw new Error(`Unexpected Data API request: ${path.join('/')}`);
+        });
+
+        await expect(findOutgoingLinks(SOURCE_NOTE_ID)).resolves.toEqual([
+            {
+                direction: 'out',
+                id: `${NOTE_A}#setup`,
+                noteId: NOTE_A,
+                anchor: 'setup',
+                occurrenceIndex: 0,
+                occurrenceCount: 1,
+                title: 'Alpha',
+                notebookName: 'Projects',
+                section: 'Setup',
+                snippet: '',
+            },
+        ]);
+    });
+
     it('returns an empty list without fetching when note id is missing', async () => {
         await expect(findOutgoingLinks('')).resolves.toEqual([]);
         expect(mockDataGet).not.toHaveBeenCalled();

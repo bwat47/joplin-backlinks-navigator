@@ -24,6 +24,7 @@
         "@codemirror/state": "6.5.2",
         "@codemirror/view": "6.38.7",
         "@eslint/js": "^10.0.1",
+        "@types/markdown-it": "14.1.2",
         "@types/node": "^25.9.4",
         "@typescript-eslint/eslint-plugin": "^8.59.2",
         "@typescript-eslint/parser": "^8.59.2",
@@ -46,8 +47,10 @@
         "webpack-cli": "^7.0.2"
     },
     "dependencies": {
-        "@joplin/fork-uslug": "^2.0.6",
-        "fuzzysort": "^3.1.0"
+        "@joplin/fork-uslug": "2.0.6",
+        "fuzzysort": "^3.1.0",
+        "markdown-it": "14.3.0",
+        "markdown-it-anchor": "9.2.1"
     },
     "overrides": {
         "js-yaml": "^4.2.0"

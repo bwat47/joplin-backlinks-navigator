@@ -35,6 +35,8 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
   destinations, and returns one outgoing-link row per destination.
 - `src/linkExtraction.ts` contains Joplin-free parsing helpers for note links, snippets, sections,
   and occurrence offsets.
+- `src/headingAnchors.ts` resolves heading ids and source ranges with pinned MarkdownIt dependencies
+  and the same markdown-it-anchor/uslug configuration used by Joplin's renderer.
 - `src/noteMetadata.ts` resolves note and notebook metadata with per-call caching.
 - `src/linkSort.ts` centralizes row ordering.
 
@@ -90,9 +92,11 @@ collapse into one row. The row's `anchor` holds the heading slug (empty for a wh
 `section` names the heading it resolves to, which the panel always shows for anchored rows so they
 can be told apart from the note's own row.
 
-Heading anchors are resolved against the target note's body by re-deriving each heading's slug
-(`slugifyHeading` / `findHeadingByAnchor` in `linkExtraction.ts`), approximating what Joplin's
-renderer generates. An anchor that no longer names a heading falls back to displaying the raw slug.
+Heading anchors are resolved against the target note's body by parsing it with MarkdownIt and
+reading the globally unique ids assigned by markdown-it-anchor (`src/headingAnchors.ts`). The
+dependencies are pinned, use Joplin's uslug fork, and retain Joplin's anchor-plugin version; the
+MarkdownIt core is a patched compatible release. An anchor that no longer names a heading falls
+back to displaying the raw slug.
 
 ## Navigation Model
 

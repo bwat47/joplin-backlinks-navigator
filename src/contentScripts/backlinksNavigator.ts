@@ -19,7 +19,8 @@ import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
 import type { LinkItem } from '../types';
-import { findHeadingByAnchor, findOccurrenceOffsets } from '../linkExtraction';
+import { extractHeadingAnchors, findHeadingByAnchor } from '../headingAnchors';
+import { findOccurrenceOffsets } from '../linkExtraction';
 import type {
     ContentScriptToPluginMessage,
     GetBacklinksResponse,
@@ -193,8 +194,8 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             // Returns null while the target can't be found (the note content may not have settled).
             const resolveScrollRange = (target: PendingScroll, text: string): MarkdownLinkRange | null => {
                 if (target.kind === 'heading') {
-                    const heading = findHeadingByAnchor(text, target.anchor);
-                    return heading ? { from: heading.offset, to: heading.offset + heading.lineLength } : null;
+                    const heading = findHeadingByAnchor(extractHeadingAnchors(text), target.anchor);
+                    return heading ? { from: heading.from, to: heading.to } : null;
                 }
                 const pos = findOccurrenceOffsets(text, target.needle)[target.occurrenceIndex] ?? -1;
                 return pos === -1 ? null : findMarkdownLinkRange(text, pos, target.needle.length);

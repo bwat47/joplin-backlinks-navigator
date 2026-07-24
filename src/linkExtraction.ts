@@ -4,8 +4,6 @@
  * so this module is straightforward to unit test.
  */
 
-import uslug from '@joplin/fork-uslug';
-
 const SNIPPET_MAX_LENGTH = 120;
 
 /**
@@ -71,12 +69,13 @@ export function cleanSnippetLine(line: string): string {
  * contains only headings, the first heading's text is used as a fallback so the snippet is never
  * empty for a non-empty note.
  *
- * @param startLineIndex - Line to start scanning from. Links that target a heading anchor pass the
- *   line after that heading so the snippet previews the section the link lands on.
+ * @param startLineIndex - First line to scan.
+ * @param endLineIndex - Optional exclusive line boundary. Anchored previews use the next sibling
+ *   or parent heading so content from a later section cannot leak into the snippet.
  */
-export function extractNoteOpening(body: string, startLineIndex = 0): string {
+export function extractNoteOpening(body: string, startLineIndex = 0, endLineIndex?: number): string {
     let headingFallback = '';
-    for (const line of body.split('\n').slice(startLineIndex)) {
+    for (const line of body.split('\n').slice(startLineIndex, endLineIndex)) {
         if (THEMATIC_BREAK_RE.test(line)) {
             continue;
         }
@@ -108,80 +107,6 @@ export function findSection(lines: string[], linkLineIndex: number): string {
         }
     }
     return '';
-}
-
-/**
- * Builds the anchor slug Joplin's renderer generates for a heading, using the same `uslug` fork the
- * renderer itself uses so emoji (`✅` -> `white_check_mark`), non-Latin scripts, and punctuation all
- * slugify identically.
- *
- * The renderer slugifies a heading's *rendered* inline text, so markdown that would otherwise leak
- * into the slug is stripped first. uslug already drops `**`, `` ` ``, `==` and `++` on its own;
- * links and `~~` are what it leaves behind.
- *
- * e.g. "Getting Started with **MERN** Stack" -> "getting-started-with-mern-stack"
- */
-export function slugifyHeading(text: string): string {
-    const inlineText = text
-        // Images/links collapse to their alt/label text, as they do when rendered.
-        .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-        // uslug treats `~` as an allowed character, so strikethrough markers survive without this.
-        .replace(/~~/g, '');
-    return uslug(inlineText);
-}
-
-/** A heading in a note body matched by its anchor slug. */
-export interface HeadingAnchorMatch {
-    /** Heading text with the `#` markers removed. */
-    text: string;
-    /** Zero-based index of the heading's line. */
-    lineIndex: number;
-    /** Offset of the start of the heading line in the body. */
-    offset: number;
-    /** Length of the heading line, so callers can highlight the whole line. */
-    lineLength: number;
-}
-
-/**
- * Locates the heading an anchor such as `#getting-started-with-mern-stack` refers to.
- *
- * Repeated slugs are disambiguated the way Joplin's renderer does it: the first heading keeps the
- * bare slug and later ones are numbered from two (`intro`, `intro-2`, `intro-3`, …).
- *
- * @returns The matching heading, or `null` when the anchor doesn't name one (it may point at a
- *   non-heading element, or the heading may have been renamed since the link was made).
- */
-export function findHeadingByAnchor(body: string, anchor: string): HeadingAnchorMatch | null {
-    const target = anchor.trim().toLowerCase();
-    if (!target) {
-        return null;
-    }
-
-    const lines = body.split('\n');
-    const slugCounts = new Map<string, number>();
-    let offset = 0;
-
-    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-        const line = lines[lineIndex];
-        const match = HEADING_RE.exec(line);
-        if (match) {
-            const text = match[1].trim();
-            const baseSlug = slugifyHeading(text);
-            if (baseSlug) {
-                const seen = slugCounts.get(baseSlug) ?? 0;
-                slugCounts.set(baseSlug, seen + 1);
-                const slug = seen === 0 ? baseSlug : `${baseSlug}-${seen + 1}`;
-                if (slug === target) {
-                    return { text, lineIndex, offset, lineLength: line.length };
-                }
-            }
-        }
-        // +1 accounts for the newline removed by split().
-        offset += line.length + 1;
-    }
-
-    return null;
 }
 
 /**
