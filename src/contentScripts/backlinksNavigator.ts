@@ -19,7 +19,12 @@ import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
 import type { LinkItem } from '../types';
-import { findHeadingByAnchor, findOccurrenceOffsets } from '../linkExtraction';
+import {
+    findHeadingByAnchor,
+    findOccurrenceOffsets,
+    parseMarkdownHeadings,
+    type MarkdownHeading,
+} from '../linkExtraction';
 import type {
     ContentScriptToPluginMessage,
     GetBacklinksResponse,
@@ -191,10 +196,14 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
 
             // Resolves the range to place the cursor at and highlight in the just-loaded note.
             // Returns null while the target can't be found (the note content may not have settled).
-            const resolveScrollRange = (target: PendingScroll, text: string): MarkdownLinkRange | null => {
+            const resolveScrollRange = (
+                target: PendingScroll,
+                text: string,
+                headings: readonly MarkdownHeading[] = []
+            ): MarkdownLinkRange | null => {
                 if (target.kind === 'heading') {
-                    const heading = findHeadingByAnchor(text, target.anchor);
-                    return heading ? { from: heading.offset, to: heading.offset + heading.lineLength } : null;
+                    const heading = findHeadingByAnchor(headings, target.anchor);
+                    return heading ? { from: heading.from, to: heading.to } : null;
                 }
                 const pos = findOccurrenceOffsets(text, target.needle)[target.occurrenceIndex] ?? -1;
                 return pos === -1 ? null : findMarkdownLinkRange(text, pos, target.needle.length);
@@ -206,6 +215,8 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 const MAX_ATTEMPTS = 15;
                 const RETRY_DELAY_MS = 80;
                 let attempt = 0;
+                let parsedHeadingText: string | null = null;
+                let parsedHeadings: MarkdownHeading[] = [];
 
                 const doScroll = (highlightRange: MarkdownLinkRange): void => {
                     const scrollPosition = highlightRange.from;
@@ -228,7 +239,12 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                         return;
                     }
 
-                    const highlightRange = resolveScrollRange(target, view.state.doc.toString());
+                    const text = view.state.doc.toString();
+                    if (target.kind === 'heading' && text !== parsedHeadingText) {
+                        parsedHeadingText = text;
+                        parsedHeadings = parseMarkdownHeadings(text);
+                    }
+                    const highlightRange = resolveScrollRange(target, text, parsedHeadings);
                     if (!highlightRange) {
                         attempt += 1;
                         if (attempt <= MAX_ATTEMPTS) {

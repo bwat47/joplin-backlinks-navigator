@@ -21,7 +21,14 @@
 import joplin from 'api';
 import logger from './logger';
 import type { LinkItem } from './types';
-import { extractNoteLinks, extractNoteOpening, extractSectionOpening, findHeadingByAnchor } from './linkExtraction';
+import {
+    extractNoteLinks,
+    extractNoteOpening,
+    extractSectionOpening,
+    findHeadingByAnchor,
+    parseMarkdownHeadings,
+    type MarkdownHeading,
+} from './linkExtraction';
 import { resolveNoteMeta, resolveNotebookName, type NoteMeta } from './noteMetadata';
 import { compareLinkItems } from './linkSort';
 
@@ -81,6 +88,7 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
 
     const noteMetaCache = new Map<string, NoteMeta | null>();
     const notebookCache = new Map<string, string>();
+    const headingCache = new Map<string, MarkdownHeading[]>();
     const outgoing: LinkItem[] = [];
 
     for (const [key, group] of groups) {
@@ -90,10 +98,18 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
             continue;
         }
         const notebookName = await resolveNotebookName(meta.parent_id, notebookCache);
+        let headings = headingCache.get(group.targetId);
+        if (!headings) {
+            headings = parseMarkdownHeadings(meta.body);
+            headingCache.set(group.targetId, headings);
+        }
         // An anchored link lands on a heading, so name that heading and preview the section under
         // it. If the anchor no longer resolves (heading renamed, or it points at something that
         // isn't a heading) fall back to the raw slug and the note's opening.
-        const heading = group.anchor ? findHeadingByAnchor(meta.body, group.anchor) : null;
+        const heading = group.anchor ? findHeadingByAnchor(headings, group.anchor) : null;
+        const headingIndex = heading ? headings.indexOf(heading) : -1;
+        const nextHeading = headingIndex >= 0 ? headings[headingIndex + 1] : undefined;
+        const sectionEndLineIndex = nextHeading?.startLineIndex ?? meta.body.split('\n').length;
         outgoing.push({
             direction: 'out',
             id: key,
@@ -104,7 +120,9 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
             title: meta.title,
             notebookName,
             section: heading ? heading.text : group.anchor,
-            snippet: heading ? extractSectionOpening(meta.body, heading.lineIndex + 1) : extractNoteOpening(meta.body),
+            snippet: heading
+                ? extractSectionOpening(meta.body, heading.endLineIndex, sectionEndLineIndex)
+                : extractNoteOpening(meta.body, headings),
         });
     }
 
