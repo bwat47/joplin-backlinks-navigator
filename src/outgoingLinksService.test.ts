@@ -182,6 +182,37 @@ describe('findOutgoingLinks', () => {
         ]);
     });
 
+    it('does not let an empty anchored section preview prose from the next section', async () => {
+        const body = `[Setup](:/${NOTE_A}#setup).`;
+
+        mockDataGet.mockImplementation(async (path: string[]) => {
+            if (path[0] === 'notes' && path[1] === SOURCE_NOTE_ID) {
+                return { id: SOURCE_NOTE_ID, body };
+            }
+            if (path[0] === 'notes' && path[1] === NOTE_A) {
+                return {
+                    id: NOTE_A,
+                    title: 'Alpha',
+                    parent_id: 'folder-1',
+                    body: '# Alpha\n\n## Setup\n\n## Troubleshooting\n\nRestart the app.',
+                };
+            }
+            if (path[0] === 'folders' && path[1] === 'folder-1') {
+                return { id: 'folder-1', title: 'Projects' };
+            }
+            throw new Error(`Unexpected Data API request: ${path.join('/')}`);
+        });
+
+        const result = await findOutgoingLinks(SOURCE_NOTE_ID);
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toMatchObject({
+            anchor: 'setup',
+            section: 'Setup',
+            snippet: '',
+        });
+    });
+
     it('returns an empty list without fetching when note id is missing', async () => {
         await expect(findOutgoingLinks('')).resolves.toEqual([]);
         expect(mockDataGet).not.toHaveBeenCalled();

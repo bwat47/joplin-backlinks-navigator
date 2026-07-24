@@ -21,7 +21,7 @@
 import joplin from 'api';
 import logger from './logger';
 import type { LinkItem } from './types';
-import { extractNoteLinks, extractNoteOpening, findHeadingByAnchor } from './linkExtraction';
+import { extractNoteLinks, extractNoteOpening, extractSectionOpening, findHeadingByAnchor } from './linkExtraction';
 import { resolveNoteMeta, resolveNotebookName, type NoteMeta } from './noteMetadata';
 import { compareLinkItems } from './linkSort';
 
@@ -104,7 +104,7 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
             title: meta.title,
             notebookName,
             section: heading ? heading.text : group.anchor,
-            snippet: extractNoteOpening(meta.body, heading ? heading.lineIndex + 1 : 0),
+            snippet: heading ? extractSectionOpening(meta.body, heading.lineIndex + 1) : extractNoteOpening(meta.body),
         });
     }
 

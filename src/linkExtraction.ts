@@ -61,20 +61,7 @@ export function cleanSnippetLine(line: string): string {
     return `${cleaned.slice(0, SNIPPET_MAX_LENGTH - 1)}…`;
 }
 
-/**
- * Builds a snippet from the beginning of a note body, used to preview where an outgoing link
- * leads (rather than the context around the link in the current note).
- *
- * Skips blank lines and thematic breaks, drops leading GitHub/Obsidian alert markers (`[!NOTE]`
- * and friends), and skips a leading heading — the first heading is usually the note's own title,
- * which the panel already shows separately — to surface the first line of actual prose. If the note
- * contains only headings, the first heading's text is used as a fallback so the snippet is never
- * empty for a non-empty note.
- *
- * @param startLineIndex - Line to start scanning from. Links that target a heading anchor pass the
- *   line after that heading so the snippet previews the section the link lands on.
- */
-export function extractNoteOpening(body: string, startLineIndex = 0): string {
+function extractOpening(body: string, startLineIndex: number, stopAtHeading: boolean): string {
     let headingFallback = '';
     for (const line of body.split('\n').slice(startLineIndex)) {
         if (THEMATIC_BREAK_RE.test(line)) {
@@ -85,6 +72,9 @@ export function extractNoteOpening(body: string, startLineIndex = 0): string {
             continue;
         }
         if (HEADING_RE.test(line)) {
+            if (stopAtHeading) {
+                break;
+            }
             if (!headingFallback) {
                 headingFallback = cleaned;
             }
@@ -93,6 +83,30 @@ export function extractNoteOpening(body: string, startLineIndex = 0): string {
         return cleaned;
     }
     return headingFallback;
+}
+
+/**
+ * Builds a snippet from the beginning of a note body, used to preview where an outgoing link
+ * leads (rather than the context around the link in the current note).
+ *
+ * Skips blank lines and thematic breaks, drops leading GitHub/Obsidian alert markers (`[!NOTE]`
+ * and friends), and skips a leading heading — the first heading is usually the note's own title,
+ * which the panel already shows separately — to surface the first line of actual prose. If the note
+ * contains only headings, the first heading's text is used as a fallback so the snippet is never
+ * empty for a non-empty note.
+ */
+export function extractNoteOpening(body: string): string {
+    return extractOpening(body, 0, false);
+}
+
+/**
+ * Builds a snippet from the beginning of a heading's section without crossing into the next
+ * heading. Empty sections return an empty snippet rather than borrowing prose from a later section.
+ *
+ * @param startLineIndex - First line after the target heading.
+ */
+export function extractSectionOpening(body: string, startLineIndex: number): string {
+    return extractOpening(body, startLineIndex, true);
 }
 
 /**
@@ -159,7 +173,7 @@ export function findHeadingByAnchor(body: string, anchor: string): HeadingAnchor
     }
 
     const lines = body.split('\n');
-    const slugCounts = new Map<string, number>();
+    const seenSlugs = new Set<string>();
     let offset = 0;
 
     for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
@@ -169,9 +183,13 @@ export function findHeadingByAnchor(body: string, anchor: string): HeadingAnchor
             const text = match[1].trim();
             const baseSlug = slugifyHeading(text);
             if (baseSlug) {
-                const seen = slugCounts.get(baseSlug) ?? 0;
-                slugCounts.set(baseSlug, seen + 1);
-                const slug = seen === 0 ? baseSlug : `${baseSlug}-${seen + 1}`;
+                let slug = baseSlug;
+                let counter = 1;
+                while (seenSlugs.has(slug)) {
+                    counter += 1;
+                    slug = `${baseSlug}-${counter}`;
+                }
+                seenSlugs.add(slug);
                 if (slug === target) {
                     return { text, lineIndex, offset, lineLength: line.length };
                 }

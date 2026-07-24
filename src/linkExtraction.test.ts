@@ -3,6 +3,7 @@ import {
     extractNoteLinks,
     extractNoteOpening,
     extractOccurrenceContexts,
+    extractSectionOpening,
     findHeadingByAnchor,
     findOccurrenceOffsets,
     findSection,
@@ -74,10 +75,17 @@ describe('extractNoteOpening', () => {
         expect(extractNoteOpening('')).toBe('');
         expect(extractNoteOpening('\n\n   \n')).toBe('');
     });
+});
 
-    it('starts from the requested line so anchored links preview their own section', () => {
+describe('extractSectionOpening', () => {
+    it('previews prose after the target heading', () => {
         const body = '# Title\n\nIntro prose.\n\n## Setup\n\nRun the installer.';
-        expect(extractNoteOpening(body, 5)).toBe('Run the installer.');
+        expect(extractSectionOpening(body, 5)).toBe('Run the installer.');
+    });
+
+    it('does not borrow prose from the next heading when the target section is empty', () => {
+        const body = '# Title\n\n## Setup\n\n## Troubleshooting\n\nRestart the app.';
+        expect(extractSectionOpening(body, 3)).toBe('');
     });
 });
 
@@ -121,6 +129,13 @@ describe('findHeadingByAnchor', () => {
         expect(findHeadingByAnchor(body, 'notes')?.lineIndex).toBe(8);
         expect(findHeadingByAnchor(body, 'notes-2')?.lineIndex).toBe(12);
         expect(findHeadingByAnchor(body, 'notes-1')).toBeNull();
+    });
+
+    it('keeps generated slugs globally unique when a numbered slug already exists', () => {
+        const collidingBody = '## Intro\n\n## Intro-2\n\n## Intro';
+        expect(findHeadingByAnchor(collidingBody, 'intro')?.lineIndex).toBe(0);
+        expect(findHeadingByAnchor(collidingBody, 'intro-2')?.lineIndex).toBe(2);
+        expect(findHeadingByAnchor(collidingBody, 'intro-3')?.lineIndex).toBe(4);
     });
 
     it('matches case-insensitively and ignores surrounding whitespace', () => {
