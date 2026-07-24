@@ -14,7 +14,8 @@ A Joplin plugin for viewing and navigating backlinks and outgoing links in the M
 
 - Shows notes that link to the current note
 - Shows notes linked from the current note
-- (Backlinks only) Can show each link occurrence when a note links more than once
+- (Backlinks) Can show each link occurrence when a note links more than once, and scroll to occurance on navigation
+- (Outgoing links) Links pointing to a specific heading anchor will show as a unique occurance, and scroll to that heading on navigation
 - Opens related notes from a compact floating panel in the markdown editor
 - Filters links by note title
 - Shows notebook, section, and link context when available
@@ -43,12 +44,12 @@ If backlink context preview is enabled, it will show each link occurrence when a
 - Backlink context preview
     - Snippet shows preview text from the line containing the backlink. Nearest heading displays the heading nearest to the backlink.
 - Outgoing link context preview
-    - Snippet shows preview text from the beginning of the linked note.
+    - Snippet shows preview text from the beginning of the linked note (or if the link has a heading anchor, the text below that heading).
 - Enable debug logging
 
 ## Limitations
 
-- Scrolling to backlink occurrence after note switch only works on desktop and only applies to backlinks (not outgoing links). It does not work when opening the note in a new window or pinning with Note Tabs.
+- Scrolling to a specific backlink occurrence after note switch only works on desktop. It does not work when opening the note in a new window or pinning with Note Tabs.
 
 ## Development
 
