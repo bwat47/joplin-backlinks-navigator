@@ -19,7 +19,12 @@ import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
 import type { LinkItem } from '../types';
-import { findOccurrenceOffsets } from '../linkExtraction';
+import {
+    findHeadingByAnchor,
+    findOccurrenceOffsets,
+    parseMarkdownHeadings,
+    type MarkdownHeading,
+} from '../linkExtraction';
 import type {
     ContentScriptToPluginMessage,
     GetBacklinksResponse,
@@ -42,6 +47,18 @@ import logger from '../logger';
 
 const INDICATOR_DEBOUNCE_MS = 350;
 
+/**
+ * Where to scroll the target note once it loads, recorded before navigating away.
+ *
+ * - `reference` — a backlink: the occurrence of `needle` (`:/<currentNoteId>`) that links back to
+ *   the note we came from.
+ * - `heading` — an outgoing link to a heading anchor: the heading that anchor names.
+ */
+type PendingScroll = { targetNoteId: string } & (
+    | { kind: 'reference'; needle: string; occurrenceIndex: number }
+    | { kind: 'heading'; anchor: string }
+);
+
 export default function backlinksNavigator(context: ContentScriptContext): MarkdownEditorContentScriptModule {
     return {
         plugin: (editorControl: CodeMirrorControl) => {
@@ -51,10 +68,10 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             let panel: BacklinksPanel | null = null;
             // Monotonic token so a slow backlink response can't populate a stale/closed panel.
             let requestSeq = 0;
-            // After navigating to a backlink, scroll the target note to the line that references
-            // the note we came from. On Desktop, the same EditorView is reused across note switches, so this
-            // closure state survives the navigation.
-            let pendingScroll: { targetNoteId: string; needle: string; occurrenceIndex: number } | null = null;
+            // After navigating, scroll the target note to the spot the selected row stands for. On
+            // Desktop, the same EditorView is reused across note switches, so this closure state
+            // survives the navigation.
+            let pendingScroll: PendingScroll | null = null;
             // Link rows backing the indicator badge. The panel always fetches fresh data and does
             // not read these caches.
             let indicatorEnabled = false;
@@ -125,10 +142,15 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 link: LinkItem,
                 mode: 'current' | 'ctrlClick' | 'ctrlEnter' = 'current'
             ): Promise<void> => {
+                // Only outgoing rows carry an anchor; a backlink's anchor (if any) points into the
+                // note we're already viewing.
+                const anchor = link.direction === 'out' ? link.anchor : '';
+
                 if (mode !== 'current') {
                     const message: ContentScriptToPluginMessage = {
                         type: 'openNote',
                         noteId: link.noteId,
+                        anchor,
                         mode,
                     };
                     try {
@@ -139,24 +161,30 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     return;
                 }
 
-                // For a backlink, record where to scroll once the target note loads: the occurrence
-                // that links back to the note we're currently viewing (`:/<currentNoteId>`). Outgoing
-                // links just open the target note (there's no reference-back to scroll to). In
-                // title-only mode backlinks are collapsed to one row per note (not a specific
-                // occurrence), so don't attempt to scroll to a reference.
+                // Record where to scroll once the target note loads. For a backlink that's the
+                // occurrence linking back to the note we're currently viewing (`:/<currentNoteId>`);
+                // in title-only mode backlinks are collapsed to one row per note (not a specific
+                // occurrence), so don't attempt it. For an outgoing link it's the anchored heading —
+                // Joplin also handles the `#anchor` we pass to `openItem`, but doing it here keeps
+                // the cursor placement and highlight consistent with backlink navigation. Outgoing
+                // links without an anchor just open the target note.
                 const currentNoteId = resolveNoteId();
                 const scrollToOccurrence =
                     link.direction === 'in' && getContentScriptSettings(view.state).panel.preview.in !== 'title';
-                pendingScroll =
-                    scrollToOccurrence && currentNoteId
-                        ? {
-                              targetNoteId: link.noteId,
-                              needle: `:/${currentNoteId}`,
-                              occurrenceIndex: link.occurrenceIndex,
-                          }
-                        : null;
+                if (anchor) {
+                    pendingScroll = { targetNoteId: link.noteId, kind: 'heading', anchor };
+                } else if (scrollToOccurrence && currentNoteId) {
+                    pendingScroll = {
+                        targetNoteId: link.noteId,
+                        kind: 'reference',
+                        needle: `:/${currentNoteId}`,
+                        occurrenceIndex: link.occurrenceIndex,
+                    };
+                } else {
+                    pendingScroll = null;
+                }
 
-                const message: ContentScriptToPluginMessage = { type: 'openNote', noteId: link.noteId };
+                const message: ContentScriptToPluginMessage = { type: 'openNote', noteId: link.noteId, anchor };
                 closePanel(false);
                 try {
                     await context.postMessage(message);
@@ -166,12 +194,29 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 }
             };
 
-            // Scrolls the (just-loaded) target note to the selected occurrence containing `needle`.
+            // Resolves the range to place the cursor at and highlight in the just-loaded note.
+            // Returns null while the target can't be found (the note content may not have settled).
+            const resolveScrollRange = (
+                target: PendingScroll,
+                text: string,
+                headings: readonly MarkdownHeading[] = []
+            ): MarkdownLinkRange | null => {
+                if (target.kind === 'heading') {
+                    const heading = findHeadingByAnchor(headings, target.anchor);
+                    return heading ? { from: heading.from, to: heading.to } : null;
+                }
+                const pos = findOccurrenceOffsets(text, target.needle)[target.occurrenceIndex] ?? -1;
+                return pos === -1 ? null : findMarkdownLinkRange(text, pos, target.needle.length);
+            };
+
+            // Scrolls the (just-loaded) target note to the spot the selected row stands for.
             // The note content may not be present the instant the id changes, so retry briefly.
-            const scrollToReference = (targetNoteId: string, needle: string, occurrenceIndex: number): void => {
+            const scrollToTarget = (target: PendingScroll): void => {
                 const MAX_ATTEMPTS = 15;
                 const RETRY_DELAY_MS = 80;
                 let attempt = 0;
+                let parsedHeadingText: string | null = null;
+                let parsedHeadings: MarkdownHeading[] = [];
 
                 const doScroll = (highlightRange: MarkdownLinkRange): void => {
                     const scrollPosition = highlightRange.from;
@@ -184,19 +229,23 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                             ],
                         });
                     } catch (error) {
-                        logger.warn('Failed to scroll to backlink reference', error);
+                        logger.warn('Failed to scroll to link target', error);
                     }
                 };
 
                 const tryScroll = (): void => {
                     // Bail if the user navigated away again before the content settled.
-                    if (resolveNoteId() !== targetNoteId) {
+                    if (resolveNoteId() !== target.targetNoteId) {
                         return;
                     }
 
                     const text = view.state.doc.toString();
-                    const pos = findOccurrenceOffsets(text, needle)[occurrenceIndex] ?? -1;
-                    if (pos === -1) {
+                    if (target.kind === 'heading' && text !== parsedHeadingText) {
+                        parsedHeadingText = text;
+                        parsedHeadings = parseMarkdownHeadings(text);
+                    }
+                    const highlightRange = resolveScrollRange(target, text, parsedHeadings);
+                    if (!highlightRange) {
                         attempt += 1;
                         if (attempt <= MAX_ATTEMPTS) {
                             window.setTimeout(tryScroll, RETRY_DELAY_MS);
@@ -204,11 +253,10 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                         return;
                     }
 
-                    const highlightRange = findMarkdownLinkRange(text, pos, needle.length);
                     doScroll(highlightRange);
                     // Re-assert once after Joplin's own post-load cursor/scroll restoration.
                     window.setTimeout(() => {
-                        if (resolveNoteId() === targetNoteId) {
+                        if (resolveNoteId() === target.targetNoteId) {
                             doScroll(highlightRange);
                         }
                     }, 150);
@@ -226,7 +274,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     const target = pendingScroll;
                     pendingScroll = null;
                     if (noteId === target.targetNoteId) {
-                        scrollToReference(target.targetNoteId, target.needle, target.occurrenceIndex);
+                        scrollToTarget(target);
                     }
                 }
 

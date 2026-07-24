@@ -40,10 +40,14 @@ interface GetContentScriptSettingsMessage {
     type: 'getContentScriptSettings';
 }
 
-/** Ask the host to navigate to `noteId`. Host responds with `void`. */
+/**
+ * Ask the host to navigate to `noteId`, optionally to the heading named by `anchor` (Joplin's
+ * `openItem` accepts the `:/<id>#<anchor>` form). Host responds with `void`.
+ */
 interface OpenNoteMessage {
     type: 'openNote';
     noteId: string;
+    anchor?: string;
     mode?: 'ctrlClick' | 'ctrlEnter';
 }
 

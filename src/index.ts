@@ -67,10 +67,14 @@ async function resolveOpenNoteMode(message: ContentScriptToPluginMessage): Promi
     return 'current';
 }
 
-async function openNote(noteId: string, mode: ResolvedOpenNoteMode): Promise<void> {
+/**
+ * @param anchor - Heading slug to land on. Only honored in the current window: the new-window and
+ *   Note Tabs commands take a note id alone, so those just open the note.
+ */
+async function openNote(noteId: string, mode: ResolvedOpenNoteMode, anchor = ''): Promise<void> {
     switch (mode) {
         case 'current':
-            await joplin.commands.execute('openItem', `:/${noteId}`);
+            await joplin.commands.execute('openItem', anchor ? `:/${noteId}#${anchor}` : `:/${noteId}`);
             return;
         case 'newWindow':
             try {
@@ -135,7 +139,7 @@ async function handleMessage(
             };
         }
         case 'openNote':
-            await openNote(message.noteId, await resolveOpenNoteMode(message));
+            await openNote(message.noteId, await resolveOpenNoteMode(message), message.anchor);
             return;
         case 'openPanel':
             await joplin.commands.execute(COMMAND_SHOW_BACKLINKS);

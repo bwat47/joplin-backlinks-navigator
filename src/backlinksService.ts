@@ -107,6 +107,8 @@ export async function findBacklinks(noteId: string, options: FindBacklinksOption
                 direction: 'in',
                 id: `${candidate.id}:${occurrenceIndex}`,
                 noteId: candidate.id,
+                // Backlinks navigate to an occurrence in the source note, never to a heading.
+                anchor: '',
                 occurrenceIndex,
                 occurrenceCount,
                 title,
