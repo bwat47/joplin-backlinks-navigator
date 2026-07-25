@@ -26,11 +26,19 @@ export interface ParsedMarkdownBody {
 
 /** Tokenizes a Markdown body once and prepares the line indexes derived from it. */
 export function parseMarkdownBody(body: string): ParsedMarkdownBody {
+    const lines = body.split('\n');
+    // Ascending line-start offsets (index 0 is offset 0), accumulated from the split rather than by
+    // rescanning the body. +1 accounts for the newline that split() removed.
+    const lineStarts = [0];
+    for (let lineIndex = 0; lineIndex < lines.length - 1; lineIndex++) {
+        lineStarts.push(lineStarts[lineIndex] + lines[lineIndex].length + 1);
+    }
+
     return {
         body,
         tokens: markdownParser.parse(body, {}),
-        lineStarts: computeLineStarts(body),
-        lines: body.split('\n'),
+        lineStarts,
+        lines,
     };
 }
 
@@ -306,17 +314,6 @@ export interface HtmlAnchor {
  * carry no source map of their own, so `tr_open` (which does) covers anchors written in a table.
  */
 const HTML_ANCHOR_TOKEN_TYPES = new Set(['html_block', 'heading_open', 'paragraph_open', 'tr_open']);
-
-/** Builds the ascending list of line-start offsets for `body` (index 0 is offset 0). */
-function computeLineStarts(body: string): number[] {
-    const lineStarts = [0];
-    for (let offset = 0; offset < body.length; offset++) {
-        if (body[offset] === '\n') {
-            lineStarts.push(offset + 1);
-        }
-    }
-    return lineStarts;
-}
 
 /** Returns the index of the line containing `offset` given ascending `lineStarts`. */
 function offsetToLineIndex(lineStarts: readonly number[], offset: number): number {
