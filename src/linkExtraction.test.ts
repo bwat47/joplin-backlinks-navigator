@@ -260,6 +260,26 @@ describe('parseHtmlAnchors', () => {
         expect(anchors.map((a) => a.text)).toEqual(['first', 'second']);
         expect(anchors[0].from).toBeLessThan(anchors[1].from);
     });
+
+    it('matches uppercase attribute names, which HTML treats as equivalent', () => {
+        expect(parseHtmlAnchors('<a ID="Top">the top</a>')).toEqual([
+            expect.objectContaining({ id: 'top', text: 'the top' }),
+        ]);
+        expect(parseHtmlAnchors('<A NAME="Second">next</A>')).toEqual([
+            expect.objectContaining({ id: 'second', text: 'next' }),
+        ]);
+    });
+
+    it('ignores prefixed attributes such as data-id and data-name', () => {
+        expect(parseHtmlAnchors('<span data-id="oops">x</span> and <span data-name="nope">y</span>')).toEqual([]);
+    });
+
+    it('captures an anchor written inside a table cell', () => {
+        const body = '| Term | Notes |\n| --- | --- |\n| <a id="cell">The MERN stack</a> | popular |\n';
+        const anchor = parseHtmlAnchors(body)[0];
+        expect(anchor).toMatchObject({ id: 'cell', text: 'The MERN stack' });
+        expect(body.slice(anchor.from, anchor.to)).toBe('<a id="cell">');
+    });
 });
 
 describe('findHtmlAnchorById', () => {

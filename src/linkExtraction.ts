@@ -26,8 +26,13 @@ const THEMATIC_BREAK_RE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
  * Matches an HTML opening tag that carries an `id` or `name` attribute, e.g.
  * `<a id="in3b65">` or `<span name='foo'>`. Group 1 is the tag name; groups 2/3/4 hold the
  * id value from a double-quoted, single-quoted, or unquoted attribute.
+ *
+ * The attribute name must be preceded by whitespace so prefixed attributes (`data-id`,
+ * `data-name`) aren't mistaken for anchors, and the match is case-insensitive because HTML
+ * attribute names are (`<a ID="Top">` is a valid anchor).
  */
-const HTML_ANCHOR_RE = /<([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*?\b(?:id|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))[^>]*>/g;
+const HTML_ANCHOR_RE =
+    /<([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*?\s(?:id|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))[^>]*>/gi;
 
 /** Matches any HTML tag, used to strip tags out of anchor previews. */
 const HTML_TAG_RE = /<\/?[a-zA-Z][^>]*>/g;
@@ -271,8 +276,11 @@ export interface HtmlAnchor {
     to: number;
 }
 
-/** Token types whose source range may contain an inline or block-level HTML anchor. */
-const HTML_ANCHOR_TOKEN_TYPES = new Set(['html_block', 'heading_open', 'paragraph_open']);
+/**
+ * Token types whose source range may contain an inline or block-level HTML anchor. Table cells
+ * carry no source map of their own, so `tr_open` (which does) covers anchors written in a table.
+ */
+const HTML_ANCHOR_TOKEN_TYPES = new Set(['html_block', 'heading_open', 'paragraph_open', 'tr_open']);
 
 /** Builds the ascending list of line-start offsets for `body` (index 0 is offset 0). */
 function computeLineStarts(body: string): number[] {
@@ -330,8 +338,8 @@ function anchorSnippet(lines: readonly string[], lineIndex: number): string {
 /**
  * Parses explicit HTML anchors (`<tag id="…">` / `<tag name="…">`) from a Markdown body.
  *
- * Only prose and HTML-block regions are scanned, so anchors written inside fenced or inline code
- * are ignored — matching the way Joplin renders them (code is never turned into a link target). An
+ * Only prose, table-row, and HTML-block regions are scanned, so anchors written inside fenced or
+ * inline code are ignored — matching the way Joplin renders them (code is never a link target). An
  * `<a>…</a>` element's own text becomes the anchor's readable label; other tags have no label.
  * Duplicate ids are kept as separate entries; {@link findHtmlAnchorById} returns the first one,
  * mirroring how a fragment link lands on the first matching id.
