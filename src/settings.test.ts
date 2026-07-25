@@ -1,11 +1,34 @@
-import { vi } from 'vitest';
+import { vi, type Mock } from 'vitest';
 
 vi.mock('api', () => ({
     __esModule: true,
-    default: {},
+    default: {
+        settings: {
+            value: vi.fn(),
+            values: vi.fn(),
+            setValue: vi.fn(),
+        },
+    },
 }));
 
-import { normalizeBacklinkOpenBehavior, normalizeIgnoredBacklinkNoteIds, normalizeLinkPreviewMode } from './settings';
+import joplin from 'api';
+import {
+    loadContentScriptSettings,
+    loadIgnoredBacklinkNoteIdsSetting,
+    normalizeBacklinkOpenBehavior,
+    normalizeIgnoredBacklinkNoteIds,
+    normalizeLinkPreviewMode,
+} from './settings';
+
+const mockValue = joplin.settings.value as Mock;
+const mockValues = joplin.settings.values as Mock;
+const mockSetValue = joplin.settings.setValue as Mock;
+
+const KEY_PANEL_WIDTH = 'backlinksNavigator.panelWidth';
+const KEY_PANEL_MAX_HEIGHT = 'backlinksNavigator.panelMaxHeightPercentage';
+const KEY_BACKLINK_PREVIEW = 'backlinksNavigator.backlinkPreviewMode';
+const KEY_OUTGOING_PREVIEW = 'backlinksNavigator.outgoingPreviewMode';
+const KEY_IGNORED_NOTE_IDS = 'backlinksNavigator.ignoredBacklinkNoteIds';
 
 describe('settings normalization', () => {
     it('accepts supported backlink open behaviors', () => {
@@ -71,5 +94,91 @@ describe('settings normalization', () => {
 
     it('treats an empty ignored backlink note id setting as valid', () => {
         expect(normalizeIgnoredBacklinkNoteIds('  ')).toEqual({ value: [], changed: false });
+    });
+});
+
+describe('settings loading', () => {
+    beforeEach(() => {
+        mockValue.mockReset();
+        mockValues.mockReset();
+        mockSetValue.mockReset();
+        mockSetValue.mockResolvedValue(undefined);
+    });
+
+    it('returns stored panel settings as-is when they are valid', async () => {
+        mockValues.mockResolvedValue({
+            [KEY_PANEL_WIDTH]: 400,
+            [KEY_PANEL_MAX_HEIGHT]: 60,
+            [KEY_BACKLINK_PREVIEW]: 'titleSnippetHeading',
+            [KEY_OUTGOING_PREVIEW]: 'title',
+        });
+        mockValue.mockResolvedValue(true);
+
+        await expect(loadContentScriptSettings()).resolves.toEqual({
+            panel: {
+                dimensions: { width: 400, maxHeightRatio: 0.6 },
+                preview: { in: 'titleSnippetHeading', out: 'title' },
+            },
+            showIndicator: true,
+        });
+        expect(mockSetValue).not.toHaveBeenCalled();
+    });
+
+    it('falls back to defaults and self-heals every malformed panel setting', async () => {
+        mockValues.mockResolvedValue({
+            [KEY_PANEL_WIDTH]: 9999,
+            [KEY_PANEL_MAX_HEIGHT]: 'tall',
+            [KEY_BACKLINK_PREVIEW]: 'nope',
+            // Valid for backlinks, but the nearest-heading mode is not offered for outgoing links.
+            [KEY_OUTGOING_PREVIEW]: 'titleSnippetHeading',
+        });
+        mockValue.mockResolvedValue(false);
+
+        await expect(loadContentScriptSettings()).resolves.toEqual({
+            panel: {
+                dimensions: { width: 640, maxHeightRatio: 0.75 },
+                preview: { in: 'titleSnippet', out: 'titleSnippet' },
+            },
+            showIndicator: false,
+        });
+
+        expect(mockSetValue).toHaveBeenCalledWith(KEY_PANEL_WIDTH, 640);
+        expect(mockSetValue).toHaveBeenCalledWith(KEY_PANEL_MAX_HEIGHT, 75);
+        expect(mockSetValue).toHaveBeenCalledWith(KEY_BACKLINK_PREVIEW, 'titleSnippet');
+        expect(mockSetValue).toHaveBeenCalledWith(KEY_OUTGOING_PREVIEW, 'titleSnippet');
+    });
+
+    it('still resolves panel settings when persisting a correction fails', async () => {
+        mockValues.mockResolvedValue({
+            [KEY_PANEL_WIDTH]: 10,
+            [KEY_PANEL_MAX_HEIGHT]: 60,
+            [KEY_BACKLINK_PREVIEW]: 'titleSnippet',
+            [KEY_OUTGOING_PREVIEW]: 'titleSnippet',
+        });
+        mockValue.mockResolvedValue(false);
+        mockSetValue.mockRejectedValue(new Error('settings are read-only'));
+
+        const settings = await loadContentScriptSettings();
+
+        expect(settings.panel.dimensions.width).toBe(240);
+    });
+
+    it('parses ignored note ids into a set, self-healing them back to a comma-separated string', async () => {
+        mockValue.mockResolvedValue('BB12ADAA3C704FF3BF09C0D7F7AD0C38, invalid, bb12adaa3c704ff3bf09c0d7f7ad0c38');
+
+        await expect(loadIgnoredBacklinkNoteIdsSetting()).resolves.toEqual(
+            new Set(['bb12adaa3c704ff3bf09c0d7f7ad0c38'])
+        );
+        // Stored form differs from the parsed value: a string, never the parsed array.
+        expect(mockSetValue).toHaveBeenCalledWith(KEY_IGNORED_NOTE_IDS, 'bb12adaa3c704ff3bf09c0d7f7ad0c38');
+    });
+
+    it('leaves a valid ignored note id setting untouched', async () => {
+        mockValue.mockResolvedValue('bb12adaa3c704ff3bf09c0d7f7ad0c38, 14270a1ea65546319c1ed3db0e362c37');
+
+        await expect(loadIgnoredBacklinkNoteIdsSetting()).resolves.toEqual(
+            new Set(['bb12adaa3c704ff3bf09c0d7f7ad0c38', '14270a1ea65546319c1ed3db0e362c37'])
+        );
+        expect(mockSetValue).not.toHaveBeenCalled();
     });
 });

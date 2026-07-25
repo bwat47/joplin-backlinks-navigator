@@ -239,17 +239,45 @@ async function persistNormalizedSetting(key: string, value: unknown): Promise<vo
     }
 }
 
+interface NormalizedSettingOptions<T> {
+    /**
+     * Converts the normalized value to its stored form, for settings whose stored representation
+     * differs from the parsed one (e.g. an id list stored as a comma-separated string). Defaults to
+     * storing the value as-is.
+     */
+    serialize?: (value: T) => unknown;
+}
+
+/**
+ * Normalizes an already-read setting value, warning about and self-healing a malformed stored
+ * value so it is corrected after one read.
+ *
+ * Split from {@link loadNormalizedSetting} so callers that read several keys in one batched
+ * request can still share this handling.
+ */
+async function normalizeStoredSetting<T>(
+    key: string,
+    raw: unknown,
+    normalize: (value: unknown) => { value: T; changed: boolean },
+    label: string,
+    options: NormalizedSettingOptions<T> = {}
+): Promise<T> {
+    const result = normalize(raw);
+    if (result.changed) {
+        logger.warn(`Invalid ${label} setting: ${String(raw)}. Using ${String(result.value)}.`);
+        await persistNormalizedSetting(key, options.serialize ? options.serialize(result.value) : result.value);
+    }
+    return result.value;
+}
+
+/** Reads one setting and normalizes it. See {@link normalizeStoredSetting}. */
 async function loadNormalizedSetting<T>(
     key: string,
     normalize: (value: unknown) => { value: T; changed: boolean },
-    label: string
+    label: string,
+    options: NormalizedSettingOptions<T> = {}
 ): Promise<T> {
-    const result = normalize(await joplin.settings.value(key));
-    if (result.changed) {
-        logger.warn(`Invalid ${label} setting. Using ${String(result.value)}.`);
-        await persistNormalizedSetting(key, result.value);
-    }
-    return result.value;
+    return normalizeStoredSetting(key, await joplin.settings.value(key), normalize, label, options);
 }
 
 async function loadPanelSettings(): Promise<PanelSettings> {
@@ -260,51 +288,37 @@ async function loadPanelSettings(): Promise<PanelSettings> {
         SETTING_OUTGOING_PREVIEW_MODE,
     ]);
 
-    const widthResult = normalizePanelWidth(values[SETTING_PANEL_WIDTH]);
-    if (widthResult.changed) {
-        logger.warn(`Invalid panel width setting: ${values[SETTING_PANEL_WIDTH]}. Using ${widthResult.value}px.`);
-        await persistNormalizedSetting(SETTING_PANEL_WIDTH, widthResult.value);
-    }
-
-    const heightResult = normalizePanelHeightPercentage(values[SETTING_PANEL_MAX_HEIGHT]);
-    if (heightResult.changed) {
-        logger.warn(`Invalid panel height setting: ${values[SETTING_PANEL_MAX_HEIGHT]}. Using ${heightResult.value}%.`);
-        await persistNormalizedSetting(SETTING_PANEL_MAX_HEIGHT, heightResult.value);
-    }
-
-    const backlinkPreviewResult = normalizeLinkPreviewMode(
-        values[SETTING_BACKLINK_PREVIEW_MODE],
-        DEFAULT_LINK_PREVIEW_SETTINGS.in
-    );
-    if (backlinkPreviewResult.changed) {
-        logger.warn(
-            `Invalid backlink context preview setting: ${values[SETTING_BACKLINK_PREVIEW_MODE]}. ` +
-                `Using ${backlinkPreviewResult.value}.`
-        );
-        await persistNormalizedSetting(SETTING_BACKLINK_PREVIEW_MODE, backlinkPreviewResult.value);
-    }
-
-    const outgoingPreviewResult = normalizeLinkPreviewMode(
-        values[SETTING_OUTGOING_PREVIEW_MODE],
-        DEFAULT_LINK_PREVIEW_SETTINGS.out,
-        { allowHeading: false }
-    );
-    if (outgoingPreviewResult.changed) {
-        logger.warn(
-            `Invalid outgoing link context preview setting: ${values[SETTING_OUTGOING_PREVIEW_MODE]}. ` +
-                `Using ${outgoingPreviewResult.value}.`
-        );
-        await persistNormalizedSetting(SETTING_OUTGOING_PREVIEW_MODE, outgoingPreviewResult.value);
-    }
+    const [width, heightPercentage, backlinkPreview, outgoingPreview] = await Promise.all([
+        normalizeStoredSetting(SETTING_PANEL_WIDTH, values[SETTING_PANEL_WIDTH], normalizePanelWidth, 'panel width'),
+        normalizeStoredSetting(
+            SETTING_PANEL_MAX_HEIGHT,
+            values[SETTING_PANEL_MAX_HEIGHT],
+            normalizePanelHeightPercentage,
+            'panel max height'
+        ),
+        normalizeStoredSetting(
+            SETTING_BACKLINK_PREVIEW_MODE,
+            values[SETTING_BACKLINK_PREVIEW_MODE],
+            (value) => normalizeLinkPreviewMode(value, DEFAULT_LINK_PREVIEW_SETTINGS.in),
+            'backlink context preview'
+        ),
+        normalizeStoredSetting(
+            SETTING_OUTGOING_PREVIEW_MODE,
+            values[SETTING_OUTGOING_PREVIEW_MODE],
+            // Outgoing rows preview the linked note's opening, so the nearest-heading mode is not offered.
+            (value) => normalizeLinkPreviewMode(value, DEFAULT_LINK_PREVIEW_SETTINGS.out, { allowHeading: false }),
+            'outgoing link context preview'
+        ),
+    ]);
 
     return {
         dimensions: {
-            width: widthResult.value,
-            maxHeightRatio: heightResult.value / 100,
+            width,
+            maxHeightRatio: heightPercentage / 100,
         },
         preview: {
-            in: backlinkPreviewResult.value,
-            out: outgoingPreviewResult.value,
+            in: backlinkPreview,
+            out: outgoingPreview,
         },
     };
 }
@@ -323,13 +337,14 @@ export async function loadShowIndicatorSetting(): Promise<boolean> {
 }
 
 export async function loadIgnoredBacklinkNoteIdsSetting(): Promise<Set<string>> {
-    const value = await joplin.settings.value(SETTING_IGNORED_BACKLINK_NOTE_IDS);
-    const result = normalizeIgnoredBacklinkNoteIds(value);
-    if (result.changed) {
-        logger.warn('Ignored note IDs setting contained invalid, duplicate, or normalized entries.');
-        await persistNormalizedSetting(SETTING_IGNORED_BACKLINK_NOTE_IDS, result.value.join(', '));
-    }
-    return new Set(result.value);
+    const noteIds = await loadNormalizedSetting(
+        SETTING_IGNORED_BACKLINK_NOTE_IDS,
+        normalizeIgnoredBacklinkNoteIds,
+        'ignored note IDs',
+        // Stored as the comma-separated string the user typed, parsed into a list of ids.
+        { serialize: (value) => value.join(', ') }
+    );
+    return new Set(noteIds);
 }
 
 export async function loadCtrlClickBehaviorSetting(): Promise<BacklinkOpenBehavior> {
