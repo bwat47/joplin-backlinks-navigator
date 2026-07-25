@@ -1,3 +1,4 @@
+import MarkdownIt from 'markdown-it';
 import {
     cleanSnippetLine,
     extractNoteLinks,
@@ -10,12 +11,28 @@ import {
     findSection,
     linkNeedle,
     parseHtmlAnchors,
+    parseMarkdownBody,
     parseMarkdownHeadings,
     slugifyHeading,
 } from './linkExtraction';
 
 const ID_A = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const ID_B = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
+describe('parseMarkdownBody', () => {
+    it('shares one markdown-it parse across heading and HTML-anchor extraction', () => {
+        const parseSpy = vi.spyOn(MarkdownIt.prototype, 'parse');
+        try {
+            const parsed = parseMarkdownBody('# Heading\n\n<a id="target">Target</a>');
+
+            expect(parseMarkdownHeadings(parsed)).toHaveLength(1);
+            expect(parseHtmlAnchors(parsed)).toHaveLength(1);
+            expect(parseSpy).toHaveBeenCalledTimes(1);
+        } finally {
+            parseSpy.mockRestore();
+        }
+    });
+});
 
 describe('linkNeedle', () => {
     it('prefixes the note id with the internal link scheme', () => {
@@ -40,57 +57,63 @@ describe('cleanSnippetLine', () => {
 describe('findSection', () => {
     it('returns the nearest heading above the line', () => {
         const body = '# Top\nintro\n\nSub\n---\nbody';
-        const headings = parseMarkdownHeadings(body);
+        const headings = parseMarkdownHeadings(parseMarkdownBody(body));
         expect(findSection(headings, 5)).toBe('Sub');
         expect(findSection(headings, 1)).toBe('Top');
     });
 
     it('returns empty string when there is no heading above', () => {
-        expect(findSection(parseMarkdownHeadings('just text\nmore'), 1)).toBe('');
+        expect(findSection(parseMarkdownHeadings(parseMarkdownBody('just text\nmore')), 1)).toBe('');
     });
 });
 
 describe('extractNoteOpening', () => {
     it('returns the first line of prose, skipping a leading heading', () => {
-        expect(extractNoteOpening('# Title\n\nFirst paragraph of the note.')).toBe('First paragraph of the note.');
+        expect(extractNoteOpening(parseMarkdownBody('# Title\n\nFirst paragraph of the note.'))).toBe(
+            'First paragraph of the note.'
+        );
     });
 
     it('skips blank lines and thematic breaks', () => {
-        expect(extractNoteOpening('---\n\n***\nActual content.')).toBe('Actual content.');
+        expect(extractNoteOpening(parseMarkdownBody('---\n\n***\nActual content.'))).toBe('Actual content.');
     });
 
     it('cleans markdown markers from the opening line', () => {
-        expect(extractNoteOpening('- [ ] A task with a [link](https://example.com)')).toBe('A task with a link');
+        expect(extractNoteOpening(parseMarkdownBody('- [ ] A task with a [link](https://example.com)'))).toBe(
+            'A task with a link'
+        );
     });
 
     it('skips a GitHub alert marker on its own line and uses the callout body', () => {
-        expect(extractNoteOpening('> [!NOTE]\n> Read this carefully.')).toBe('Read this carefully.');
+        expect(extractNoteOpening(parseMarkdownBody('> [!NOTE]\n> Read this carefully.'))).toBe('Read this carefully.');
     });
 
     it('drops an alert marker but keeps an inline callout title', () => {
-        expect(extractNoteOpening('> [!tip]+ Pro tip\n> body')).toBe('Pro tip');
+        expect(extractNoteOpening(parseMarkdownBody('> [!tip]+ Pro tip\n> body'))).toBe('Pro tip');
     });
 
     it('falls back to the first heading when the note is only headings', () => {
-        expect(extractNoteOpening('# Only A Heading\n## Subheading')).toBe('Only A Heading');
+        expect(extractNoteOpening(parseMarkdownBody('# Only A Heading\n## Subheading'))).toBe('Only A Heading');
     });
 
     it('returns an empty string for an empty note', () => {
-        expect(extractNoteOpening('')).toBe('');
-        expect(extractNoteOpening('\n\n   \n')).toBe('');
+        expect(extractNoteOpening(parseMarkdownBody(''))).toBe('');
+        expect(extractNoteOpening(parseMarkdownBody('\n\n   \n'))).toBe('');
     });
 });
 
 describe('extractSectionOpening', () => {
     it('previews prose after the target heading', () => {
         const body = '# Title\n\nIntro prose.\n\n## Setup\n\nRun the installer.';
-        expect(extractSectionOpening(body, 5, body.split('\n').length)).toBe('Run the installer.');
+        const parsed = parseMarkdownBody(body);
+        expect(extractSectionOpening(parsed, 5, parsed.lines.length)).toBe('Run the installer.');
     });
 
     it('does not borrow prose from the next heading when the target section is empty', () => {
         const body = '# Title\n\n## Setup\n\n## Troubleshooting\n\nRestart the app.';
-        const headings = parseMarkdownHeadings(body);
-        expect(extractSectionOpening(body, headings[1].endLineIndex, headings[2].startLineIndex)).toBe('');
+        const parsed = parseMarkdownBody(body);
+        const headings = parseMarkdownHeadings(parsed);
+        expect(extractSectionOpening(parsed, headings[1].endLineIndex, headings[2].startLineIndex)).toBe('');
     });
 });
 
@@ -118,7 +141,7 @@ describe('parseMarkdownHeadings', () => {
     it('returns ATX and Setext headings with rendered text and source ranges', () => {
         const body = '## ATX\n\nSetext *Heading*\n---';
 
-        expect(parseMarkdownHeadings(body)).toEqual([
+        expect(parseMarkdownHeadings(parseMarkdownBody(body))).toEqual([
             {
                 anchor: 'atx',
                 text: 'ATX',
@@ -149,7 +172,11 @@ describe('parseMarkdownHeadings', () => {
             '## Intro';
 
         expect(
-            parseMarkdownHeadings(body).map(({ anchor, text, startLineIndex }) => ({ anchor, text, startLineIndex }))
+            parseMarkdownHeadings(parseMarkdownBody(body)).map(({ anchor, text, startLineIndex }) => ({
+                anchor,
+                text,
+                startLineIndex,
+            }))
         ).toEqual([
             { anchor: 'intro', text: 'Intro', startLineIndex: 0 },
             { anchor: 'intro-2', text: 'Intro', startLineIndex: 12 },
@@ -159,14 +186,14 @@ describe('parseMarkdownHeadings', () => {
     it('derives slugs from rendered inline text', () => {
         const body = '## A &amp; *bold* [link](https://example.com) `code` ![image](x) <em>HTML</em> ✅ 日本語';
 
-        expect(parseMarkdownHeadings(body)[0]).toMatchObject({
+        expect(parseMarkdownHeadings(parseMarkdownBody(body))[0]).toMatchObject({
             text: 'A & bold link code  HTML ✅ 日本語',
             anchor: 'a-bold-link-code-html-white_check_mark-日本語',
         });
     });
 
     it('keeps unsluggable headings in the index for section boundaries', () => {
-        expect(parseMarkdownHeadings('## !!!')).toEqual([
+        expect(parseMarkdownHeadings(parseMarkdownBody('## !!!'))).toEqual([
             {
                 anchor: '',
                 text: '!!!',
@@ -182,13 +209,18 @@ describe('parseMarkdownHeadings', () => {
     it('globally disambiguates empty slugs and collisions with their generated anchors', () => {
         const body = '## !!!\n\n## ???\n\n## -2\n\n## !!!';
 
-        expect(parseMarkdownHeadings(body).map(({ anchor }) => anchor)).toEqual(['', '-2', '-2-2', '-3']);
+        expect(parseMarkdownHeadings(parseMarkdownBody(body)).map(({ anchor }) => anchor)).toEqual([
+            '',
+            '-2',
+            '-2-2',
+            '-3',
+        ]);
     });
 });
 
 describe('findHeadingByAnchor', () => {
     const body = '# Title\n\nIntro.\n\n## Getting Started\n\nStep one.\n\n### Notes\n\nDetail.\n\n## Notes\n\nMore.';
-    const headings = parseMarkdownHeadings(body);
+    const headings = parseMarkdownHeadings(parseMarkdownBody(body));
 
     it('locates the heading an anchor names', () => {
         expect(findHeadingByAnchor(headings, 'getting-started')).toEqual({
@@ -210,7 +242,7 @@ describe('findHeadingByAnchor', () => {
 
     it('keeps generated slugs globally unique when a numbered slug already exists', () => {
         const collidingBody = '## Intro\n\n## Intro-2\n\n## Intro';
-        const collidingHeadings = parseMarkdownHeadings(collidingBody);
+        const collidingHeadings = parseMarkdownHeadings(parseMarkdownBody(collidingBody));
         expect(findHeadingByAnchor(collidingHeadings, 'intro')?.startLineIndex).toBe(0);
         expect(findHeadingByAnchor(collidingHeadings, 'intro-2')?.startLineIndex).toBe(2);
         expect(findHeadingByAnchor(collidingHeadings, 'intro-3')?.startLineIndex).toBe(4);
@@ -229,7 +261,7 @@ describe('findHeadingByAnchor', () => {
 describe('parseHtmlAnchors', () => {
     it('captures an inline <a id> anchor with its own text and line preview', () => {
         const body = 'Intro paragraph.\n\n<a id="in3b65">The MERN stack</a> is a widely adopted framework.';
-        const anchor = parseHtmlAnchors(body)[0];
+        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
         expect(anchor).toMatchObject({
             id: 'in3b65',
             text: 'The MERN stack',
@@ -240,62 +272,66 @@ describe('parseHtmlAnchors', () => {
 
     it('supports the name attribute, single quotes, and lowercases the id for matching', () => {
         const body = "See <a name='Top'>the top</a>.";
-        expect(parseHtmlAnchors(body)).toEqual([expect.objectContaining({ id: 'top', text: 'the top' })]);
+        expect(parseHtmlAnchors(parseMarkdownBody(body))).toEqual([
+            expect.objectContaining({ id: 'top', text: 'the top' }),
+        ]);
     });
 
     it('captures an id on a non-anchor tag with no label', () => {
         const body = '<div id="section-2">\n\nBody text here.';
-        const anchor = parseHtmlAnchors(body)[0];
+        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
         expect(anchor).toMatchObject({ id: 'section-2', text: '', snippet: 'Body text here.' });
     });
 
     it('ignores ids written inside fenced or inline code', () => {
         const body = '```html\n<a id="fenced">x</a>\n```\n\nUse `<a id="inline">` in prose.';
-        expect(parseHtmlAnchors(body)).toEqual([]);
+        expect(parseHtmlAnchors(parseMarkdownBody(body))).toEqual([]);
     });
 
     it('keeps duplicate ids as separate entries in document order', () => {
         const body = '<a id="dup">first</a>\n\n<a id="dup">second</a>';
-        const anchors = parseHtmlAnchors(body);
+        const anchors = parseHtmlAnchors(parseMarkdownBody(body));
         expect(anchors.map((a) => a.text)).toEqual(['first', 'second']);
         expect(anchors[0].from).toBeLessThan(anchors[1].from);
     });
 
     it('matches uppercase attribute names, which HTML treats as equivalent', () => {
-        expect(parseHtmlAnchors('<a ID="Top">the top</a>')).toEqual([
+        expect(parseHtmlAnchors(parseMarkdownBody('<a ID="Top">the top</a>'))).toEqual([
             expect.objectContaining({ id: 'top', text: 'the top' }),
         ]);
-        expect(parseHtmlAnchors('<A NAME="Second">next</A>')).toEqual([
+        expect(parseHtmlAnchors(parseMarkdownBody('<A NAME="Second">next</A>'))).toEqual([
             expect.objectContaining({ id: 'second', text: 'next' }),
         ]);
     });
 
     it('ignores prefixed attributes such as data-id and data-name', () => {
-        expect(parseHtmlAnchors('<span data-id="oops">x</span> and <span data-name="nope">y</span>')).toEqual([]);
+        expect(
+            parseHtmlAnchors(parseMarkdownBody('<span data-id="oops">x</span> and <span data-name="nope">y</span>'))
+        ).toEqual([]);
     });
 
     it('strips nested markup that a single pass would splice back into a tag', () => {
         const body = '<a id="nested">Safe</a> then <<a>script>alert(1)<</a>/script> tail.';
-        expect(parseHtmlAnchors(body)[0].snippet).toBe('Safe then alert(1) tail.');
+        expect(parseHtmlAnchors(parseMarkdownBody(body))[0].snippet).toBe('Safe then alert(1) tail.');
     });
 
     it('captures an anchor written inside a table cell', () => {
         const body = '| Term | Notes |\n| --- | --- |\n| <a id="cell">The MERN stack</a> | popular |\n';
-        const anchor = parseHtmlAnchors(body)[0];
+        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
         expect(anchor).toMatchObject({ id: 'cell', text: 'The MERN stack' });
         expect(body.slice(anchor.from, anchor.to)).toBe('<a id="cell">');
     });
 });
 
 describe('findHtmlAnchorById', () => {
-    const anchors = parseHtmlAnchors('<a id="alpha">A</a>\n\n<a id="beta">B</a>');
+    const anchors = parseHtmlAnchors(parseMarkdownBody('<a id="alpha">A</a>\n\n<a id="beta">B</a>'));
 
     it('matches case-insensitively and trims whitespace', () => {
         expect(findHtmlAnchorById(anchors, ' ALPHA ')?.text).toBe('A');
     });
 
     it('returns the first entry for a duplicate id', () => {
-        const dupes = parseHtmlAnchors('<a id="x">first</a>\n\n<a id="x">second</a>');
+        const dupes = parseHtmlAnchors(parseMarkdownBody('<a id="x">first</a>\n\n<a id="x">second</a>'));
         expect(findHtmlAnchorById(dupes, 'x')?.text).toBe('first');
     });
 
@@ -355,7 +391,9 @@ describe('extractOccurrenceContexts', () => {
     it('maps each offset to its line snippet and section', () => {
         const body = `# Heading\nSee [Target](:/${ID_A}) here\nplain`;
         const offsets = findOccurrenceOffsets(body, linkNeedle(ID_A));
-        expect(extractOccurrenceContexts(body, offsets)).toEqual([{ snippet: 'See Target here', section: 'Heading' }]);
+        expect(extractOccurrenceContexts(parseMarkdownBody(body), offsets)).toEqual([
+            { snippet: 'See Target here', section: 'Heading' },
+        ]);
     });
 
     it('ignores heading-like code and recognizes Setext sections', () => {
@@ -363,12 +401,12 @@ describe('extractOccurrenceContexts', () => {
             `Real Section\n============\n\n` + '```md\n## Fake Section\n```\n\n' + `See [Target](:/${ID_A}) here`;
         const offsets = findOccurrenceOffsets(body, linkNeedle(ID_A));
 
-        expect(extractOccurrenceContexts(body, offsets)).toEqual([
+        expect(extractOccurrenceContexts(parseMarkdownBody(body), offsets)).toEqual([
             { snippet: 'See Target here', section: 'Real Section' },
         ]);
     });
 
     it('returns an empty array for no offsets', () => {
-        expect(extractOccurrenceContexts('anything', [])).toEqual([]);
+        expect(extractOccurrenceContexts(parseMarkdownBody('anything'), [])).toEqual([]);
     });
 });

@@ -6,11 +6,33 @@
 
 import uslug from '@joplin/fork-uslug';
 import MarkdownIt from 'markdown-it';
+import type Token from 'markdown-it/lib/token.mjs';
 
 const SNIPPET_MAX_LENGTH = 120;
 // Joplin renders Markdown with inline HTML enabled. Parsing it the same way keeps tag names out of
 // the visible heading text that is passed to the slugger.
 const markdownParser = new MarkdownIt({ html: true });
+
+/**
+ * Markdown source and the shared structures derived from it. Callers create one context per body
+ * and reuse it for heading, HTML-anchor, and snippet extraction.
+ */
+export interface ParsedMarkdownBody {
+    readonly body: string;
+    readonly tokens: readonly Token[];
+    readonly lineStarts: readonly number[];
+    readonly lines: readonly string[];
+}
+
+/** Parses a Markdown body once and prepares its shared line indexes. */
+export function parseMarkdownBody(body: string): ParsedMarkdownBody {
+    return {
+        body,
+        tokens: markdownParser.parse(body, {}),
+        lineStarts: computeLineStarts(body),
+        lines: body.split('\n'),
+    };
+}
 
 /**
  * Matches a 32-char hex Joplin note id immediately after `:/`, plus an optional heading anchor.
@@ -81,12 +103,12 @@ export function cleanSnippetLine(line: string): string {
 }
 
 function extractOpening(
-    body: string,
+    parsed: ParsedMarkdownBody,
     startLineIndex: number,
     endLineIndex: number,
     headings: readonly MarkdownHeading[]
 ): string {
-    const lines = body.split('\n');
+    const { lines } = parsed;
     const headingsByStartLine = new Map(headings.map((heading) => [heading.startLineIndex, heading]));
     let headingFallback = '';
     let lineIndex = startLineIndex;
@@ -127,10 +149,10 @@ function extractOpening(
  * empty for a non-empty note.
  */
 export function extractNoteOpening(
-    body: string,
-    headings: readonly MarkdownHeading[] = parseMarkdownHeadings(body)
+    parsed: ParsedMarkdownBody,
+    headings: readonly MarkdownHeading[] = parseMarkdownHeadings(parsed)
 ): string {
-    return extractOpening(body, 0, body.split('\n').length, headings);
+    return extractOpening(parsed, 0, parsed.lines.length, headings);
 }
 
 /**
@@ -140,8 +162,12 @@ export function extractNoteOpening(
  * @param startLineIndex - First line after the target heading.
  * @param endLineIndex - First line of the next heading, or the note's line count.
  */
-export function extractSectionOpening(body: string, startLineIndex: number, endLineIndex: number): string {
-    return extractOpening(body, startLineIndex, endLineIndex, []);
+export function extractSectionOpening(
+    parsed: ParsedMarkdownBody,
+    startLineIndex: number,
+    endLineIndex: number
+): string {
+    return extractOpening(parsed, startLineIndex, endLineIndex, []);
 }
 
 /**
@@ -194,9 +220,8 @@ export interface MarkdownHeading {
  * Repeated slugs are disambiguated the way Joplin's renderer does it: the first heading keeps the
  * bare slug and later ones are numbered from two (`intro`, `intro-2`, `intro-3`, …).
  */
-export function parseMarkdownHeadings(body: string): MarkdownHeading[] {
-    const tokens = markdownParser.parse(body, {});
-    const lineStarts = computeLineStarts(body);
+export function parseMarkdownHeadings(parsed: ParsedMarkdownBody): MarkdownHeading[] {
+    const { body, lineStarts, tokens } = parsed;
 
     const seenSlugs = new Set<string>();
     const headings: MarkdownHeading[] = [];
@@ -356,10 +381,8 @@ function anchorSnippet(lines: readonly string[], lineIndex: number): string {
  * Duplicate ids are kept as separate entries; {@link findHtmlAnchorById} returns the first one,
  * mirroring how a fragment link lands on the first matching id.
  */
-export function parseHtmlAnchors(body: string): HtmlAnchor[] {
-    const tokens = markdownParser.parse(body, {});
-    const lineStarts = computeLineStarts(body);
-    const lines = body.split('\n');
+export function parseHtmlAnchors(parsed: ParsedMarkdownBody): HtmlAnchor[] {
+    const { body, lines, lineStarts, tokens } = parsed;
     const anchors: HtmlAnchor[] = [];
     const seenOffsets = new Set<number>();
 
@@ -493,19 +516,19 @@ export interface OccurrenceContext {
  * Offsets must be sorted ascending; each must fall on a line of `body`. Returns one entry per
  * input offset, in the same order.
  */
-export function extractOccurrenceContexts(body: string, offsets: number[]): OccurrenceContext[] {
+export function extractOccurrenceContexts(parsed: ParsedMarkdownBody, offsets: number[]): OccurrenceContext[] {
     if (!offsets.length) {
         return [];
     }
 
-    const lines = body.split('\n');
-    const headings = parseMarkdownHeadings(body);
+    const { lines, lineStarts } = parsed;
+    const headings = parseMarkdownHeadings(parsed);
     const contexts: OccurrenceContext[] = [];
-    let lineStartOffset = 0;
     let offsetIndex = 0;
 
     for (let lineIndex = 0; lineIndex < lines.length && offsetIndex < offsets.length; lineIndex++) {
         const line = lines[lineIndex];
+        const lineStartOffset = lineStarts[lineIndex] ?? parsed.body.length;
         const lineEndOffset = lineStartOffset + line.length;
 
         while (
@@ -519,9 +542,6 @@ export function extractOccurrenceContexts(body: string, offsets: number[]): Occu
             });
             offsetIndex += 1;
         }
-
-        // +1 accounts for the newline removed by split().
-        lineStartOffset = lineEndOffset + 1;
     }
 
     return contexts;

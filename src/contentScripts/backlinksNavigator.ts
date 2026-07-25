@@ -25,6 +25,7 @@ import {
     findHtmlAnchorById,
     findOccurrenceOffsets,
     parseHtmlAnchors,
+    parseMarkdownBody,
     parseMarkdownHeadings,
     type HtmlAnchor,
     type MarkdownHeading,
@@ -293,8 +294,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     const text = view.state.doc.toString();
                     if (target.kind === 'anchor' && text !== parsedAnchorText) {
                         parsedAnchorText = text;
-                        parsedHeadings = parseMarkdownHeadings(text);
-                        parsedHtmlAnchors = parseHtmlAnchors(text);
+                        const parsed = parseMarkdownBody(text);
+                        parsedHeadings = parseMarkdownHeadings(parsed);
+                        parsedHtmlAnchors = parseHtmlAnchors(parsed);
                     }
                     const highlightRange = resolveScrollRange(target, text, parsedHeadings, parsedHtmlAnchors);
                     if (!highlightRange) {
