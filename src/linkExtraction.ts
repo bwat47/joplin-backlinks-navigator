@@ -24,7 +24,7 @@ export interface ParsedMarkdownBody {
     readonly lines: readonly string[];
 }
 
-/** Parses a Markdown body once and prepares its shared line indexes. */
+/** Tokenizes a Markdown body once and prepares the line indexes derived from it. */
 export function parseMarkdownBody(body: string): ParsedMarkdownBody {
     return {
         body,
@@ -513,8 +513,9 @@ export interface OccurrenceContext {
 /**
  * Resolves display context (cleaned snippet + enclosing section heading) for each offset.
  *
- * Offsets must be sorted ascending; each must fall on a line of `body`. Returns one entry per
- * input offset, in the same order.
+ * Offsets must be sorted ascending and must have been computed against `parsed.body` — they are
+ * mapped to lines using that body's line starts. Returns one entry per input offset, in the same
+ * order.
  */
 export function extractOccurrenceContexts(parsed: ParsedMarkdownBody, offsets: number[]): OccurrenceContext[] {
     if (!offsets.length) {
