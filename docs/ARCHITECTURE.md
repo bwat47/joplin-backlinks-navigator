@@ -84,20 +84,26 @@ Both tabs use `LinkItem`. The `direction` field distinguishes rows:
 
 Backlinks are occurrence-based because the same source note can link to the current note many times.
 
-Outgoing links are destination-based, where a destination is a target note plus an optional heading
-anchor: `[a](:/id)` and `[b](:/id#some-heading)` produce separate rows, while repeats of either
-collapse into one row. The row's `anchor` holds the heading slug (empty for a whole-note row) and
-`section` names the heading it resolves to, which the panel always shows for anchored rows so they
-can be told apart from the note's own row.
+Outgoing links are destination-based, where a destination is a target note plus an optional
+anchor: `[a](:/id)` and `[b](:/id#some-anchor)` produce separate rows, while repeats of either
+collapse into one row. The row's `anchor` holds the fragment (empty for a whole-note row) and
+`section` names what it resolves to, which the panel always shows for anchored rows so they can be
+told apart from the note's own row.
 
-Heading-sensitive behavior uses `parseMarkdownHeadings` in `linkExtraction.ts`. The shared
-`markdown-it` index excludes heading-like text in code blocks, recognizes ATX and Setext headings,
-and records each heading's rendered text and source range. Anchor slugs use Joplin's `fork-uslug`
-with the plugin's existing global duplicate policy (`intro`, `intro-2`, `intro-3`, …). An anchor
-that no longer names a heading falls back to displaying the raw slug.
+An anchor resolves in priority order: first against the heading index (`parseMarkdownHeadings`),
+then against the HTML-anchor index (`parseHtmlAnchors`), both in `linkExtraction.ts`.
 
-The same index resolves outgoing anchors, bounds anchored-section previews, supplies backlink
-section labels, and gives editor navigation the exact source range to highlight.
+The shared `markdown-it` heading index excludes heading-like text in code blocks, recognizes ATX and
+Setext headings, and records each heading's rendered text and source range. Anchor slugs use
+Joplin's `fork-uslug` with the plugin's existing global duplicate policy (`intro`, `intro-2`,
+`intro-3`, …). The HTML-anchor index scans prose and HTML-block regions (skipping fenced/inline
+code) for explicit `id`/`name` attributes, e.g. `<a id="in3b65">The MERN stack</a>`; an `<a>`
+element's own text becomes the row label and the anchor's line is previewed. An anchor that names
+neither a heading nor an HTML anchor falls back to displaying the raw slug and the note's opening.
+
+The heading index also bounds anchored-section previews, supplies backlink section labels, and gives
+editor navigation the exact source range to highlight; the HTML-anchor index likewise provides the
+source range editor navigation highlights for non-heading anchors.
 
 ## Navigation Model
 
@@ -107,8 +113,9 @@ highlights it briefly.
 
 - Backlinks scroll to the matching `:/<currentNoteId>` reference in the source note. Title-only
   backlink previews collapse occurrences into one row per source note, so those rows don't scroll.
-- Outgoing links to a heading anchor scroll to that heading. The anchor is also passed to the host,
-  which opens `:/<id>#<anchor>` so Joplin's own navigation agrees.
+- Outgoing links to an anchor scroll to the heading that anchor names, or to the explicit HTML
+  anchor (`<a id="…">`) it points at. The anchor is also passed to the host, which opens
+  `:/<id>#<anchor>` so Joplin's own navigation agrees.
 - Outgoing links without an anchor simply open the destination note.
 
 ## Build

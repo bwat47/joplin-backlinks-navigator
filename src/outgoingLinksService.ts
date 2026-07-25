@@ -9,11 +9,12 @@
  * 1. Fetch the current note's body.
  * 2. Extract every `:/<id>` occurrence and its optional heading anchor, in document order.
  * 3. Group by target id *and* anchor, skipping self-links and ignored notes. A link to a note and a
- *    link to one of its headings are different destinations, so they get their own rows; repeats of
+ *    link to one of its anchors are different destinations, so they get their own rows; repeats of
  *    either collapse into one row.
  * 4. Resolve each target's title, parent notebook, and body, dropping broken links that can't be
- *    resolved. The snippet previews the opening of the linked note — or of the anchored section —
- *    rather than the context around the link in the current note.
+ *    resolved. The snippet previews the opening of the linked note — or of the anchored section or
+ *    HTML-anchor line — rather than the context around the link in the current note. An anchor
+ *    resolves to a heading slug first, then to an explicit HTML anchor (`<a id="…">`).
  *
  * Only the plugin host has Data API access, so this runs here rather than in the content script.
  */
@@ -26,7 +27,10 @@ import {
     extractNoteOpening,
     extractSectionOpening,
     findHeadingByAnchor,
+    findHtmlAnchorById,
+    parseHtmlAnchors,
     parseMarkdownHeadings,
+    type HtmlAnchor,
     type MarkdownHeading,
 } from './linkExtraction';
 import { resolveNoteMeta, resolveNotebookName, type NoteMeta } from './noteMetadata';
@@ -46,8 +50,7 @@ function destinationKey(targetId: string, anchor: string): string {
  *
  * @param noteId - ID of the note to read outgoing links from.
  * @param options - Optional filters, including note ids to omit from results.
- * @returns One entry per distinct note + heading-anchor pair, sorted by title. Returns `[]` on
- *   failure.
+ * @returns One entry per distinct note + anchor pair, sorted by title. Returns `[]` on failure.
  */
 export async function findOutgoingLinks(noteId: string, options: FindOutgoingLinksOptions = {}): Promise<LinkItem[]> {
     if (!noteId) {
@@ -89,6 +92,7 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
     const noteMetaCache = new Map<string, NoteMeta | null>();
     const notebookCache = new Map<string, string>();
     const headingCache = new Map<string, MarkdownHeading[]>();
+    const htmlAnchorCache = new Map<string, HtmlAnchor[]>();
     const outgoing: LinkItem[] = [];
 
     for (const [key, group] of groups) {
@@ -103,13 +107,33 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
             headings = parseMarkdownHeadings(meta.body);
             headingCache.set(group.targetId, headings);
         }
-        // An anchored link lands on a heading, so name that heading and preview the section under
-        // it. If the anchor no longer resolves (heading renamed, or it points at something that
-        // isn't a heading) fall back to the raw slug and the note's opening.
+        // Resolve where an anchored link lands, in priority order:
+        //   1. a heading whose slug matches — name the heading, preview the section under it;
+        //   2. an explicit HTML anchor (`<a id="…">`) — use its own text as the label and preview
+        //      the line it sits on;
+        //   3. neither (stale slug, renamed heading) — fall back to the raw slug and note opening.
         const heading = group.anchor ? findHeadingByAnchor(headings, group.anchor) : null;
-        const headingIndex = heading ? headings.indexOf(heading) : -1;
-        const nextHeading = headingIndex >= 0 ? headings[headingIndex + 1] : undefined;
-        const sectionEndLineIndex = nextHeading?.startLineIndex ?? meta.body.split('\n').length;
+        let section: string;
+        let snippet: string;
+        if (heading) {
+            const headingIndex = headings.indexOf(heading);
+            const nextHeading = headings[headingIndex + 1];
+            const sectionEndLineIndex = nextHeading?.startLineIndex ?? meta.body.split('\n').length;
+            section = heading.text;
+            snippet = extractSectionOpening(meta.body, heading.endLineIndex, sectionEndLineIndex);
+        } else if (group.anchor) {
+            let htmlAnchors = htmlAnchorCache.get(group.targetId);
+            if (!htmlAnchors) {
+                htmlAnchors = parseHtmlAnchors(meta.body);
+                htmlAnchorCache.set(group.targetId, htmlAnchors);
+            }
+            const htmlAnchor = findHtmlAnchorById(htmlAnchors, group.anchor);
+            section = htmlAnchor?.text || group.anchor;
+            snippet = htmlAnchor?.snippet || extractNoteOpening(meta.body, headings);
+        } else {
+            section = '';
+            snippet = extractNoteOpening(meta.body, headings);
+        }
         outgoing.push({
             direction: 'out',
             id: key,
@@ -119,10 +143,8 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
             occurrenceCount: group.count,
             title: meta.title,
             notebookName,
-            section: heading ? heading.text : group.anchor,
-            snippet: heading
-                ? extractSectionOpening(meta.body, heading.endLineIndex, sectionEndLineIndex)
-                : extractNoteOpening(meta.body, headings),
+            section,
+            snippet,
         });
     }
 

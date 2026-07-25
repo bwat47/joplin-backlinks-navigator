@@ -182,6 +182,72 @@ describe('findOutgoingLinks', () => {
         ]);
     });
 
+    it('resolves an explicit HTML anchor to its own text and line preview', async () => {
+        const body =
+            `Whole: [Alpha](:/${NOTE_A}).\n` +
+            `Anchor: [The MERN stack](:/${NOTE_A}#in3b65) and again [MERN](:/${NOTE_A}#in3b65).\n` +
+            `Stale: [Gone](:/${NOTE_A}#no-such-anchor).`;
+
+        mockDataGet.mockImplementation(async (path: string[]) => {
+            if (path[0] === 'notes' && path[1] === SOURCE_NOTE_ID) {
+                return { id: SOURCE_NOTE_ID, body };
+            }
+            if (path[0] === 'notes' && path[1] === NOTE_A) {
+                return {
+                    id: NOTE_A,
+                    title: 'Alpha',
+                    parent_id: 'folder-1',
+                    body: '# Alpha\n\nAlpha opening line.\n\n<a id="in3b65">The MERN stack</a> is a full-stack framework.',
+                };
+            }
+            if (path[0] === 'folders' && path[1] === 'folder-1') {
+                return { id: 'folder-1', title: 'Projects' };
+            }
+            throw new Error(`Unexpected Data API request: ${path.join('/')}`);
+        });
+
+        await expect(findOutgoingLinks(SOURCE_NOTE_ID)).resolves.toEqual([
+            {
+                direction: 'out',
+                id: NOTE_A,
+                noteId: NOTE_A,
+                anchor: '',
+                occurrenceIndex: 0,
+                occurrenceCount: 1,
+                title: 'Alpha',
+                notebookName: 'Projects',
+                section: '',
+                snippet: 'Alpha opening line.',
+            },
+            {
+                direction: 'out',
+                id: `${NOTE_A}#in3b65`,
+                noteId: NOTE_A,
+                anchor: 'in3b65',
+                occurrenceIndex: 0,
+                occurrenceCount: 2,
+                title: 'Alpha',
+                notebookName: 'Projects',
+                // The HTML anchor's own text labels the row; the anchor's line is previewed.
+                section: 'The MERN stack',
+                snippet: 'The MERN stack is a full-stack framework.',
+            },
+            {
+                direction: 'out',
+                id: `${NOTE_A}#no-such-anchor`,
+                noteId: NOTE_A,
+                anchor: 'no-such-anchor',
+                occurrenceIndex: 0,
+                occurrenceCount: 1,
+                title: 'Alpha',
+                notebookName: 'Projects',
+                // Resolves to neither heading nor HTML anchor: raw slug + note opening.
+                section: 'no-such-anchor',
+                snippet: 'Alpha opening line.',
+            },
+        ]);
+    });
+
     it('resolves URL-encoded anchors and dedupes them with the equivalent decoded anchor', async () => {
         const body = `[Encoded](:/${NOTE_A}#%E6%97%A5%E6%9C%AC%E8%AA%9E) and ` + `[Decoded](:/${NOTE_A}#日本語).`;
 
