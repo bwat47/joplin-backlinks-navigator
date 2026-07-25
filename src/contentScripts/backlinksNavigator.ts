@@ -35,8 +35,9 @@ import { getDisplayCounts, toBacklinkCounts } from '../linkDisplay';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
 import { createNoteIdWatcher } from './ui/noteIdWatcher';
-import { findMarkdownLinkRange, type MarkdownLinkRange } from './markdownLinkPosition';
+import { findMarkdownLinkRange } from './markdownLinkPosition';
 import { referenceHighlightExtension, setReferenceHighlightEffect } from './referenceHighlight';
+import type { TextRange } from './textRange';
 import {
     applyContentScriptSettings,
     createSettingsExtension,
@@ -245,7 +246,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 text: string,
                 headings: readonly MarkdownHeading[] = [],
                 htmlAnchors: readonly HtmlAnchor[] = []
-            ): MarkdownLinkRange | null => {
+            ): TextRange | null => {
                 if (target.kind === 'anchor') {
                     // A heading slug wins over an explicit HTML anchor with the same name, matching
                     // how the row's label/preview were resolved on the host side.
@@ -270,7 +271,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 let parsedHeadings: MarkdownHeading[] = [];
                 let parsedHtmlAnchors: HtmlAnchor[] = [];
 
-                const doScroll = (highlightRange: MarkdownLinkRange): void => {
+                const doScroll = (highlightRange: TextRange): void => {
                     const scrollPosition = highlightRange.from;
                     try {
                         view.dispatch({

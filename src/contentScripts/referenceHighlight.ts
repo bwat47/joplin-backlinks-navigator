@@ -1,12 +1,9 @@
 import { StateEffect, StateField } from '@codemirror/state';
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
 
-export interface ReferenceHighlightRange {
-    from: number;
-    to: number;
-}
+import type { TextRange } from './textRange';
 
-export const setReferenceHighlightEffect = StateEffect.define<ReferenceHighlightRange>();
+export const setReferenceHighlightEffect = StateEffect.define<TextRange>();
 
 const referenceHighlightMark = Decoration.mark({
     class: 'backlinks-navigator-reference-highlight',

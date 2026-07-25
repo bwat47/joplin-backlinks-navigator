@@ -1,3 +1,5 @@
+import type { TextRange } from './textRange';
+
 /**
  * Resolves the editor position to use when focusing a found note-link URL.
  *
@@ -5,12 +7,7 @@
  * place the cursor before the visible markdown link rather than inside the URL.
  * If the URL is not inside a same-line markdown link, the URL position is kept.
  */
-export interface MarkdownLinkRange {
-    from: number;
-    to: number;
-}
-
-export function findMarkdownLinkRange(text: string, urlPosition: number, urlLength: number): MarkdownLinkRange {
+export function findMarkdownLinkRange(text: string, urlPosition: number, urlLength: number): TextRange {
     if (urlPosition < 0 || urlPosition >= text.length) {
         return { from: urlPosition, to: urlPosition };
     }
