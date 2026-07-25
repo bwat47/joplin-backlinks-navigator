@@ -40,8 +40,8 @@ import type {
     GetOutgoingLinksResponse,
     IndicatorState,
 } from './messages';
-import { findBacklinks } from './backlinksService';
-import { findOutgoingLinks } from './outgoingLinksService';
+import { countBacklinks, findBacklinks } from './backlinksService';
+import { countOutgoingLinks, findOutgoingLinks } from './outgoingLinksService';
 import type { BacklinkOpenBehavior } from './types';
 
 type ResolvedOpenNoteMode = 'current' | BacklinkOpenBehavior;
@@ -128,14 +128,21 @@ async function handleMessage(
             if (!(await loadShowIndicatorSetting())) {
                 return { enabled: false };
             }
+            // The badge only renders counts, so count links instead of resolving rows: this skips
+            // the snippet, notebook, and anchor work — including a body fetch and markdown parse
+            // per outgoing target — on every note open.
+            const ignoredNoteIds = await loadIgnoredBacklinkNoteIdsSetting();
             const [backlinks, outgoing] = await Promise.all([
-                findBacklinksWithSettings(message.noteId),
-                findOutgoingLinksWithSettings(message.noteId),
+                countBacklinks(message.noteId, { ignoredNoteIds }),
+                countOutgoingLinks(message.noteId, { ignoredNoteIds }),
             ]);
             return {
                 enabled: true,
-                backlinks,
-                outgoing,
+                counts: {
+                    backlinkOccurrences: backlinks.occurrences,
+                    backlinkNotes: backlinks.notes,
+                    outgoing,
+                },
             };
         }
         case 'openNote':

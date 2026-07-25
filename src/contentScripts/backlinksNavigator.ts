@@ -18,7 +18,8 @@ import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
-import type { LinkItem } from '../types';
+import type { LinkCounts, LinkItem } from '../types';
+import { EMPTY_LINK_COUNTS } from '../types';
 import {
     findHeadingByAnchor,
     findHtmlAnchorById,
@@ -34,7 +35,7 @@ import type {
     GetOutgoingLinksResponse,
     IndicatorState,
 } from '../messages';
-import { getDisplayLinkCount } from '../linkDisplay';
+import { getDisplayCounts, toBacklinkCounts } from '../linkDisplay';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
 import { createNoteIdWatcher } from './ui/noteIdWatcher';
@@ -63,6 +64,21 @@ type PendingScroll = { targetNoteId: string } & (
     | { kind: 'anchor'; anchor: string }
 );
 
+/** Coerces one count from a bridge payload to a non-negative integer. */
+function readCount(value: unknown): number {
+    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+/** Validates {@link LinkCounts} arriving over the postMessage bridge. */
+function normalizeLinkCounts(counts: unknown): LinkCounts {
+    const candidate = (counts ?? {}) as Partial<Record<keyof LinkCounts, unknown>>;
+    return {
+        backlinkOccurrences: readCount(candidate.backlinkOccurrences),
+        backlinkNotes: readCount(candidate.backlinkNotes),
+        outgoing: readCount(candidate.outgoing),
+    };
+}
+
 export default function backlinksNavigator(context: ContentScriptContext): MarkdownEditorContentScriptModule {
     return {
         plugin: (editorControl: CodeMirrorControl) => {
@@ -76,11 +92,10 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             // Desktop, the same EditorView is reused across note switches, so this closure state
             // survives the navigation.
             let pendingScroll: PendingScroll | null = null;
-            // Link rows backing the indicator badge. The panel always fetches fresh data and does
-            // not read these caches.
+            // Counts backing the indicator badge. The panel always fetches fresh rows and does not
+            // read this cache; it only refreshes it from what it loaded.
             let indicatorEnabled = false;
-            let currentNoteBacklinks: LinkItem[] = [];
-            let currentNoteOutgoing: LinkItem[] = [];
+            let indicatorCounts: LinkCounts = EMPTY_LINK_COUNTS;
             let indicatorSeq = 0;
             let indicatorTimer: number | null = null;
             const noteIdFacet = editorControl.joplinExtensions?.noteIdFacet;
@@ -90,8 +105,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
 
             const clearIndicatorCache = (): void => {
                 indicatorEnabled = false;
-                currentNoteBacklinks = [];
-                currentNoteOutgoing = [];
+                indicatorCounts = EMPTY_LINK_COUNTS;
             };
 
             const resolveNoteId = (): string | null => {
@@ -123,10 +137,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     indicator.hide();
                     return;
                 }
-                const backlinks = getDisplayLinkCount(currentNoteBacklinks, 'in', settings.panel.preview.in);
-                const outgoing = currentNoteOutgoing.length;
-                if (backlinks + outgoing > 0) {
-                    indicator.show({ backlinks, outgoing });
+                const counts = getDisplayCounts(indicatorCounts, settings.panel.preview);
+                if (counts.backlinks + counts.outgoing > 0) {
+                    indicator.show(counts);
                 } else {
                     indicator.hide();
                 }
@@ -331,7 +344,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     panel.setLinks('in', backlinks);
                     // Keep the badge's count fresh, but only when the indicator is enabled.
                     if (indicatorEnabled) {
-                        currentNoteBacklinks = backlinks;
+                        indicatorCounts = { ...indicatorCounts, ...toBacklinkCounts(backlinks) };
                     }
                 } catch (error) {
                     logger.error('Failed to load backlinks', error);
@@ -352,7 +365,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     panel.setLinks('out', outgoing);
                     // Keep the badge's count fresh, but only when the indicator is enabled.
                     if (indicatorEnabled) {
-                        currentNoteOutgoing = outgoing;
+                        indicatorCounts = { ...indicatorCounts, outgoing: outgoing.length };
                     }
                 } catch (error) {
                     logger.error('Failed to load outgoing links', error);
@@ -411,10 +424,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     return;
                 }
 
-                if (state.enabled) {
+                if (state?.enabled) {
                     indicatorEnabled = true;
-                    currentNoteBacklinks = Array.isArray(state.backlinks) ? state.backlinks : [];
-                    currentNoteOutgoing = Array.isArray(state.outgoing) ? state.outgoing : [];
+                    indicatorCounts = normalizeLinkCounts(state.counts);
                 } else {
                     clearIndicatorCache();
                 }

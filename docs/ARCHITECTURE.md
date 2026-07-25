@@ -33,6 +33,8 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
   returns one backlink row per occurrence.
 - `src/outgoingLinksService.ts` reads the current note, extracts distinct `:/<noteId>[#<anchor>]`
   destinations, and returns one outgoing-link row per destination.
+- Each service also exposes a counting entry point (`countBacklinks`, `countOutgoingLinks`) that
+  shares the discovery work but stops before row enrichment. See [Indicator Counts](#indicator-counts).
 - `src/linkExtraction.ts` contains Joplin-free parsing helpers for note links, snippets, sections,
   occurrence offsets, and a shared `markdown-it` heading index.
 - `src/noteMetadata.ts` resolves note and notebook metadata with per-call caching.
@@ -70,7 +72,7 @@ communicate through `context.postMessage(...)`, which behaves like request/respo
 
 - `getBacklinks` returns backlink rows.
 - `getOutgoingLinks` returns outgoing-link rows.
-- `getIndicatorState` returns the counts data needed by the badge, unless the indicator is disabled.
+- `getIndicatorState` returns `LinkCounts` for the badge, unless the indicator is disabled.
 - `getContentScriptSettings` returns editor-side settings.
 - `openNote` opens a target note, using the configured current-window/new-window/Note Tabs behavior.
 - `openPanel` runs the host command that opens the popup.
@@ -104,6 +106,25 @@ neither a heading nor an HTML anchor falls back to displaying the raw slug and t
 The heading index also bounds anchored-section previews, supplies backlink section labels, and gives
 editor navigation the exact source range to highlight; the HTML-anchor index likewise provides the
 source range editor navigation highlights for non-heading anchors.
+
+## Indicator Counts
+
+The badge renders two numbers, so the host counts links for it instead of resolving `LinkItem`
+rows. `countBacklinks` and `countOutgoingLinks` reuse each service's discovery step and skip the
+enrichment: no snippets, no section headings, no notebook titles, and — the expensive part — no
+body fetch or `markdown-it` parse for each outgoing target. Counting outgoing links still costs one
+body-less lookup per destination, because a link to a deleted note is broken and the panel drops it;
+counting it would put the badge out of step with the list.
+
+`LinkCounts` carries both `backlinkOccurrences` and `backlinkNotes` because the choice between them
+is display policy: title-only backlink mode collapses occurrences to one row per source note. That
+policy lives in `linkDisplay.ts` and is applied by the content script, which owns the current
+preview settings — `getDisplayCounts` for the badge, `getDisplayLinks`/`getDisplayLinkCount` for the
+panel list and tab counts, all deriving from one predicate so they cannot disagree.
+
+Opening the panel still fetches full rows for both directions, deliberately: the panel must not show
+results that went stale while the note sat open. Those rows also refresh the badge's cached counts
+(`toBacklinkCounts`), so clicking the indicator brings it up to date.
 
 ## Navigation Model
 

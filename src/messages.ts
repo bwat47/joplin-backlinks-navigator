@@ -11,7 +11,7 @@
  * - index.ts - Plugin host that receives and processes messages
  */
 
-import type { ContentScriptSettings, LinkItem } from './types';
+import type { ContentScriptSettings, LinkCounts, LinkItem } from './types';
 
 /** Request the list of backlink occurrences that link to `noteId`. Host responds with `LinkItem[]`. */
 interface GetBacklinksMessage {
@@ -79,7 +79,10 @@ export type GetContentScriptSettingsResponse = ContentScriptSettings;
 
 /**
  * Response for a {@link GetIndicatorStateMessage}.
+ *
  * `enabled` is false when the indicator setting is off (no search was performed); otherwise it
- * carries raw link rows for both directions so the content script can apply the current display policy.
+ * carries {@link LinkCounts}. The badge shows numbers, so the host counts links rather than
+ * resolving full rows for them. Both backlink tallies are sent because the display policy that
+ * chooses between them depends on the content script's current preview settings.
  */
-export type IndicatorState = { enabled: false } | { enabled: true; backlinks: LinkItem[]; outgoing: LinkItem[] };
+export type IndicatorState = { enabled: false } | { enabled: true; counts: LinkCounts };

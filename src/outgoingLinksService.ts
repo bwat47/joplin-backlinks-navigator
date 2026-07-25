@@ -16,6 +16,9 @@
  *    HTML-anchor line — rather than the context around the link in the current note. An anchor
  *    resolves to a heading slug first, then to an explicit HTML anchor (`<a id="…">`).
  *
+ * Steps 1-3 are shared with {@link countOutgoingLinks}, which stops short of step 4's body fetches
+ * and anchor parsing.
+ *
  * Only the plugin host has Data API access, so this runs here rather than in the content script.
  */
 
@@ -40,9 +43,53 @@ interface FindOutgoingLinksOptions {
     ignoredNoteIds?: ReadonlySet<string>;
 }
 
+/** A distinct destination (target note + optional anchor) and how many links point at it. */
+interface Destination {
+    /** Row id / grouping key, e.g. `<id>` or `<id>#<anchor>`. */
+    key: string;
+    targetId: string;
+    anchor: string;
+    count: number;
+}
+
 /** Builds the row id / grouping key for a destination. */
 function destinationKey(targetId: string, anchor: string): string {
     return anchor ? `${targetId}#${anchor}` : targetId;
+}
+
+/** Reads a note's body. Returns `null` when the note can't be fetched. */
+async function fetchNoteBody(noteId: string): Promise<string | null> {
+    try {
+        const note = await joplin.data.get(['notes', noteId], { fields: ['id', 'body'] });
+        return typeof note?.body === 'string' ? note.body : '';
+    } catch (error) {
+        logger.error('Outgoing link lookup failed', { noteId, error });
+        return null;
+    }
+}
+
+/**
+ * Groups a note body's internal links into distinct destinations, in document order, skipping
+ * self-links and ignored notes. A link to a note and a link to one of its anchors are different
+ * destinations, so they get their own entries; repeats of either collapse into one.
+ */
+function collectDestinations(body: string, noteId: string, ignoredNoteIds: ReadonlySet<string>): Destination[] {
+    const groups = new Map<string, Destination>();
+
+    for (const { targetId, anchor } of extractNoteLinks(body)) {
+        if (targetId === noteId.toLowerCase() || ignoredNoteIds.has(targetId)) {
+            continue;
+        }
+        const key = destinationKey(targetId, anchor);
+        const existing = groups.get(key);
+        if (existing) {
+            existing.count += 1;
+        } else {
+            groups.set(key, { key, targetId, anchor, count: 1 });
+        }
+    }
+
+    return [...groups.values()];
 }
 
 /**
@@ -57,37 +104,15 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
         return [];
     }
 
-    const ignoredNoteIds = options.ignoredNoteIds ?? new Set<string>();
-
-    let body: string;
-    try {
-        const note = await joplin.data.get(['notes', noteId], { fields: ['id', 'body'] });
-        body = typeof note?.body === 'string' ? note.body : '';
-    } catch (error) {
-        logger.error('Outgoing link lookup failed', { noteId, error });
+    const body = await fetchNoteBody(noteId);
+    if (body === null) {
         return [];
     }
 
-    const occurrences = extractNoteLinks(body);
-    if (!occurrences.length) {
+    const destinations = collectDestinations(body, noteId, options.ignoredNoteIds ?? new Set<string>());
+    if (!destinations.length) {
         return [];
     }
-
-    // Group occurrences by destination (target id + anchor), counting links per group (document order).
-    const groups = new Map<string, { targetId: string; anchor: string; count: number }>();
-    occurrences.forEach((occurrence) => {
-        const { targetId, anchor } = occurrence;
-        if (targetId === noteId.toLowerCase() || ignoredNoteIds.has(targetId)) {
-            return;
-        }
-        const key = destinationKey(targetId, anchor);
-        const existing = groups.get(key);
-        if (existing) {
-            existing.count += 1;
-        } else {
-            groups.set(key, { targetId, anchor, count: 1 });
-        }
-    });
 
     const noteMetaCache = new Map<string, NoteMeta | null>();
     const notebookCache = new Map<string, string>();
@@ -95,7 +120,7 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
     const htmlAnchorCache = new Map<string, HtmlAnchor[]>();
     const outgoing: LinkItem[] = [];
 
-    for (const [key, group] of groups) {
+    for (const group of destinations) {
         const meta = await resolveNoteMeta(group.targetId, noteMetaCache, { includeBody: true });
         if (!meta) {
             // Broken link (target note no longer exists) — nothing to navigate to.
@@ -136,7 +161,7 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
         }
         outgoing.push({
             direction: 'out',
-            id: key,
+            id: group.key,
             noteId: group.targetId,
             anchor: group.anchor,
             occurrenceIndex: 0,
@@ -152,4 +177,39 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
 
     logger.debug('Resolved outgoing links', { noteId, count: outgoing.length });
     return outgoing;
+}
+
+/**
+ * Counts the distinct destinations the given note links to, without building rows for them.
+ *
+ * Drives the indicator badge, which needs only the tally. Each destination still costs one note
+ * lookup, because a link whose target no longer exists is broken and {@link findOutgoingLinks}
+ * drops it — so counting it would put the badge out of step with the panel. That lookup omits the
+ * target's `body`, which is what makes this cheap: no bodies are transferred and no target note is
+ * parsed for headings or HTML anchors.
+ *
+ * @returns The number of resolvable destinations. Returns 0 on failure.
+ */
+export async function countOutgoingLinks(noteId: string, options: FindOutgoingLinksOptions = {}): Promise<number> {
+    if (!noteId) {
+        return 0;
+    }
+
+    const body = await fetchNoteBody(noteId);
+    if (body === null) {
+        return 0;
+    }
+
+    const destinations = collectDestinations(body, noteId, options.ignoredNoteIds ?? new Set<string>());
+    const noteMetaCache = new Map<string, NoteMeta | null>();
+    let count = 0;
+
+    for (const destination of destinations) {
+        if (await resolveNoteMeta(destination.targetId, noteMetaCache)) {
+            count += 1;
+        }
+    }
+
+    logger.debug('Counted outgoing links', { noteId, count });
+    return count;
 }

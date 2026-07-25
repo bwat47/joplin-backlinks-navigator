@@ -44,6 +44,29 @@ export interface LinkItem {
     snippet: string;
 }
 
+/**
+ * Link tallies for the current note, resolved without building {@link LinkItem} rows.
+ *
+ * The indicator badge only needs numbers, so the host counts links instead of resolving snippets,
+ * notebook names, and anchors for every row (see `countBacklinks`/`countOutgoingLinks`). Both
+ * backlink figures are carried because the display policy that picks between them lives in the
+ * content script, which owns the current preview settings — see `getDisplayCounts`.
+ */
+export interface LinkCounts {
+    /** Total inbound link occurrences, matching one backlink row each. */
+    backlinkOccurrences: number;
+    /** Distinct notes linking here — what title-only backlink mode collapses those rows to. */
+    backlinkNotes: number;
+    /** Distinct outgoing destinations (note + optional anchor), excluding broken links. */
+    outgoing: number;
+}
+
+export const EMPTY_LINK_COUNTS: LinkCounts = {
+    backlinkOccurrences: 0,
+    backlinkNotes: 0,
+    outgoing: 0,
+};
+
 export interface PanelDimensions {
     width: number;
     maxHeightRatio: number;
