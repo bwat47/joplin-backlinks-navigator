@@ -274,6 +274,11 @@ describe('parseHtmlAnchors', () => {
         expect(parseHtmlAnchors('<span data-id="oops">x</span> and <span data-name="nope">y</span>')).toEqual([]);
     });
 
+    it('strips nested markup that a single pass would splice back into a tag', () => {
+        const body = '<a id="nested">Safe</a> then <<a>script>alert(1)<</a>/script> tail.';
+        expect(parseHtmlAnchors(body)[0].snippet).toBe('Safe then alert(1) tail.');
+    });
+
     it('captures an anchor written inside a table cell', () => {
         const body = '| Term | Notes |\n| --- | --- |\n| <a id="cell">The MERN stack</a> | popular |\n';
         const anchor = parseHtmlAnchors(body)[0];

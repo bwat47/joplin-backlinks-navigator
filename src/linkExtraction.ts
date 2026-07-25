@@ -310,9 +310,21 @@ function offsetToLineIndex(lineStarts: readonly number[], offset: number): numbe
     return result;
 }
 
-/** Removes HTML tags so an anchor's surrounding markup doesn't leak into its preview. */
+/**
+ * Removes HTML tags so an anchor's surrounding markup doesn't leak into its preview.
+ *
+ * Runs until the text stops changing: a single pass can splice a new tag back together out of
+ * nested or malformed markup (`<<a>script>` -> `<script>`), which would put the very markup this
+ * strips right back into the snippet. Each pass only ever shortens the string, so this terminates.
+ */
 function stripHtmlTags(value: string): string {
-    return value.replace(HTML_TAG_RE, '');
+    let current = value;
+    let previous: string;
+    do {
+        previous = current;
+        current = current.replace(HTML_TAG_RE, '');
+    } while (current !== previous);
+    return current;
 }
 
 /**
