@@ -18,7 +18,7 @@ import { EditorSelection } from '@codemirror/state';
 import { EditorView, ViewPlugin } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
-import type { LinkCounts, LinkItem } from '../types';
+import type { LinkCounts, LinkDirection, LinkItem } from '../types';
 import { EMPTY_LINK_COUNTS } from '../types';
 import {
     findHeadingByAnchor,
@@ -29,12 +29,7 @@ import {
     type HtmlAnchor,
     type MarkdownHeading,
 } from '../linkExtraction';
-import type {
-    ContentScriptToPluginMessage,
-    GetBacklinksResponse,
-    GetOutgoingLinksResponse,
-    IndicatorState,
-} from '../messages';
+import type { ContentScriptToPluginMessage, IndicatorState } from '../messages';
 import { getDisplayCounts, toBacklinkCounts } from '../linkDisplay';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
@@ -63,6 +58,33 @@ type PendingScroll = { targetNoteId: string } & (
     | { kind: 'reference'; needle: string; occurrenceIndex: number }
     | { kind: 'anchor'; anchor: string }
 );
+
+type LinkLoadMessage = Extract<ContentScriptToPluginMessage, { type: 'getBacklinks' | 'getOutgoingLinks' }>;
+
+interface LinkLoadConfig {
+    createMessage: (noteId: string) => LinkLoadMessage;
+    errorMessage: string;
+    updateIndicatorCounts: (counts: LinkCounts, links: LinkItem[]) => LinkCounts;
+}
+
+const LINK_LOAD_CONFIG = {
+    in: {
+        createMessage: (noteId: string) => ({ type: 'getBacklinks', noteId }),
+        errorMessage: 'Failed to load backlinks',
+        updateIndicatorCounts: (counts: LinkCounts, links: LinkItem[]) => ({
+            ...counts,
+            ...toBacklinkCounts(links),
+        }),
+    },
+    out: {
+        createMessage: (noteId: string) => ({ type: 'getOutgoingLinks', noteId }),
+        errorMessage: 'Failed to load outgoing links',
+        updateIndicatorCounts: (counts: LinkCounts, links: LinkItem[]) => ({
+            ...counts,
+            outgoing: links.length,
+        }),
+    },
+} satisfies Record<LinkDirection, LinkLoadConfig>;
 
 /** Coerces one count from a bridge payload to a non-negative integer. */
 function readCount(value: unknown): number {
@@ -336,45 +358,24 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 return panel;
             };
 
-            const loadBacklinks = async (noteId: string, seq: number): Promise<void> => {
-                const message: ContentScriptToPluginMessage = { type: 'getBacklinks', noteId };
+            const loadLinks = async (direction: LinkDirection, noteId: string, seq: number): Promise<void> => {
+                const config = LINK_LOAD_CONFIG[direction];
                 try {
-                    const response = (await context.postMessage(message)) as GetBacklinksResponse;
+                    const response = (await context.postMessage(config.createMessage(noteId))) as LinkItem[];
                     // Ignore if the panel was closed/re-opened while we awaited.
                     if (seq !== requestSeq || !panel?.isOpen()) {
                         return;
                     }
-                    const backlinks = Array.isArray(response) ? response : [];
-                    panel.setLinks('in', backlinks);
+                    const links = Array.isArray(response) ? response : [];
+                    panel.setLinks(direction, links);
                     // Keep the badge's count fresh, but only when the indicator is enabled.
                     if (indicatorEnabled) {
-                        indicatorCounts = { ...indicatorCounts, ...toBacklinkCounts(backlinks) };
+                        indicatorCounts = config.updateIndicatorCounts(indicatorCounts, links);
                     }
                 } catch (error) {
-                    logger.error('Failed to load backlinks', error);
+                    logger.error(config.errorMessage, error);
                     if (seq === requestSeq && panel?.isOpen()) {
-                        panel.setError('in', 'Failed to load backlinks');
-                    }
-                }
-            };
-
-            const loadOutgoing = async (noteId: string, seq: number): Promise<void> => {
-                const message: ContentScriptToPluginMessage = { type: 'getOutgoingLinks', noteId };
-                try {
-                    const response = (await context.postMessage(message)) as GetOutgoingLinksResponse;
-                    if (seq !== requestSeq || !panel?.isOpen()) {
-                        return;
-                    }
-                    const outgoing = Array.isArray(response) ? response : [];
-                    panel.setLinks('out', outgoing);
-                    // Keep the badge's count fresh, but only when the indicator is enabled.
-                    if (indicatorEnabled) {
-                        indicatorCounts = { ...indicatorCounts, outgoing: outgoing.length };
-                    }
-                } catch (error) {
-                    logger.error('Failed to load outgoing links', error);
-                    if (seq === requestSeq && panel?.isOpen()) {
-                        panel.setError('out', 'Failed to load outgoing links');
+                        panel.setError(direction, config.errorMessage);
                     }
                 }
             };
@@ -397,8 +398,8 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 // Always fetch fresh so the panel can't show stale results (e.g. after editing links
                 // since the note loaded). The load handlers also refresh the indicator's cached
                 // counts, so clicking the badge brings it up to date too.
-                void loadBacklinks(noteId, seq);
-                void loadOutgoing(noteId, seq);
+                void loadLinks('in', noteId, seq);
+                void loadLinks('out', noteId, seq);
             };
 
             const refreshIndicator = async (attempt = 0): Promise<void> => {
