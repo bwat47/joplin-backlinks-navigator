@@ -98,6 +98,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             let indicatorCounts: LinkCounts = EMPTY_LINK_COUNTS;
             let indicatorSeq = 0;
             let indicatorTimer: number | null = null;
+            let disposed = false;
             const noteIdFacet = editorControl.joplinExtensions?.noteIdFacet;
             const indicator = new BacklinkIndicator(view, () => {
                 void context.postMessage({ type: 'openPanel' } as ContentScriptToPluginMessage);
@@ -128,6 +129,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             // Shows the indicator if it has a positive cached count and the panel isn't open
             // (the panel occupies the same top-right corner).
             const syncIndicator = (): void => {
+                if (disposed) {
+                    return;
+                }
                 const settings = getContentScriptSettings(view.state);
                 if (panel?.isOpen()) {
                     indicator.hide();
@@ -398,6 +402,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             };
 
             const refreshIndicator = async (attempt = 0): Promise<void> => {
+                if (disposed) {
+                    return;
+                }
                 const noteId = resolveNoteId();
                 if (!noteId) {
                     // The facet may not be populated yet right after the editor loads.
@@ -415,12 +422,15 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                         noteId,
                     } as ContentScriptToPluginMessage)) as IndicatorState;
                 } catch (error) {
-                    logger.warn('Failed to fetch backlink indicator state', error);
+                    if (!disposed) {
+                        logger.warn('Failed to fetch backlink indicator state', error);
+                    }
                     return;
                 }
 
-                // Ignore if the note changed or another refresh superseded this one.
-                if (seq !== indicatorSeq || resolveNoteId() !== noteId) {
+                // Ignore if the editor was destroyed, the note changed, or another refresh
+                // superseded this one.
+                if (disposed || seq !== indicatorSeq || resolveNoteId() !== noteId) {
                     return;
                 }
 
@@ -433,15 +443,32 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 syncIndicator();
             };
 
-            const scheduleIndicatorRefresh = (): void => {
+            const cancelIndicatorRefresh = (): void => {
                 if (indicatorTimer !== null) {
                     clearTimeout(indicatorTimer);
                     indicatorTimer = null;
                 }
+            };
+
+            const scheduleIndicatorRefresh = (): void => {
+                if (disposed) {
+                    return;
+                }
+                cancelIndicatorRefresh();
                 indicatorTimer = window.setTimeout(() => {
                     indicatorTimer = null;
                     void refreshIndicator();
                 }, INDICATOR_DEBOUNCE_MS);
+            };
+
+            const disposeIndicator = (): void => {
+                if (disposed) {
+                    return;
+                }
+                disposed = true;
+                indicatorSeq += 1;
+                cancelIndicatorRefresh();
+                indicator.destroy();
             };
 
             const applySettingsUpdate = (settings: unknown): void => {
@@ -472,9 +499,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             editorControl.addExtension(createSettingsExtension());
             editorControl.addExtension(referenceHighlightExtension);
             // The indicator is mounted outside CodeMirror's extension system but observes the
-            // scroll DOM, so tie its teardown to the editor's lifetime. The panel needs no
-            // equivalent: it is destroyed on every close.
-            editorControl.addExtension(ViewPlugin.define(() => ({ destroy: () => indicator.destroy() })));
+            // scroll DOM, so tie its teardown and pending async work to the editor's lifetime. The
+            // panel needs no equivalent: it is destroyed on every close.
+            editorControl.addExtension(ViewPlugin.define(() => ({ destroy: disposeIndicator })));
 
             editorControl.registerCommand(EDITOR_COMMAND_UPDATE_SETTINGS, applySettingsUpdate);
             editorControl.registerCommand(EDITOR_COMMAND_TOGGLE_PANEL, togglePanel);
