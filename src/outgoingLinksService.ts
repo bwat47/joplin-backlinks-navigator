@@ -32,15 +32,23 @@ import {
     findHeadingByAnchor,
     findHtmlAnchorById,
     parseHtmlAnchors,
+    parseMarkdownBody,
     parseMarkdownHeadings,
     type HtmlAnchor,
     type MarkdownHeading,
+    type ParsedMarkdownBody,
 } from './linkExtraction';
 import { resolveNoteMeta, resolveNotebookName, type NoteMeta } from './noteMetadata';
 import { compareLinkItems } from './linkSort';
 
 interface FindOutgoingLinksOptions {
     ignoredNoteIds?: ReadonlySet<string>;
+}
+
+interface ParsedTargetBody {
+    parsed: ParsedMarkdownBody;
+    headings: MarkdownHeading[];
+    htmlAnchors?: HtmlAnchor[];
 }
 
 /** A distinct destination (target note + optional anchor) and how many links point at it. */
@@ -116,8 +124,7 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
 
     const noteMetaCache = new Map<string, NoteMeta | null>();
     const notebookCache = new Map<string, string>();
-    const headingCache = new Map<string, MarkdownHeading[]>();
-    const htmlAnchorCache = new Map<string, HtmlAnchor[]>();
+    const parsedBodyCache = new Map<string, ParsedTargetBody>();
     const outgoing: LinkItem[] = [];
 
     for (const group of destinations) {
@@ -127,11 +134,16 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
             continue;
         }
         const notebookName = await resolveNotebookName(meta.parent_id, notebookCache);
-        let headings = headingCache.get(group.targetId);
-        if (!headings) {
-            headings = parseMarkdownHeadings(meta.body);
-            headingCache.set(group.targetId, headings);
+        let targetBody = parsedBodyCache.get(group.targetId);
+        if (!targetBody) {
+            const parsed = parseMarkdownBody(meta.body);
+            targetBody = {
+                parsed,
+                headings: parseMarkdownHeadings(parsed),
+            };
+            parsedBodyCache.set(group.targetId, targetBody);
         }
+        const { headings, parsed } = targetBody;
         // Resolve where an anchored link lands, in priority order:
         //   1. a heading whose slug matches — name the heading, preview the section under it;
         //   2. an explicit HTML anchor (`<a id="…">`) — use its own text as the label and preview
@@ -143,21 +155,17 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
         if (heading) {
             const headingIndex = headings.indexOf(heading);
             const nextHeading = headings[headingIndex + 1];
-            const sectionEndLineIndex = nextHeading?.startLineIndex ?? meta.body.split('\n').length;
+            const sectionEndLineIndex = nextHeading?.startLineIndex ?? parsed.lines.length;
             section = heading.text;
-            snippet = extractSectionOpening(meta.body, heading.endLineIndex, sectionEndLineIndex);
+            snippet = extractSectionOpening(parsed, heading.endLineIndex, sectionEndLineIndex);
         } else if (group.anchor) {
-            let htmlAnchors = htmlAnchorCache.get(group.targetId);
-            if (!htmlAnchors) {
-                htmlAnchors = parseHtmlAnchors(meta.body);
-                htmlAnchorCache.set(group.targetId, htmlAnchors);
-            }
-            const htmlAnchor = findHtmlAnchorById(htmlAnchors, group.anchor);
+            targetBody.htmlAnchors ??= parseHtmlAnchors(parsed);
+            const htmlAnchor = findHtmlAnchorById(targetBody.htmlAnchors, group.anchor);
             section = htmlAnchor?.text || group.anchor;
-            snippet = htmlAnchor?.snippet || extractNoteOpening(meta.body, headings);
+            snippet = htmlAnchor?.snippet || extractNoteOpening(parsed, headings);
         } else {
             section = '';
-            snippet = extractNoteOpening(meta.body, headings);
+            snippet = extractNoteOpening(parsed, headings);
         }
         outgoing.push({
             direction: 'out',

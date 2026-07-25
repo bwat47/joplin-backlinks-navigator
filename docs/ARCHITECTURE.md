@@ -36,7 +36,8 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 - Each service also exposes a counting entry point (`countBacklinks`, `countOutgoingLinks`) that
   shares the discovery work but stops before row enrichment. See [Indicator Counts](#indicator-counts).
 - `src/linkExtraction.ts` contains Joplin-free parsing helpers for note links, snippets, sections,
-  occurrence offsets, and a shared `markdown-it` heading index.
+  occurrence offsets, and heading/HTML-anchor indexes. Its parsed-body context shares one
+  `markdown-it` tokenization and line index across those helpers.
 - `src/noteMetadata.ts` resolves note and notebook metadata with per-call caching.
 - `src/linkSort.ts` centralizes row ordering.
 

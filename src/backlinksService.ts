@@ -21,7 +21,7 @@
 import joplin from 'api';
 import logger from './logger';
 import type { LinkItem } from './types';
-import { extractOccurrenceContexts, findOccurrenceOffsets, linkNeedle } from './linkExtraction';
+import { extractOccurrenceContexts, findOccurrenceOffsets, linkNeedle, parseMarkdownBody } from './linkExtraction';
 import { resolveNotebookName } from './noteMetadata';
 import { compareLinkItems } from './linkSort';
 
@@ -124,7 +124,7 @@ export async function findBacklinks(noteId: string, options: FindBacklinksOption
     const backlinks: LinkItem[] = [];
 
     for (const { note, offsets } of candidates) {
-        const contexts = extractOccurrenceContexts(note.body, offsets);
+        const contexts = extractOccurrenceContexts(parseMarkdownBody(note.body), offsets);
         const notebookName = await resolveNotebookName(note.parent_id, notebookCache);
         const title = typeof note.title === 'string' && note.title ? note.title : 'Untitled';
         const occurrenceCount = contexts.length;
