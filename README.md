@@ -21,6 +21,7 @@ A Joplin plugin for viewing and navigating backlinks and outgoing links in the M
 - Shows notebook, section, and link context when available
 - Optionally shows a link count indicator in the editor (which can also be used to open the panel)
 - Works on desktop and mobile
+    - Note: Scrolling to specific link locations on note switch has limitations on mobile
 
 ## Usage
 
@@ -32,6 +33,8 @@ Open the links panel from the editor toolbar, editor indicator icon (if enabled 
 Click a backlink to open the note that links to the current note, or click an outgoing link to open the note linked from the current note.
 
 If backlink context preview is enabled, it will show each link occurrence when a note links more than once, and clicking a backlink will scroll to the specific link occurance after switching notes. If backlink context preview is set to Note title only, it will only show one occurance for each backlink, and will not scroll after switching notes.
+
+Any outgoing links referencing an anchor (pointing to a markdown heading or html anchor) will scroll to that heading or anchor on note switch.
 
 ## Settings
 
