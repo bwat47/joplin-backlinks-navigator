@@ -9,6 +9,15 @@ import type { PanelDimensions } from '../../types';
 const SEARCH_CANCEL_MASK_DATA_URI =
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 2l8 8m0-8L2 10' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E";
 
+/**
+ * Positioning shared by both overlays: each floats in the top-right of the editor's scroll area.
+ * `right` is only a starting value — `ui/editorOverlay.ts` overrides it inline to clear the
+ * editor's scrollbar. Stacking order is deliberately not shared: the panel sits above the badge.
+ */
+const OVERLAY_ANCHOR_CSS = `position: absolute;
+    top: 12px;
+    right: 12px;`;
+
 function formatPanelWidth(width: number): string {
     return `${Math.round(width)}px`;
 }
@@ -23,9 +32,7 @@ export function createPanelCss(dimensions: PanelDimensions): string {
 
     return `
 .backlinks-navigator-panel {
-    position: absolute;
-    top: 12px;
-    right: 12px;
+    ${OVERLAY_ANCHOR_CSS}
     width: ${panelWidth};
     max-height: ${maxHeight};
     display: flex;
@@ -277,9 +284,7 @@ export function createPanelCss(dimensions: PanelDimensions): string {
 export function createIndicatorCss(): string {
     return `
 .backlinks-navigator-indicator {
-    position: absolute;
-    top: 12px;
-    right: 12px;
+    ${OVERLAY_ANCHOR_CSS}
     display: inline-flex;
     align-items: center;
     gap: 5px;

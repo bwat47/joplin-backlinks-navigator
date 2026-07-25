@@ -3,10 +3,10 @@ import type { LinkDirection, LinkItem, PanelSettings } from '../../types';
 import { createPanelCss } from '../theme/panelTheme';
 import { getDisplayLinkCount, getDisplayLinks } from '../../linkDisplay';
 import { fuzzyFilter, highlightMatch } from './fuzzyFilter';
+import { EditorOverlay, ensureOverlayStyles } from './editorOverlay';
 
 const PANEL_STYLE_ID = 'backlinks-navigator-styles';
 const FILTER_DEBOUNCE_MS = 80;
-const PANEL_RIGHT_GAP_PX = 8;
 
 export type PanelCloseReason = 'escape' | 'blur';
 
@@ -94,7 +94,7 @@ export class BacklinksPanel {
 
     private readonly handleDocumentMouseDownListener: (event: MouseEvent) => void;
 
-    private scrollerObserver: ResizeObserver | null = null;
+    private readonly overlay: EditorOverlay;
 
     public constructor(
         view: EditorView,
@@ -114,6 +114,8 @@ export class BacklinksPanel {
         if (this.isMobile) {
             this.container.classList.add('is-mobile');
         }
+        // The mobile panel is centered by its stylesheet, so it must not be offset for a scrollbar.
+        this.overlay = new EditorOverlay(view, this.container, { trackScrollbar: !this.isMobile });
 
         this.tabBar = document.createElement('div');
         this.tabBar.className = 'backlinks-navigator-tabs';
@@ -202,17 +204,11 @@ export class BacklinksPanel {
             clearTimeout(this.filterDebounceTimer);
             this.filterDebounceTimer = null;
         }
-        if (this.scrollerObserver) {
-            this.scrollerObserver.disconnect();
-            this.scrollerObserver = null;
-        }
-        if (this.container.parentElement) {
-            this.container.parentElement.removeChild(this.container);
-        }
+        this.overlay.destroy();
     }
 
     public isOpen(): boolean {
-        return Boolean(this.container.parentElement);
+        return this.overlay.isMounted();
     }
 
     public setSettings(settings: PanelSettings): void {
@@ -338,24 +334,7 @@ export class BacklinksPanel {
 
     private mount(): void {
         ensurePanelStyles(this.view, this.settings);
-
-        if (!this.container.parentElement) {
-            const scrollRoot = this.view.scrollDOM.parentElement;
-            const fallbackRoot = this.view.dom.parentElement ?? this.view.dom;
-            (scrollRoot ?? fallbackRoot).appendChild(this.container);
-
-            if (this.isMobile) return;
-
-            this.updateRightOffset();
-            this.scrollerObserver = new ResizeObserver(() => this.updateRightOffset());
-            this.scrollerObserver.observe(this.view.scrollDOM);
-        }
-    }
-
-    private updateRightOffset(): void {
-        const scrollDOM = this.view.scrollDOM;
-        const scrollbarWidth = scrollDOM.offsetWidth - scrollDOM.clientWidth;
-        this.container.style.right = `${scrollbarWidth + PANEL_RIGHT_GAP_PX}px`;
+        this.overlay.mount();
     }
 
     private scheduleFilterUpdate(): void {
@@ -622,22 +601,8 @@ export class BacklinksPanel {
 }
 
 function ensurePanelStyles(view: EditorView, settings: PanelSettings): void {
-    const doc = view.dom.ownerDocument!;
-    // Cache key based only on dimensions since CSS variables handle theme changes automatically.
-    const options = settings.dimensions;
-    const signature = [options.width, options.maxHeightPercentage].join('|');
-
-    let style = doc.getElementById(PANEL_STYLE_ID) as HTMLStyleElement | null;
-    if (!style) {
-        style = doc.createElement('style');
-        style.id = PANEL_STYLE_ID;
-        (doc.head ?? doc.body).appendChild(style);
-    }
-
-    if (style.getAttribute('data-dimensions-signature') === signature) {
-        return;
-    }
-
-    style.setAttribute('data-dimensions-signature', signature);
-    style.textContent = createPanelCss(options);
+    // Keyed on dimensions alone, since CSS variables handle theme changes automatically.
+    const dimensions = settings.dimensions;
+    const signature = [dimensions.width, dimensions.maxHeightPercentage].join('|');
+    ensureOverlayStyles(view, PANEL_STYLE_ID, () => createPanelCss(dimensions), signature);
 }

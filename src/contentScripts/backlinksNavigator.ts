@@ -15,7 +15,7 @@
  */
 
 import { EditorSelection } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
+import { EditorView, ViewPlugin } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
 import type { LinkCounts, LinkItem } from '../types';
@@ -471,6 +471,10 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             }
             editorControl.addExtension(createSettingsExtension());
             editorControl.addExtension(referenceHighlightExtension);
+            // The indicator is mounted outside CodeMirror's extension system but observes the
+            // scroll DOM, so tie its teardown to the editor's lifetime. The panel needs no
+            // equivalent: it is destroyed on every close.
+            editorControl.addExtension(ViewPlugin.define(() => ({ destroy: () => indicator.destroy() })));
 
             editorControl.registerCommand(EDITOR_COMMAND_UPDATE_SETTINGS, applySettingsUpdate);
             editorControl.registerCommand(EDITOR_COMMAND_TOGGLE_PANEL, togglePanel);

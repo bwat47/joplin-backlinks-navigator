@@ -1,7 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { createIndicatorCss } from '../theme/panelTheme';
+import { EditorOverlay, ensureOverlayStyles } from './editorOverlay';
 
-const INDICATOR_RIGHT_GAP_PX = 8;
 const INDICATOR_STYLE_ID = 'backlinks-navigator-indicator-styles';
 
 // Plain directional arrow glyphs, one per direction, so the badge conveys inbound/outbound
@@ -46,6 +46,8 @@ export class BacklinkIndicator {
 
     private readonly onClick: () => void;
 
+    private readonly overlay: EditorOverlay;
+
     public constructor(view: EditorView, onClick: () => void) {
         this.view = view;
         this.onClick = onClick;
@@ -54,6 +56,7 @@ export class BacklinkIndicator {
         this.button.type = 'button';
         this.button.className = 'backlinks-navigator-indicator';
         this.button.style.display = 'none';
+        this.overlay = new EditorOverlay(view, this.button);
 
         // Each direction gets its own arrow icon next to its count: the left arrow marks
         // inbound (backlinks), the right arrow outbound (outgoing).
@@ -98,26 +101,19 @@ export class BacklinkIndicator {
         this.button.style.display = 'none';
     }
 
-    private mount(): void {
-        if (this.button.parentElement) {
-            return;
-        }
-        // Inject the indicator's own stylesheet so it's styled immediately, independent of
-        // whether the (dimension-dependent) panel stylesheet has been injected yet.
-        ensureIndicatorStyles(this.view);
-
-        const scrollRoot = this.view.scrollDOM.parentElement;
-        const fallbackRoot = this.view.dom.parentElement ?? this.view.dom;
-        (scrollRoot ?? fallbackRoot).appendChild(this.button);
-
-        this.updateRightOffset();
-        new ResizeObserver(() => this.updateRightOffset()).observe(this.view.scrollDOM);
+    /**
+     * Unmounts the badge and releases its scrollbar observer. Called when the editor goes away —
+     * unlike the panel, the indicator outlives individual notes, so nothing else tears it down.
+     */
+    public destroy(): void {
+        this.overlay.destroy();
     }
 
-    private updateRightOffset(): void {
-        const scrollDOM = this.view.scrollDOM;
-        const scrollbarWidth = scrollDOM.offsetWidth - scrollDOM.clientWidth;
-        this.button.style.right = `${scrollbarWidth + INDICATOR_RIGHT_GAP_PX}px`;
+    private mount(): void {
+        // Inject the indicator's own stylesheet so it's styled immediately, independent of
+        // whether the (dimension-dependent) panel stylesheet has been injected yet.
+        ensureOverlayStyles(this.view, INDICATOR_STYLE_ID, createIndicatorCss);
+        this.overlay.mount();
     }
 }
 
@@ -153,15 +149,4 @@ function describeCounts(counts: IndicatorCounts): string {
         parts.push(`${counts.outgoing} outgoing link${counts.outgoing === 1 ? '' : 's'}`);
     }
     return parts.join(', ');
-}
-
-function ensureIndicatorStyles(view: EditorView): void {
-    const doc = view.dom.ownerDocument!;
-    if (doc.getElementById(INDICATOR_STYLE_ID)) {
-        return;
-    }
-    const style = doc.createElement('style');
-    style.id = INDICATOR_STYLE_ID;
-    style.textContent = createIndicatorCss();
-    (doc.head ?? doc.body).appendChild(style);
 }
