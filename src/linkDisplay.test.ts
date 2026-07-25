@@ -1,5 +1,5 @@
-import { getDisplayLinkCount, getDisplayLinks } from './linkDisplay';
-import type { LinkDirection, LinkItem, LinkPreviewMode } from './types';
+import { getDisplayCounts, getDisplayLinkCount, getDisplayLinks, toBacklinkCounts } from './linkDisplay';
+import type { LinkCounts, LinkDirection, LinkItem, LinkPreviewMode } from './types';
 
 const makeLink = (direction: LinkDirection, noteId: string, occurrenceIndex: number): LinkItem => ({
     direction,
@@ -48,4 +48,39 @@ describe('link display policy', () => {
         ]);
         expect(getDisplayLinkCount(items, 'out', 'title')).toBe(3);
     });
+});
+
+describe('indicator badge counts', () => {
+    const counts: LinkCounts = { backlinkOccurrences: 5, backlinkNotes: 2, outgoing: 3 };
+
+    it('uses distinct source notes for backlinks in title-only mode', () => {
+        expect(getDisplayCounts(counts, { in: 'title', out: 'title' })).toEqual({ backlinks: 2, outgoing: 3 });
+    });
+
+    it.each<LinkPreviewMode>(['titleSnippet', 'titleSnippetHeading'])(
+        'uses every backlink occurrence in %s mode',
+        (previewMode) => {
+            expect(getDisplayCounts(counts, { in: previewMode, out: 'titleSnippet' })).toEqual({
+                backlinks: 5,
+                outgoing: 3,
+            });
+        }
+    );
+
+    it('never collapses the outgoing count', () => {
+        expect(getDisplayCounts(counts, { in: 'title', out: 'title' }).outgoing).toBe(3);
+        expect(getDisplayCounts(counts, { in: 'titleSnippet', out: 'titleSnippet' }).outgoing).toBe(3);
+    });
+
+    it.each<LinkPreviewMode>(['title', 'titleSnippet', 'titleSnippetHeading'])(
+        'derives the same backlink count from rows as from tallies in %s mode',
+        (previewMode) => {
+            const items = [makeLink('in', 'a', 0), makeLink('in', 'a', 1), makeLink('in', 'b', 0)];
+            const derived = { ...toBacklinkCounts(items), outgoing: 0 };
+
+            expect(getDisplayCounts(derived, { in: previewMode, out: 'titleSnippet' }).backlinks).toBe(
+                getDisplayLinkCount(items, 'in', previewMode)
+            );
+        }
+    );
 });

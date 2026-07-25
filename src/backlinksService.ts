@@ -11,6 +11,9 @@
  *    FTS matches, and capture each matching occurrence as a backlink row.
  * 3. Resolve each candidate's parent notebook title (cached per call).
  *
+ * Steps 1 and 2 are shared by {@link findBacklinks} and {@link countBacklinks}; only the former
+ * pays for step 3 and for parsing each candidate body into snippets and section headings.
+ *
  * Only the plugin host has Data API access, so this runs here rather than in
  * the content script.
  */
@@ -40,21 +43,24 @@ interface FindBacklinksOptions {
     ignoredNoteIds?: ReadonlySet<string>;
 }
 
-/**
- * Finds all notes that link to the given note.
- *
- * @param noteId - ID of the note to find backlinks for.
- * @param options - Optional search filters, including note ids to omit from results.
- * @returns Backlink entries sorted by note title. Returns `[]` on failure.
- */
-export async function findBacklinks(noteId: string, options: FindBacklinksOptions = {}): Promise<LinkItem[]> {
-    if (!noteId) {
-        return [];
-    }
+/** A search hit confirmed to contain the link, with the offset of every occurrence in its body. */
+interface BacklinkCandidate {
+    note: SearchNote;
+    offsets: number[];
+}
 
+/**
+ * Searches for and verifies the notes linking to `noteId` — the discovery work shared by
+ * {@link findBacklinks} and {@link countBacklinks}.
+ *
+ * @returns One entry per linking note, in search order. Returns `[]` if the search fails.
+ */
+async function collectBacklinkCandidates(
+    noteId: string,
+    ignoredNoteIds: ReadonlySet<string>
+): Promise<BacklinkCandidate[]> {
     const needle = linkNeedle(noteId);
-    const ignoredNoteIds = options.ignoredNoteIds ?? new Set<string>();
-    const candidates: SearchNote[] = [];
+    const searchHits: SearchNote[] = [];
 
     try {
         // Paginate through the full search result set.
@@ -69,7 +75,7 @@ export async function findBacklinks(noteId: string, options: FindBacklinksOption
             });
 
             if (response?.items?.length) {
-                candidates.push(...response.items);
+                searchHits.push(...response.items);
             }
 
             hasMore = Boolean(response?.has_more);
@@ -80,33 +86,54 @@ export async function findBacklinks(noteId: string, options: FindBacklinksOption
         return [];
     }
 
+    const candidates: BacklinkCandidate[] = [];
+    for (const note of searchHits) {
+        // Drop the note itself and any candidate that doesn't actually contain the link.
+        if (note.id === noteId || ignoredNoteIds.has(note.id.toLowerCase())) {
+            continue;
+        }
+        if (typeof note.body !== 'string' || !note.body.includes(needle)) {
+            continue;
+        }
+
+        const offsets = findOccurrenceOffsets(note.body, needle);
+        if (!offsets.length) {
+            continue;
+        }
+
+        candidates.push({ note, offsets });
+    }
+
+    return candidates;
+}
+
+/**
+ * Finds all notes that link to the given note.
+ *
+ * @param noteId - ID of the note to find backlinks for.
+ * @param options - Optional search filters, including note ids to omit from results.
+ * @returns Backlink entries sorted by note title. Returns `[]` on failure.
+ */
+export async function findBacklinks(noteId: string, options: FindBacklinksOptions = {}): Promise<LinkItem[]> {
+    if (!noteId) {
+        return [];
+    }
+
+    const candidates = await collectBacklinkCandidates(noteId, options.ignoredNoteIds ?? new Set<string>());
     const notebookCache = new Map<string, string>();
     const backlinks: LinkItem[] = [];
 
-    for (const candidate of candidates) {
-        // Drop the note itself and any candidate that doesn't actually contain the link.
-        if (candidate.id === noteId || ignoredNoteIds.has(candidate.id.toLowerCase())) {
-            continue;
-        }
-        if (typeof candidate.body !== 'string' || !candidate.body.includes(needle)) {
-            continue;
-        }
-
-        const offsets = findOccurrenceOffsets(candidate.body, needle);
-        const contexts = extractOccurrenceContexts(candidate.body, offsets);
-        if (!contexts.length) {
-            continue;
-        }
-
-        const notebookName = await resolveNotebookName(candidate.parent_id, notebookCache);
-        const title = typeof candidate.title === 'string' && candidate.title ? candidate.title : 'Untitled';
+    for (const { note, offsets } of candidates) {
+        const contexts = extractOccurrenceContexts(note.body, offsets);
+        const notebookName = await resolveNotebookName(note.parent_id, notebookCache);
+        const title = typeof note.title === 'string' && note.title ? note.title : 'Untitled';
         const occurrenceCount = contexts.length;
 
         contexts.forEach(({ snippet, section }, occurrenceIndex) => {
             backlinks.push({
                 direction: 'in',
-                id: `${candidate.id}:${occurrenceIndex}`,
-                noteId: candidate.id,
+                id: `${note.id}:${occurrenceIndex}`,
+                noteId: note.id,
                 // Backlinks navigate to an occurrence in the source note, never to a heading.
                 anchor: '',
                 occurrenceIndex,
@@ -123,4 +150,35 @@ export async function findBacklinks(noteId: string, options: FindBacklinksOption
 
     logger.debug('Resolved backlinks', { noteId, count: backlinks.length });
     return backlinks;
+}
+
+/** Backlink tallies, matching the rows {@link findBacklinks} would return for the same note. */
+export interface BacklinkCounts {
+    /** One per backlink row: every occurrence across every linking note. */
+    occurrences: number;
+    /** Distinct notes that link here. */
+    notes: number;
+}
+
+/**
+ * Counts the backlinks to the given note without building rows for them.
+ *
+ * Drives the indicator badge, which needs only the tallies: this skips the per-candidate
+ * snippet/section parsing and notebook lookups that {@link findBacklinks} performs.
+ *
+ * @returns Backlink tallies. Returns zeros on failure.
+ */
+export async function countBacklinks(noteId: string, options: FindBacklinksOptions = {}): Promise<BacklinkCounts> {
+    if (!noteId) {
+        return { occurrences: 0, notes: 0 };
+    }
+
+    const candidates = await collectBacklinkCandidates(noteId, options.ignoredNoteIds ?? new Set<string>());
+    const counts: BacklinkCounts = {
+        occurrences: candidates.reduce((total, candidate) => total + candidate.offsets.length, 0),
+        notes: candidates.length,
+    };
+
+    logger.debug('Counted backlinks', { noteId, ...counts });
+    return counts;
 }

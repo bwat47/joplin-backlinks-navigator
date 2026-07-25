@@ -1,6 +1,6 @@
 import { vi, type Mock } from 'vitest';
 import joplin from 'api';
-import { findBacklinks } from './backlinksService';
+import { countBacklinks, findBacklinks } from './backlinksService';
 
 vi.mock('api', () => ({
     __esModule: true,
@@ -170,5 +170,90 @@ describe('findBacklinks', () => {
         ]);
 
         expect(mockDataGet).not.toHaveBeenCalledWith(['folders', 'folder-2'], expect.anything());
+    });
+});
+
+describe('countBacklinks', () => {
+    beforeEach(() => {
+        mockDataGet.mockReset();
+    });
+
+    /** Two linking notes (one linking twice), plus a self-link and a loose FTS match to discard. */
+    const mockSearchResults = (resolveFolders: boolean): void => {
+        mockDataGet.mockImplementation(async (path: string[]) => {
+            if (path[0] === 'search') {
+                return {
+                    items: [
+                        {
+                            id: 'note-z',
+                            title: 'Zulu',
+                            body: `[Current](:/${TARGET_NOTE_ID}) and again [Current](:/${TARGET_NOTE_ID})`,
+                            parent_id: 'folder-1',
+                        },
+                        {
+                            id: 'note-a',
+                            title: 'Alpha',
+                            body: `# Notes\n[Current](:/${TARGET_NOTE_ID})`,
+                            parent_id: 'folder-2',
+                        },
+                        {
+                            id: TARGET_NOTE_ID,
+                            title: 'Self',
+                            body: `Links to itself [Self](:/${TARGET_NOTE_ID})`,
+                            parent_id: 'folder-1',
+                        },
+                        {
+                            id: 'loose-match',
+                            title: 'Loose match',
+                            body: `Mentions ${TARGET_NOTE_ID} without a note link prefix`,
+                            parent_id: 'folder-1',
+                        },
+                    ],
+                    has_more: false,
+                };
+            }
+            if (resolveFolders && path[0] === 'folders') {
+                return { id: path[1], title: `Notebook ${path[1]}` };
+            }
+            throw new Error(`Unexpected Data API request: ${path.join('/')}`);
+        });
+    };
+
+    it('counts occurrences and source notes without resolving notebooks', async () => {
+        // The mock throws on any non-search request, so a notebook lookup here would fail the test.
+        mockSearchResults(false);
+
+        await expect(countBacklinks(TARGET_NOTE_ID)).resolves.toEqual({ occurrences: 3, notes: 2 });
+        expect(mockDataGet).toHaveBeenCalledTimes(1);
+    });
+
+    it('agrees with the rows findBacklinks resolves for the same note', async () => {
+        mockSearchResults(true);
+
+        const rows = await findBacklinks(TARGET_NOTE_ID);
+        const counts = await countBacklinks(TARGET_NOTE_ID);
+
+        expect(counts.occurrences).toBe(rows.length);
+        expect(counts.notes).toBe(new Set(rows.map((row) => row.noteId)).size);
+    });
+
+    it('omits ignored source notes', async () => {
+        mockSearchResults(false);
+
+        await expect(countBacklinks(TARGET_NOTE_ID, { ignoredNoteIds: new Set(['note-z']) })).resolves.toEqual({
+            occurrences: 1,
+            notes: 1,
+        });
+    });
+
+    it('returns zeros without searching when note id is missing', async () => {
+        await expect(countBacklinks('')).resolves.toEqual({ occurrences: 0, notes: 0 });
+        expect(mockDataGet).not.toHaveBeenCalled();
+    });
+
+    it('returns zeros when the search fails', async () => {
+        mockDataGet.mockRejectedValue(new Error('search unavailable'));
+
+        await expect(countBacklinks(TARGET_NOTE_ID)).resolves.toEqual({ occurrences: 0, notes: 0 });
     });
 });

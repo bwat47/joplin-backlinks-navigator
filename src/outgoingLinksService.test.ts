@@ -1,6 +1,6 @@
 import { vi, type Mock } from 'vitest';
 import joplin from 'api';
-import { findOutgoingLinks } from './outgoingLinksService';
+import { countOutgoingLinks, findOutgoingLinks } from './outgoingLinksService';
 
 vi.mock('api', () => ({
     __esModule: true,
@@ -366,5 +366,92 @@ describe('findOutgoingLinks', () => {
         });
 
         await expect(findOutgoingLinks(SOURCE_NOTE_ID)).resolves.toEqual([]);
+    });
+});
+
+describe('countOutgoingLinks', () => {
+    beforeEach(() => {
+        mockDataGet.mockReset();
+    });
+
+    // Four links across three destinations (Alpha, Alpha#intro, Beta) plus one broken target.
+    const SOURCE_BODY =
+        `See [Beta](:/${NOTE_B}) and [Alpha](:/${NOTE_A}).\n` +
+        `Again [Beta](:/${NOTE_B}), plus [Alpha intro](:/${NOTE_A}#intro).\n` +
+        `And a [dangling link](:/${NOTE_MISSING}).`;
+
+    /** Resolves Alpha and Beta; Beta's target is missing so it stands in for a broken link. */
+    const mockNotes = (): void => {
+        mockDataGet.mockImplementation(async (path: string[], options?: { fields?: string[] }) => {
+            if (path[0] === 'notes' && path[1] === SOURCE_NOTE_ID) {
+                return { id: SOURCE_NOTE_ID, body: SOURCE_BODY };
+            }
+            if (path[0] === 'notes' && path[1] === NOTE_A) {
+                return { id: NOTE_A, title: 'Alpha', parent_id: 'folder-1', body: '# Intro\n\nAlpha opening.' };
+            }
+            if (path[0] === 'notes' && path[1] === NOTE_B) {
+                return { id: NOTE_B, title: 'Beta', parent_id: 'folder-2', body: 'Beta opening.' };
+            }
+            if (path[0] === 'notes' && path[1] === NOTE_MISSING) {
+                throw new Error('Note not found');
+            }
+            if (path[0] === 'folders') {
+                return { id: path[1], title: `Notebook ${path[1]}` };
+            }
+            throw new Error(`Unexpected Data API request: ${path.join('/')} (fields: ${options?.fields})`);
+        });
+    };
+
+    it('counts distinct destinations without fetching target bodies or notebooks', async () => {
+        mockNotes();
+
+        await expect(countOutgoingLinks(SOURCE_NOTE_ID)).resolves.toBe(3);
+
+        const targetRequests = mockDataGet.mock.calls.filter(
+            (call) => call[0][0] === 'notes' && call[0][1] !== SOURCE_NOTE_ID
+        );
+        // One lookup per distinct target note (Alpha is reused for its anchored destination).
+        expect(targetRequests).toHaveLength(3);
+        for (const call of targetRequests) {
+            expect(call[1].fields).not.toContain('body');
+        }
+        expect(mockDataGet).not.toHaveBeenCalledWith(['folders', expect.anything()], expect.anything());
+    });
+
+    it('agrees with the rows findOutgoingLinks resolves for the same note', async () => {
+        mockNotes();
+
+        const rows = await findOutgoingLinks(SOURCE_NOTE_ID);
+        const count = await countOutgoingLinks(SOURCE_NOTE_ID);
+
+        expect(count).toBe(rows.length);
+    });
+
+    it('omits ignored target notes', async () => {
+        mockNotes();
+
+        await expect(countOutgoingLinks(SOURCE_NOTE_ID, { ignoredNoteIds: new Set([NOTE_A]) })).resolves.toBe(1);
+    });
+
+    it('returns 0 without fetching when note id is missing', async () => {
+        await expect(countOutgoingLinks('')).resolves.toBe(0);
+        expect(mockDataGet).not.toHaveBeenCalled();
+    });
+
+    it('returns 0 when the note has no internal links', async () => {
+        mockDataGet.mockImplementation(async (path: string[]) => {
+            if (path[0] === 'notes' && path[1] === SOURCE_NOTE_ID) {
+                return { id: SOURCE_NOTE_ID, body: 'Only [a web link](https://example.com).' };
+            }
+            throw new Error(`Unexpected Data API request: ${path.join('/')}`);
+        });
+
+        await expect(countOutgoingLinks(SOURCE_NOTE_ID)).resolves.toBe(0);
+    });
+
+    it('returns 0 when the source note cannot be read', async () => {
+        mockDataGet.mockRejectedValue(new Error('note unavailable'));
+
+        await expect(countOutgoingLinks(SOURCE_NOTE_ID)).resolves.toBe(0);
     });
 });
