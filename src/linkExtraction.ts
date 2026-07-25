@@ -23,6 +23,24 @@ const NOTE_LINK_RE = /:\/([0-9a-fA-F]{32})(?:#([^\s)\]]*))?/g;
 const THEMATIC_BREAK_RE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
 
 /**
+ * Matches an HTML opening tag that carries an `id` or `name` attribute, e.g.
+ * `<a id="in3b65">` or `<span name='foo'>`. Group 1 is the tag name; groups 2/3/4 hold the
+ * id value from a double-quoted, single-quoted, or unquoted attribute.
+ *
+ * The attribute name must be preceded by whitespace so prefixed attributes (`data-id`,
+ * `data-name`) aren't mistaken for anchors, and the match is case-insensitive because HTML
+ * attribute names are (`<a ID="Top">` is a valid anchor).
+ */
+const HTML_ANCHOR_RE =
+    /<([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*?\s(?:id|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))[^>]*>/gi;
+
+/** Matches any HTML tag, used to strip tags out of anchor previews. */
+const HTML_TAG_RE = /<\/?[a-zA-Z][^>]*>/g;
+
+/** Matches an inline-code span so its contents can be excluded from HTML-anchor scanning. */
+const INLINE_CODE_RE = /`[^`\n]*`/g;
+
+/**
  * Matches a leading GitHub/Obsidian alert (callout) marker, e.g. "[!NOTE]", "[!warning]-",
  * "[!tip]+ Title" — matched against a line already stripped of its blockquote `>`. The marker is
  * dropped; any trailing title text on the same line is kept.
@@ -178,12 +196,7 @@ export interface MarkdownHeading {
  */
 export function parseMarkdownHeadings(body: string): MarkdownHeading[] {
     const tokens = markdownParser.parse(body, {});
-    const lineStarts = [0];
-    for (let offset = 0; offset < body.length; offset++) {
-        if (body[offset] === '\n') {
-            lineStarts.push(offset + 1);
-        }
-    }
+    const lineStarts = computeLineStarts(body);
 
     const seenSlugs = new Set<string>();
     const headings: MarkdownHeading[] = [];
@@ -243,6 +256,169 @@ export function parseMarkdownHeadings(body: string): MarkdownHeading[] {
 export function findHeadingByAnchor(headings: readonly MarkdownHeading[], anchor: string): MarkdownHeading | null {
     const target = anchor.trim().toLowerCase();
     return target ? (headings.find((heading) => heading.anchor === target) ?? null) : null;
+}
+
+/**
+ * An explicit HTML anchor found in a Markdown body — a tag carrying an `id`/`name` attribute, e.g.
+ * `<a id="in3b65">The MERN stack</a>`. These are navigable link targets in Joplin just like heading
+ * slugs, but they are not headings, so they need their own index.
+ */
+export interface HtmlAnchor {
+    /** Lowercased anchor id/name, matched case-insensitively against a link fragment. */
+    id: string;
+    /** Readable label: an `<a>` element's own inline text, or '' when the anchor has none. */
+    text: string;
+    /** Cleaned prose preview of the line the anchor sits on (HTML tags stripped). */
+    snippet: string;
+    /** Offset of the anchor tag's start in the body. */
+    from: number;
+    /** Offset immediately after the anchor's opening tag. */
+    to: number;
+}
+
+/**
+ * Token types whose source range may contain an inline or block-level HTML anchor. Table cells
+ * carry no source map of their own, so `tr_open` (which does) covers anchors written in a table.
+ */
+const HTML_ANCHOR_TOKEN_TYPES = new Set(['html_block', 'heading_open', 'paragraph_open', 'tr_open']);
+
+/** Builds the ascending list of line-start offsets for `body` (index 0 is offset 0). */
+function computeLineStarts(body: string): number[] {
+    const lineStarts = [0];
+    for (let offset = 0; offset < body.length; offset++) {
+        if (body[offset] === '\n') {
+            lineStarts.push(offset + 1);
+        }
+    }
+    return lineStarts;
+}
+
+/** Returns the index of the line containing `offset` given ascending `lineStarts`. */
+function offsetToLineIndex(lineStarts: readonly number[], offset: number): number {
+    let lo = 0;
+    let hi = lineStarts.length - 1;
+    let result = 0;
+    while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (lineStarts[mid] <= offset) {
+            result = mid;
+            lo = mid + 1;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    return result;
+}
+
+/**
+ * Removes HTML tags so an anchor's surrounding markup doesn't leak into its preview.
+ *
+ * Runs until the text stops changing: a single pass can splice a new tag back together out of
+ * nested or malformed markup (`<<a>script>` -> `<script>`), which would put the very markup this
+ * strips right back into the snippet. Each pass only ever shortens the string, so this terminates.
+ */
+function stripHtmlTags(value: string): string {
+    let current = value;
+    let previous: string;
+    do {
+        previous = current;
+        current = current.replace(HTML_TAG_RE, '');
+    } while (current !== previous);
+    return current;
+}
+
+/**
+ * Blanks out inline-code spans (preserving length so offsets stay aligned) so an `id=`/`name=`
+ * written inside inline code, e.g. `` `<a id="x">` ``, isn't mistaken for a real anchor.
+ */
+function maskInlineCode(value: string): string {
+    return value.replace(INLINE_CODE_RE, (span) => ' '.repeat(span.length));
+}
+
+/** Cleaned prose of the first non-empty line at or after `lineIndex`, with HTML tags removed. */
+function anchorSnippet(lines: readonly string[], lineIndex: number): string {
+    const limit = Math.min(lineIndex + 5, lines.length);
+    for (let index = lineIndex; index < limit; index++) {
+        const cleaned = cleanSnippetLine(stripHtmlTags(lines[index]));
+        if (cleaned) {
+            return cleaned;
+        }
+    }
+    return '';
+}
+
+/**
+ * Parses explicit HTML anchors (`<tag id="…">` / `<tag name="…">`) from a Markdown body.
+ *
+ * Only prose, table-row, and HTML-block regions are scanned, so anchors written inside fenced or
+ * inline code are ignored — matching the way Joplin renders them (code is never a link target). An
+ * `<a>…</a>` element's own text becomes the anchor's readable label; other tags have no label.
+ * Duplicate ids are kept as separate entries; {@link findHtmlAnchorById} returns the first one,
+ * mirroring how a fragment link lands on the first matching id.
+ */
+export function parseHtmlAnchors(body: string): HtmlAnchor[] {
+    const tokens = markdownParser.parse(body, {});
+    const lineStarts = computeLineStarts(body);
+    const lines = body.split('\n');
+    const anchors: HtmlAnchor[] = [];
+    const seenOffsets = new Set<number>();
+
+    for (const token of tokens) {
+        if (!token.map || !HTML_ANCHOR_TOKEN_TYPES.has(token.type)) {
+            continue;
+        }
+        const [startLine, endLine] = token.map;
+        const regionStart = lineStarts[startLine] ?? body.length;
+        const regionEnd = endLine < lineStarts.length ? lineStarts[endLine] : body.length;
+        const region = body.slice(regionStart, regionEnd);
+        // Scan a copy with inline code blanked out; offsets still line up with `region`.
+        const scanText = maskInlineCode(region);
+
+        HTML_ANCHOR_RE.lastIndex = 0;
+        let match: RegExpExecArray | null;
+        while ((match = HTML_ANCHOR_RE.exec(scanText)) !== null) {
+            const id = (match[2] ?? match[3] ?? match[4] ?? '').trim().toLowerCase();
+            if (!id) {
+                continue;
+            }
+            const from = regionStart + match.index;
+            // Container tokens (e.g. a paragraph inside a blockquote) can overlap; keep one row per tag.
+            if (seenOffsets.has(from)) {
+                continue;
+            }
+            seenOffsets.add(from);
+            const to = from + match[0].length;
+
+            let text = '';
+            if (match[1].toLowerCase() === 'a') {
+                const rest = region.slice(match.index + match[0].length);
+                const closeIndex = rest.search(/<\/a\s*>/i);
+                if (closeIndex !== -1) {
+                    text = cleanSnippetLine(stripHtmlTags(rest.slice(0, closeIndex)));
+                }
+            }
+
+            anchors.push({
+                id,
+                text,
+                snippet: anchorSnippet(lines, offsetToLineIndex(lineStarts, from)),
+                from,
+                to,
+            });
+        }
+    }
+
+    return anchors;
+}
+
+/**
+ * Locates the HTML anchor an id fragment such as `in3b65` refers to.
+ *
+ * @returns The first matching anchor, or `null` when the id names none.
+ */
+export function findHtmlAnchorById(anchors: readonly HtmlAnchor[], anchorId: string): HtmlAnchor | null {
+    const target = anchorId.trim().toLowerCase();
+    return target ? (anchors.find((anchor) => anchor.id === target) ?? null) : null;
 }
 
 /**

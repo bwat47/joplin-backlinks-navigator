@@ -21,8 +21,11 @@ import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../
 import type { LinkItem } from '../types';
 import {
     findHeadingByAnchor,
+    findHtmlAnchorById,
     findOccurrenceOffsets,
+    parseHtmlAnchors,
     parseMarkdownHeadings,
+    type HtmlAnchor,
     type MarkdownHeading,
 } from '../linkExtraction';
 import type {
@@ -52,11 +55,12 @@ const INDICATOR_DEBOUNCE_MS = 350;
  *
  * - `reference` — a backlink: the occurrence of `needle` (`:/<currentNoteId>`) that links back to
  *   the note we came from.
- * - `heading` — an outgoing link to a heading anchor: the heading that anchor names.
+ * - `anchor` — an outgoing link to an anchor: the heading that anchor names, or the explicit HTML
+ *   anchor (`<a id="…">`) it points at.
  */
 type PendingScroll = { targetNoteId: string } & (
     | { kind: 'reference'; needle: string; occurrenceIndex: number }
-    | { kind: 'heading'; anchor: string }
+    | { kind: 'anchor'; anchor: string }
 );
 
 export default function backlinksNavigator(context: ContentScriptContext): MarkdownEditorContentScriptModule {
@@ -172,7 +176,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 const scrollToOccurrence =
                     link.direction === 'in' && getContentScriptSettings(view.state).panel.preview.in !== 'title';
                 if (anchor) {
-                    pendingScroll = { targetNoteId: link.noteId, kind: 'heading', anchor };
+                    pendingScroll = { targetNoteId: link.noteId, kind: 'anchor', anchor };
                 } else if (scrollToOccurrence && currentNoteId) {
                     pendingScroll = {
                         targetNoteId: link.noteId,
@@ -199,11 +203,18 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             const resolveScrollRange = (
                 target: PendingScroll,
                 text: string,
-                headings: readonly MarkdownHeading[] = []
+                headings: readonly MarkdownHeading[] = [],
+                htmlAnchors: readonly HtmlAnchor[] = []
             ): MarkdownLinkRange | null => {
-                if (target.kind === 'heading') {
+                if (target.kind === 'anchor') {
+                    // A heading slug wins over an explicit HTML anchor with the same name, matching
+                    // how the row's label/preview were resolved on the host side.
                     const heading = findHeadingByAnchor(headings, target.anchor);
-                    return heading ? { from: heading.from, to: heading.to } : null;
+                    if (heading) {
+                        return { from: heading.from, to: heading.to };
+                    }
+                    const htmlAnchor = findHtmlAnchorById(htmlAnchors, target.anchor);
+                    return htmlAnchor ? { from: htmlAnchor.from, to: htmlAnchor.to } : null;
                 }
                 const pos = findOccurrenceOffsets(text, target.needle)[target.occurrenceIndex] ?? -1;
                 return pos === -1 ? null : findMarkdownLinkRange(text, pos, target.needle.length);
@@ -215,8 +226,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 const MAX_ATTEMPTS = 15;
                 const RETRY_DELAY_MS = 80;
                 let attempt = 0;
-                let parsedHeadingText: string | null = null;
+                let parsedAnchorText: string | null = null;
                 let parsedHeadings: MarkdownHeading[] = [];
+                let parsedHtmlAnchors: HtmlAnchor[] = [];
 
                 const doScroll = (highlightRange: MarkdownLinkRange): void => {
                     const scrollPosition = highlightRange.from;
@@ -240,11 +252,12 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     }
 
                     const text = view.state.doc.toString();
-                    if (target.kind === 'heading' && text !== parsedHeadingText) {
-                        parsedHeadingText = text;
+                    if (target.kind === 'anchor' && text !== parsedAnchorText) {
+                        parsedAnchorText = text;
                         parsedHeadings = parseMarkdownHeadings(text);
+                        parsedHtmlAnchors = parseHtmlAnchors(text);
                     }
-                    const highlightRange = resolveScrollRange(target, text, parsedHeadings);
+                    const highlightRange = resolveScrollRange(target, text, parsedHeadings, parsedHtmlAnchors);
                     if (!highlightRange) {
                         attempt += 1;
                         if (attempt <= MAX_ATTEMPTS) {

@@ -5,9 +5,11 @@ import {
     extractOccurrenceContexts,
     extractSectionOpening,
     findHeadingByAnchor,
+    findHtmlAnchorById,
     findOccurrenceOffsets,
     findSection,
     linkNeedle,
+    parseHtmlAnchors,
     parseMarkdownHeadings,
     slugifyHeading,
 } from './linkExtraction';
@@ -221,6 +223,85 @@ describe('findHeadingByAnchor', () => {
     it('returns null for an empty or unresolvable anchor', () => {
         expect(findHeadingByAnchor(headings, '')).toBeNull();
         expect(findHeadingByAnchor(headings, 'no-such-heading')).toBeNull();
+    });
+});
+
+describe('parseHtmlAnchors', () => {
+    it('captures an inline <a id> anchor with its own text and line preview', () => {
+        const body = 'Intro paragraph.\n\n<a id="in3b65">The MERN stack</a> is a widely adopted framework.';
+        const anchor = parseHtmlAnchors(body)[0];
+        expect(anchor).toMatchObject({
+            id: 'in3b65',
+            text: 'The MERN stack',
+            snippet: 'The MERN stack is a widely adopted framework.',
+        });
+        expect(body.slice(anchor.from, anchor.to)).toBe('<a id="in3b65">');
+    });
+
+    it('supports the name attribute, single quotes, and lowercases the id for matching', () => {
+        const body = "See <a name='Top'>the top</a>.";
+        expect(parseHtmlAnchors(body)).toEqual([expect.objectContaining({ id: 'top', text: 'the top' })]);
+    });
+
+    it('captures an id on a non-anchor tag with no label', () => {
+        const body = '<div id="section-2">\n\nBody text here.';
+        const anchor = parseHtmlAnchors(body)[0];
+        expect(anchor).toMatchObject({ id: 'section-2', text: '', snippet: 'Body text here.' });
+    });
+
+    it('ignores ids written inside fenced or inline code', () => {
+        const body = '```html\n<a id="fenced">x</a>\n```\n\nUse `<a id="inline">` in prose.';
+        expect(parseHtmlAnchors(body)).toEqual([]);
+    });
+
+    it('keeps duplicate ids as separate entries in document order', () => {
+        const body = '<a id="dup">first</a>\n\n<a id="dup">second</a>';
+        const anchors = parseHtmlAnchors(body);
+        expect(anchors.map((a) => a.text)).toEqual(['first', 'second']);
+        expect(anchors[0].from).toBeLessThan(anchors[1].from);
+    });
+
+    it('matches uppercase attribute names, which HTML treats as equivalent', () => {
+        expect(parseHtmlAnchors('<a ID="Top">the top</a>')).toEqual([
+            expect.objectContaining({ id: 'top', text: 'the top' }),
+        ]);
+        expect(parseHtmlAnchors('<A NAME="Second">next</A>')).toEqual([
+            expect.objectContaining({ id: 'second', text: 'next' }),
+        ]);
+    });
+
+    it('ignores prefixed attributes such as data-id and data-name', () => {
+        expect(parseHtmlAnchors('<span data-id="oops">x</span> and <span data-name="nope">y</span>')).toEqual([]);
+    });
+
+    it('strips nested markup that a single pass would splice back into a tag', () => {
+        const body = '<a id="nested">Safe</a> then <<a>script>alert(1)<</a>/script> tail.';
+        expect(parseHtmlAnchors(body)[0].snippet).toBe('Safe then alert(1) tail.');
+    });
+
+    it('captures an anchor written inside a table cell', () => {
+        const body = '| Term | Notes |\n| --- | --- |\n| <a id="cell">The MERN stack</a> | popular |\n';
+        const anchor = parseHtmlAnchors(body)[0];
+        expect(anchor).toMatchObject({ id: 'cell', text: 'The MERN stack' });
+        expect(body.slice(anchor.from, anchor.to)).toBe('<a id="cell">');
+    });
+});
+
+describe('findHtmlAnchorById', () => {
+    const anchors = parseHtmlAnchors('<a id="alpha">A</a>\n\n<a id="beta">B</a>');
+
+    it('matches case-insensitively and trims whitespace', () => {
+        expect(findHtmlAnchorById(anchors, ' ALPHA ')?.text).toBe('A');
+    });
+
+    it('returns the first entry for a duplicate id', () => {
+        const dupes = parseHtmlAnchors('<a id="x">first</a>\n\n<a id="x">second</a>');
+        expect(findHtmlAnchorById(dupes, 'x')?.text).toBe('first');
+    });
+
+    it('returns null for an empty or unknown id', () => {
+        expect(findHtmlAnchorById(anchors, '')).toBeNull();
+        expect(findHtmlAnchorById(anchors, 'gamma')).toBeNull();
     });
 });
 
