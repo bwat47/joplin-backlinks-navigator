@@ -116,7 +116,7 @@ describe('settings loading', () => {
 
         await expect(loadContentScriptSettings()).resolves.toEqual({
             panel: {
-                dimensions: { width: 400, maxHeightRatio: 0.6 },
+                dimensions: { width: 400, maxHeightPercentage: 60 },
                 preview: { in: 'titleSnippetHeading', out: 'title' },
             },
             showIndicator: true,
@@ -136,7 +136,7 @@ describe('settings loading', () => {
 
         await expect(loadContentScriptSettings()).resolves.toEqual({
             panel: {
-                dimensions: { width: 640, maxHeightRatio: 0.75 },
+                dimensions: { width: 640, maxHeightPercentage: 75 },
                 preview: { in: 'titleSnippet', out: 'titleSnippet' },
             },
             showIndicator: false,

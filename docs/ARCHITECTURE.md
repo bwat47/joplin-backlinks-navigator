@@ -155,6 +155,8 @@ The project keeps a few boundaries clear:
 - Editor and DOM work stays in the content script.
 - Link parsing stays in shared, Joplin-free helpers.
 - Display rules stay in one place so the panel and indicator agree.
-- Settings are normalized before they reach editor UI code.
+- Settings are normalized before they reach editor UI code, in the units the user set them in:
+  panel dimensions stay in pixels and percent from the settings screen through to the generated CSS,
+  so `panelDimensions.ts` validates each one against a single range.
 
 The result is a small loop: read note id, find links, display rows, open the selected note.

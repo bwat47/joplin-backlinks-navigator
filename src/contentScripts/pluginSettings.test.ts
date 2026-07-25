@@ -12,7 +12,7 @@ describe('content script settings normalization', () => {
         expect(
             normalizeContentScriptSettings({
                 panel: {
-                    dimensions: { width: 999, maxHeightRatio: 0.1 },
+                    dimensions: { width: 999, maxHeightPercentage: 10 },
                     preview: DEFAULT_LINK_PREVIEW_SETTINGS,
                 },
                 showIndicator: true,
@@ -21,7 +21,7 @@ describe('content script settings normalization', () => {
             panel: {
                 dimensions: {
                     width: MAX_PANEL_WIDTH,
-                    maxHeightRatio: MIN_PANEL_HEIGHT_PERCENTAGE / 100,
+                    maxHeightPercentage: MIN_PANEL_HEIGHT_PERCENTAGE,
                 },
                 preview: DEFAULT_LINK_PREVIEW_SETTINGS,
             },

@@ -13,14 +13,13 @@ function formatPanelWidth(width: number): string {
     return `${Math.round(width)}px`;
 }
 
-function formatMaxHeight(ratio: number): string {
-    const percentage = (ratio * 100).toFixed(2);
-    return `${percentage}%`;
+function formatMaxHeight(percentage: number): string {
+    return `${Math.round(percentage)}%`;
 }
 
 export function createPanelCss(dimensions: PanelDimensions): string {
     const panelWidth = formatPanelWidth(dimensions.width);
-    const maxHeight = formatMaxHeight(dimensions.maxHeightRatio);
+    const maxHeight = formatMaxHeight(dimensions.maxHeightPercentage);
 
     return `
 .backlinks-navigator-panel {

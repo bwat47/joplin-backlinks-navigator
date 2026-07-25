@@ -68,8 +68,14 @@ export const EMPTY_LINK_COUNTS: LinkCounts = {
 };
 
 export interface PanelDimensions {
+    /** Panel width in pixels. */
     width: number;
-    maxHeightRatio: number;
+    /**
+     * Panel max height as a percentage of the editor viewport — the same unit the user's setting
+     * uses, carried unchanged to the CSS that consumes it, so it is only ever validated in one
+     * unit system. See `panelDimensions.ts`.
+     */
+    maxHeightPercentage: number;
 }
 
 export type LinkPreviewMode = 'title' | 'titleSnippet' | 'titleSnippetHeading';
@@ -104,8 +110,7 @@ export type BacklinkOpenBehavior = 'newWindow' | 'newTab';
 
 export const DEFAULT_PANEL_DIMENSIONS: PanelDimensions = {
     width: 360,
-    // Represents 75% of the editor viewport height
-    maxHeightRatio: 0.75,
+    maxHeightPercentage: 75,
 };
 
 export const DEFAULT_LINK_PREVIEW_SETTINGS: LinkPreviewSettings = {

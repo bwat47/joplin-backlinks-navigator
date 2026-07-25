@@ -18,10 +18,7 @@ export const MIN_PANEL_HEIGHT_PERCENTAGE = 40;
 export const MAX_PANEL_HEIGHT_PERCENTAGE = 90;
 
 export const DEFAULT_PANEL_WIDTH = DEFAULT_PANEL_DIMENSIONS.width;
-export const DEFAULT_PANEL_HEIGHT_PERCENTAGE = Math.round(DEFAULT_PANEL_DIMENSIONS.maxHeightRatio * 100);
-
-const MIN_PANEL_HEIGHT_RATIO = MIN_PANEL_HEIGHT_PERCENTAGE / 100;
-const MAX_PANEL_HEIGHT_RATIO = MAX_PANEL_HEIGHT_PERCENTAGE / 100;
+export const DEFAULT_PANEL_HEIGHT_PERCENTAGE = DEFAULT_PANEL_DIMENSIONS.maxHeightPercentage;
 
 function clamp(value: number, minimum: number, maximum: number): number {
     return Math.min(Math.max(value, minimum), maximum);
@@ -45,27 +42,16 @@ export function normalizePanelHeightPercentage(raw: unknown): { value: number; c
     return { value: clamped, changed: clamped !== raw };
 }
 
-function normalizePanelHeightRatio(raw: unknown): { value: number; changed: boolean } {
-    const fallback = DEFAULT_PANEL_DIMENSIONS.maxHeightRatio;
-    if (typeof raw !== 'number' || Number.isNaN(raw)) {
-        return { value: fallback, changed: true };
-    }
-    const clamped = clamp(raw, MIN_PANEL_HEIGHT_RATIO, MAX_PANEL_HEIGHT_RATIO);
-    return { value: clamped, changed: clamped !== raw };
-}
-
 /**
  * Normalizes and validates panel dimension settings.
  *
- * Clamps values to acceptable ranges, rounds width to integer, and replaces
- * invalid/missing values with defaults. Used when loading user settings and
- * receiving dimension updates from the plugin host.
+ * Clamps values to acceptable ranges, rounds them to integers, and replaces invalid/missing values
+ * with defaults. Used when loading user settings and when the content script receives dimension
+ * updates from the plugin host — both sides validate the same units with the same functions.
  */
 export function normalizePanelDimensions(dimensions?: Partial<PanelDimensions>): PanelDimensions {
-    const widthResult = normalizePanelWidth(dimensions?.width);
-    const heightResult = normalizePanelHeightRatio(dimensions?.maxHeightRatio);
     return {
-        width: widthResult.value,
-        maxHeightRatio: heightResult.value,
+        width: normalizePanelWidth(dimensions?.width).value,
+        maxHeightPercentage: normalizePanelHeightPercentage(dimensions?.maxHeightPercentage).value,
     };
 }

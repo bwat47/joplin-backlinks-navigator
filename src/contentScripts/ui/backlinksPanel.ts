@@ -625,7 +625,7 @@ function ensurePanelStyles(view: EditorView, settings: PanelSettings): void {
     const doc = view.dom.ownerDocument!;
     // Cache key based only on dimensions since CSS variables handle theme changes automatically.
     const options = settings.dimensions;
-    const signature = [options.width.toString(), options.maxHeightRatio.toFixed(4)].join('|');
+    const signature = [options.width, options.maxHeightPercentage].join('|');
 
     let style = doc.getElementById(PANEL_STYLE_ID) as HTMLStyleElement | null;
     if (!style) {

@@ -42,18 +42,35 @@ describe('panel dimension normalization', () => {
     });
 
     it('normalizes panel dimensions from partial or invalid input', () => {
-        expect(normalizePanelDimensions({ width: 999, maxHeightRatio: 0.1 })).toEqual({
+        expect(normalizePanelDimensions({ width: 999, maxHeightPercentage: 10 })).toEqual({
             width: MAX_PANEL_WIDTH,
-            maxHeightRatio: 0.4,
+            maxHeightPercentage: MIN_PANEL_HEIGHT_PERCENTAGE,
         });
-        expect(normalizePanelDimensions({ width: 250, maxHeightRatio: 0.8 })).toEqual({
+        expect(normalizePanelDimensions({ width: 250, maxHeightPercentage: 80 })).toEqual({
             width: 250,
-            maxHeightRatio: 0.8,
+            maxHeightPercentage: 80,
         });
     });
 
-    it('normalizes panel height ratios through panel dimensions', () => {
-        expect(normalizePanelDimensions({ maxHeightRatio: 0.95 }).maxHeightRatio).toBe(0.9);
-        expect(normalizePanelDimensions({ maxHeightRatio: 0.75 }).maxHeightRatio).toBe(0.75);
+    it('falls back to defaults for missing panel dimensions', () => {
+        expect(normalizePanelDimensions()).toEqual({
+            width: DEFAULT_PANEL_WIDTH,
+            maxHeightPercentage: DEFAULT_PANEL_HEIGHT_PERCENTAGE,
+        });
+    });
+
+    it('clamps panel height percentages through panel dimensions', () => {
+        expect(normalizePanelDimensions({ maxHeightPercentage: 95 }).maxHeightPercentage).toBe(
+            MAX_PANEL_HEIGHT_PERCENTAGE
+        );
+        expect(normalizePanelDimensions({ maxHeightPercentage: 75 }).maxHeightPercentage).toBe(75);
+    });
+
+    it('treats the height as a percentage, not a ratio, on both sides of the boundary', () => {
+        // A ratio-shaped value is out of range for a percentage and clamps up, rather than being
+        // silently accepted as "75% of the viewport".
+        expect(normalizePanelDimensions({ maxHeightPercentage: 0.75 }).maxHeightPercentage).toBe(
+            MIN_PANEL_HEIGHT_PERCENTAGE
+        );
     });
 });

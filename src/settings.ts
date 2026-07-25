@@ -314,7 +314,7 @@ async function loadPanelSettings(): Promise<PanelSettings> {
     return {
         dimensions: {
             width,
-            maxHeightRatio: heightPercentage / 100,
+            maxHeightPercentage: heightPercentage,
         },
         preview: {
             in: backlinkPreview,
