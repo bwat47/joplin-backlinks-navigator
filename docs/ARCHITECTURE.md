@@ -62,8 +62,11 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 - `src/linkDisplay.ts` contains the shared display policy used by both the popup and the indicator.
   In title-only backlink mode, inbound rows are collapsed to one row per source note.
 - `src/contentScripts/ui/fuzzyFilter.ts` handles popup filtering.
+- `src/contentScripts/ui/editorOverlay.ts` mounts both floating elements into the editor's scroll
+  DOM, keeps them clear of the scrollbar, and injects their stylesheets. The popup and the badge
+  are positioned by one implementation rather than two that happen to match.
 - `src/contentScripts/theme/panelTheme.ts` injects the popup and indicator CSS using Joplin theme
-  variables.
+  variables. Their shared anchoring is one constant, matching `editorOverlay.ts`.
 
 ## Message Boundary
 
