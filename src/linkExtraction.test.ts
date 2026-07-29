@@ -267,7 +267,26 @@ describe('parseHtmlAnchors', () => {
             text: 'The MERN stack',
             snippet: 'The MERN stack is a widely adopted framework.',
         });
-        expect(body.slice(anchor.from, anchor.to)).toBe('<a id="in3b65">');
+        expect(body.slice(anchor.from, anchor.to)).toBe('<a id="in3b65">The MERN stack</a>');
+    });
+
+    it('covers the whole element for an empty <a id> anchor', () => {
+        const body = 'Intro paragraph.\n\n<a id="ab12cd"></a>\n\nBody text here.';
+        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        expect(anchor).toMatchObject({ id: 'ab12cd', text: '' });
+        expect(body.slice(anchor.from, anchor.to)).toBe('<a id="ab12cd"></a>');
+    });
+
+    it('stops at the opening tag when an <a id> anchor is never closed', () => {
+        const body = '<a id="unclosed">dangling';
+        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        expect(body.slice(anchor.from, anchor.to)).toBe('<a id="unclosed">');
+    });
+
+    it('stops at the opening tag for a non-anchor tag, whose content is not part of the anchor', () => {
+        const body = '<span id="marked">labelled</span>';
+        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        expect(body.slice(anchor.from, anchor.to)).toBe('<span id="marked">');
     });
 
     it('supports the name attribute, single quotes, and lowercases the id for matching', () => {
@@ -319,7 +338,7 @@ describe('parseHtmlAnchors', () => {
         const body = '| Term | Notes |\n| --- | --- |\n| <a id="cell">The MERN stack</a> | popular |\n';
         const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
         expect(anchor).toMatchObject({ id: 'cell', text: 'The MERN stack' });
-        expect(body.slice(anchor.from, anchor.to)).toBe('<a id="cell">');
+        expect(body.slice(anchor.from, anchor.to)).toBe('<a id="cell">The MERN stack</a>');
     });
 });
 

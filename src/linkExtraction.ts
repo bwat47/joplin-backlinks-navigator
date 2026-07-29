@@ -64,6 +64,12 @@ const THEMATIC_BREAK_RE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
 const HTML_ANCHOR_RE =
     /<([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*?\s(?:id|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))[^>]*>/gi;
 
+/**
+ * Matches an `</a>` closing tag, e.g. `</a>` or `</A >`. Used to find where an `<a id="…">` element
+ * ends so its label and full source range cover the content between the tags.
+ */
+const ANCHOR_CLOSE_TAG_RE = /<\/a\s*>/i;
+
 /** Matches any HTML tag, used to strip tags out of anchor previews. */
 const HTML_TAG_RE = /<\/?[a-zA-Z][^>]*>/g;
 
@@ -305,7 +311,11 @@ export interface HtmlAnchor {
     snippet: string;
     /** Offset of the anchor tag's start in the body. */
     from: number;
-    /** Offset immediately after the anchor's opening tag. */
+    /**
+     * Offset immediately after the anchor. For an `<a>` element with a closing tag this is the end
+     * of `</a>`, so the whole element (`<a id="x">label</a>`) is covered; otherwise it is the end of
+     * the opening tag.
+     */
     to: number;
 }
 
@@ -407,14 +417,17 @@ export function parseHtmlAnchors(parsed: ParsedMarkdownBody): HtmlAnchor[] {
                 continue;
             }
             seenOffsets.add(from);
-            const to = from + match[0].length;
+            let to = from + match[0].length;
 
             let text = '';
             if (match[1].toLowerCase() === 'a') {
                 const rest = region.slice(match.index + match[0].length);
-                const closeIndex = rest.search(/<\/a\s*>/i);
-                if (closeIndex !== -1) {
-                    text = cleanSnippetLine(stripHtmlTags(rest.slice(0, closeIndex)));
+                const close = ANCHOR_CLOSE_TAG_RE.exec(rest);
+                if (close) {
+                    text = cleanSnippetLine(stripHtmlTags(rest.slice(0, close.index)));
+                    // Extend the range over the element's content and its `</a>` so navigating to
+                    // the anchor highlights the whole element rather than just its opening tag.
+                    to += close.index + close[0].length;
                 }
             }
 
