@@ -65,10 +65,13 @@ const HTML_ANCHOR_RE =
     /<([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*?\s(?:id|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))[^>]*>/gi;
 
 /**
- * Matches an `</a>` closing tag, e.g. `</a>` or `</A >`. Used to find where an `<a id="…">` element
- * ends so its label and full source range cover the content between the tags.
+ * Builds a matcher for `tagName`'s closing tag, e.g. `</a>` or `</A >`, used to find where an
+ * anchor element ends. Interpolation is safe without escaping because {@link HTML_ANCHOR_RE} only
+ * ever captures a tag name matching `[a-zA-Z][a-zA-Z0-9-]*`.
  */
-const ANCHOR_CLOSE_TAG_RE = /<\/a\s*>/i;
+function closeTagRe(tagName: string): RegExp {
+    return new RegExp(`</${tagName}\\s*>`, 'i');
+}
 
 /** Matches any HTML tag, used to strip tags out of anchor previews. */
 const HTML_TAG_RE = /<\/?[a-zA-Z][^>]*>/g;
@@ -305,16 +308,16 @@ export function findHeadingByAnchor(headings: readonly MarkdownHeading[], anchor
 export interface HtmlAnchor {
     /** Lowercased anchor id/name, matched case-insensitively against a link fragment. */
     id: string;
-    /** Readable label: an `<a>` element's own inline text, or '' when the anchor has none. */
+    /** Readable label: the element's own inline text, or '' when the anchor has none. */
     text: string;
     /** Cleaned prose preview of the line the anchor sits on (HTML tags stripped). */
     snippet: string;
     /** Offset of the anchor tag's start in the body. */
     from: number;
     /**
-     * Offset immediately after the anchor. For an `<a>` element with a closing tag this is the end
-     * of `</a>`, so the whole element (`<a id="x">label</a>`) is covered; otherwise it is the end of
-     * the opening tag.
+     * Offset immediately after the anchor: the end of the closing tag when the element is closed
+     * within its region, so the whole element (`<a id="x">label</a>`) is covered; otherwise the end
+     * of the opening tag.
      */
     to: number;
 }
@@ -383,8 +386,9 @@ function anchorSnippet(lines: readonly string[], lineIndex: number): string {
  * Parses explicit HTML anchors (`<tag id="…">` / `<tag name="…">`) from a Markdown body.
  *
  * Only prose, table-row, and HTML-block regions are scanned, so anchors written inside fenced or
- * inline code are ignored — matching the way Joplin renders them (code is never a link target). An
- * `<a>…</a>` element's own text becomes the anchor's readable label; other tags have no label.
+ * inline code are ignored — matching the way Joplin renders them (code is never a link target).
+ * When the element is closed inside the region its own text becomes the anchor's readable label and
+ * its range spans the whole element; an unclosed tag gets no label and covers just the opening tag.
  * Duplicate ids are kept as separate entries; {@link findHtmlAnchorById} returns the first one,
  * mirroring how a fragment link lands on the first matching id.
  */
@@ -419,16 +423,16 @@ export function parseHtmlAnchors(parsed: ParsedMarkdownBody): HtmlAnchor[] {
             seenOffsets.add(from);
             let to = from + match[0].length;
 
+            // When the element is closed within this region, its content becomes the label and the
+            // range covers the whole element, so navigating to the anchor highlights all of it
+            // rather than just the opening tag. A block-level tag closed past a blank line ends up
+            // in a separate token, so it keeps the opening-tag range.
             let text = '';
-            if (match[1].toLowerCase() === 'a') {
-                const rest = region.slice(match.index + match[0].length);
-                const close = ANCHOR_CLOSE_TAG_RE.exec(rest);
-                if (close) {
-                    text = cleanSnippetLine(stripHtmlTags(rest.slice(0, close.index)));
-                    // Extend the range over the element's content and its `</a>` so navigating to
-                    // the anchor highlights the whole element rather than just its opening tag.
-                    to += close.index + close[0].length;
-                }
+            const rest = region.slice(match.index + match[0].length);
+            const close = closeTagRe(match[1]).exec(rest);
+            if (close) {
+                text = cleanSnippetLine(stripHtmlTags(rest.slice(0, close.index)));
+                to += close.index + close[0].length;
             }
 
             anchors.push({

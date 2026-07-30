@@ -283,10 +283,26 @@ describe('parseHtmlAnchors', () => {
         expect(body.slice(anchor.from, anchor.to)).toBe('<a id="unclosed">');
     });
 
-    it('stops at the opening tag for a non-anchor tag, whose content is not part of the anchor', () => {
-        const body = '<span id="marked">labelled</span>';
+    it('covers the whole element and labels it for a closed non-anchor tag', () => {
+        const body = '<span id="marked">The MERN stack</span> is popular.';
         const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
-        expect(body.slice(anchor.from, anchor.to)).toBe('<span id="marked">');
+        expect(anchor).toMatchObject({ id: 'marked', text: 'The MERN stack' });
+        expect(body.slice(anchor.from, anchor.to)).toBe('<span id="marked">The MERN stack</span>');
+    });
+
+    it('covers a multi-line element, collapsing its label onto one line', () => {
+        const body = 'Text <a id="wrapped">some\nlong label</a> tail.';
+        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        expect(anchor.text).toBe('some long label');
+        expect(body.slice(anchor.from, anchor.to)).toBe('<a id="wrapped">some\nlong label</a>');
+    });
+
+    it('ends at the first closing tag when same-tag elements nest', () => {
+        // Matching nesting depth would cost more than it buys: same-tag nesting around an id is
+        // vanishingly rare in notes, and under-highlighting is harmless.
+        const body = '<div id="outer"><div>inner</div></div>';
+        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        expect(body.slice(anchor.from, anchor.to)).toBe('<div id="outer"><div>inner</div>');
     });
 
     it('supports the name attribute, single quotes, and lowercases the id for matching', () => {
@@ -296,10 +312,11 @@ describe('parseHtmlAnchors', () => {
         ]);
     });
 
-    it('captures an id on a non-anchor tag with no label', () => {
-        const body = '<div id="section-2">\n\nBody text here.';
+    it('captures a block anchor closed past a blank line, which lands outside its region', () => {
+        const body = '<div id="section-2">\n\nBody text here.\n\n</div>';
         const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
         expect(anchor).toMatchObject({ id: 'section-2', text: '', snippet: 'Body text here.' });
+        expect(body.slice(anchor.from, anchor.to)).toBe('<div id="section-2">');
     });
 
     it('ignores ids written inside fenced or inline code', () => {
