@@ -52,6 +52,12 @@ describe('cleanSnippetLine', () => {
         expect(result.endsWith('…')).toBe(true);
         expect(result.length).toBe(120);
     });
+
+    it('keeps malformed links while unwrapping later valid links', () => {
+        expect(cleanSnippetLine('[broken] text [valid](url) and [unfinished](url')).toBe(
+            '[broken] text valid and [unfinished](url'
+        );
+    });
 });
 
 describe('findSection', () => {
@@ -344,6 +350,13 @@ describe('parseHtmlAnchors', () => {
         expect(
             parseHtmlAnchors(parseMarkdownBody('<span data-id="oops">x</span> and <span data-name="nope">y</span>'))
         ).toEqual([]);
+    });
+
+    it('skips leading tags that carry no id/name and still ranges the anchor that follows', () => {
+        const body = '<span class="x"><a id="y">The MERN stack</a></span>';
+        const anchors = parseHtmlAnchors(parseMarkdownBody(body));
+        expect(anchors).toEqual([expect.objectContaining({ id: 'y', text: 'The MERN stack' })]);
+        expect(body.slice(anchors[0].from, anchors[0].to)).toBe('<a id="y">The MERN stack</a>');
     });
 
     it('strips nested markup that a single pass would splice back into a tag', () => {
