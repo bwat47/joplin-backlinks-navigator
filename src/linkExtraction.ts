@@ -52,16 +52,8 @@ const NOTE_LINK_RE = /:\/([0-9a-fA-F]{32})(?:#([^\s)\]]*))?/g;
 /** Matches a thematic break / horizontal rule, e.g. "---", "***", "___". */
 const THEMATIC_BREAK_RE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
 
-/**
- * Matches an HTML opening tag with its attribute text, e.g. `<a id="in3b65">` or `<span
- * name='foo'>`. Group 1 is the tag name, group 2 the raw attribute text (empty for `<a>`).
- * As before, a `>` inside a quoted attribute value ends the match.
- *
- * The attributes are matched separately by {@link HTML_ANCHOR_ATTR_RE} rather than in one
- * pattern, which keeps both regexes free of the overlapping quantifiers that make a combined
- * pattern backtrack super-linearly.
- */
-const HTML_TAG_WITH_ATTRS_RE = /<([a-z][a-z0-9-]*)(\s[^>]*)?>/gi;
+/** Matches the tag name at the start of an HTML opening tag, i.e. right after its `<`. */
+const HTML_TAG_NAME_RE = /^[a-z][a-z0-9-]*/i;
 
 /**
  * Matches the `id`/`name` attribute of an anchor within a tag's attribute text, e.g. ` id="in3b65"`.
@@ -75,8 +67,8 @@ const HTML_ANCHOR_ATTR_RE = /\s(?:id|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>
 
 /**
  * Builds a matcher for `tagName`'s closing tag, e.g. `</a>` or `</A >`, used to find where an
- * anchor element ends. Interpolation is safe without escaping because {@link HTML_ANCHOR_RE} only
- * ever captures a tag name matching `[a-zA-Z][a-zA-Z0-9-]*`.
+ * anchor element ends. Interpolation is safe without escaping because {@link HTML_TAG_NAME_RE} only
+ * ever captures a tag name matching `[a-z][a-z0-9-]*`.
  */
 function closeTagRe(tagName: string): RegExp {
     return new RegExp(`</${tagName}\\s*>`, 'i');
@@ -112,10 +104,11 @@ export function linkNeedle(noteId: string): string {
 export function cleanSnippetLine(line: string): string {
     const cleaned = line
         // Images first (so the leading "!" doesn't survive the link pass), then links.
-        // The label excludes "[" as well as "]" so nested brackets resolve to the innermost
-        // label instead of making the scan restart from every "[" in the line.
-        .replace(/!\[([^[\]]*)\]\([^)]*\)/g, '$1')
-        .replace(/\[([^[\]]*)\]\([^)]*\)/g, '$1')
+        // The label is a run of non-bracket characters and backslash escapes, so an escaped
+        // bracket (`[foo \[bar](url)`) is still part of the label while an unescaped one ends the
+        // run — which also keeps the scan from restarting at every "[" on a bracket-heavy line.
+        .replace(/!\[((?:[^[\]\\]|\\.)*)\]\([^)]*\)/g, '$1')
+        .replace(/\[((?:[^[\]\\]|\\.)*)\]\([^)]*\)/g, '$1')
         // Leading block markers: blockquote, heading hashes, task checkbox, list bullet/number.
         .replace(/^\s*>+\s?/, '')
         .replace(/^\s*#{1,6}\s+/, '')
@@ -381,6 +374,70 @@ function maskInlineCode(value: string): string {
     return value.replace(INLINE_CODE_RE, (span) => ' '.repeat(span.length));
 }
 
+/** An HTML opening tag located in a source region. */
+interface HtmlOpenTag {
+    /** Offset of the `<`. */
+    start: number;
+    /** Offset just past the `>`. */
+    end: number;
+    /** Tag name, e.g. `a`. */
+    name: string;
+    /** Raw attribute text between the tag name and the `>`, e.g. ` id="in3b65"`. */
+    attributes: string;
+}
+
+/**
+ * Returns the offset of the `>` closing the tag whose attributes start at `from`, or -1 when the
+ * tag is never closed. Quoted attribute values are skipped over, so the `>` in `<a id="x>y">` is
+ * read as part of the value rather than as the end of the tag.
+ */
+function findTagEnd(text: string, from: number): number {
+    let quote = '';
+    for (let index = from; index < text.length; index++) {
+        const char = text[index];
+        if (quote) {
+            if (char === quote) {
+                quote = '';
+            }
+        } else if (char === '"' || char === "'") {
+            quote = char;
+        } else if (char === '>') {
+            return index;
+        }
+    }
+    return -1;
+}
+
+/**
+ * Finds the HTML opening tags in `text`, in source order.
+ *
+ * Written as a scan rather than a regex because a quote-aware pattern needs nested quantifiers,
+ * which backtrack super-linearly on malformed markup; this walks each character once. A tag that is
+ * never closed is skipped without swallowing the tags after it.
+ */
+function scanHtmlOpenTags(text: string): HtmlOpenTag[] {
+    const tags: HtmlOpenTag[] = [];
+    let start = text.indexOf('<');
+
+    while (start !== -1) {
+        const name = HTML_TAG_NAME_RE.exec(text.slice(start + 1))?.[0];
+        const attributesStart = start + 1 + (name?.length ?? 0);
+        const tagEnd = name ? findTagEnd(text, attributesStart) : -1;
+        if (name && tagEnd !== -1) {
+            tags.push({
+                start,
+                end: tagEnd + 1,
+                name,
+                attributes: text.slice(attributesStart, tagEnd),
+            });
+        }
+        // Resume past the tag, or just past the `<` when this wasn't a closed tag.
+        start = text.indexOf('<', tagEnd === -1 ? start + 1 : tagEnd + 1);
+    }
+
+    return tags;
+}
+
 /**
  * Reads the anchor id out of a tag's attribute text, lowercased for case-insensitive matching.
  *
@@ -453,11 +510,9 @@ export function parseHtmlAnchors(parsed: ParsedMarkdownBody): HtmlAnchor[] {
         // Scan a copy with inline code blanked out; offsets still line up with `region`.
         const scanText = maskInlineCode(region);
 
-        HTML_TAG_WITH_ATTRS_RE.lastIndex = 0;
-        let match: RegExpExecArray | null;
-        while ((match = HTML_TAG_WITH_ATTRS_RE.exec(scanText)) !== null) {
-            const id = anchorIdFromAttributes(match[2] ?? '');
-            const from = regionStart + match.index;
+        for (const tag of scanHtmlOpenTags(scanText)) {
+            const id = anchorIdFromAttributes(tag.attributes);
+            const from = regionStart + tag.start;
             // Tags without an anchor attribute are skipped, and container tokens (e.g. a paragraph
             // inside a blockquote) can overlap, so keep one row per tag.
             if (!id || seenOffsets.has(from)) {
@@ -465,7 +520,7 @@ export function parseHtmlAnchors(parsed: ParsedMarkdownBody): HtmlAnchor[] {
             }
             seenOffsets.add(from);
 
-            const { text, to } = resolveAnchorElement(region, match[1], match.index + match[0].length);
+            const { text, to } = resolveAnchorElement(region, tag.name, tag.end);
             anchors.push({
                 id,
                 text,

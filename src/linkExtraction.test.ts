@@ -46,6 +46,11 @@ describe('cleanSnippetLine', () => {
         expect(cleanSnippetLine('> ## Quoted heading')).toBe('Quoted heading');
     });
 
+    it('keeps an escaped bracket inside a link or image label', () => {
+        expect(cleanSnippetLine('see [foo \\[bar](https://example.com)')).toBe('see foo \\[bar');
+        expect(cleanSnippetLine('see ![alt \\[x\\]](pic.png)')).toBe('see alt \\[x\\]');
+    });
+
     it('truncates very long lines', () => {
         const long = 'x'.repeat(200);
         const result = cleanSnippetLine(long);
@@ -310,6 +315,28 @@ describe('parseHtmlAnchors', () => {
         expect(parseHtmlAnchors(parseMarkdownBody(body))).toEqual([
             expect.objectContaining({ id: 'top', text: 'the top' }),
         ]);
+    });
+
+    it('reads a ">" inside a quoted attribute value as part of the value, not the end of the tag', () => {
+        const idBody = '<a id="x>y">label</a>';
+        expect(parseHtmlAnchors(parseMarkdownBody(idBody))).toEqual([
+            expect.objectContaining({ id: 'x>y', text: 'label', from: 0, to: idBody.length }),
+        ]);
+
+        const nameBody = "<span name='a>b'>label</span>";
+        expect(parseHtmlAnchors(parseMarkdownBody(nameBody))).toEqual([
+            expect.objectContaining({ id: 'a>b', text: 'label', from: 0, to: nameBody.length }),
+        ]);
+
+        // The anchor attribute still resolves when an earlier attribute holds the ">".
+        expect(parseHtmlAnchors(parseMarkdownBody('<a title="a>b" id="real">label</a>'))).toEqual([
+            expect.objectContaining({ id: 'real', text: 'label' }),
+        ]);
+    });
+
+    it('skips an unclosed tag without swallowing the anchors after it', () => {
+        const body = 'text <a class="never closed and <a id="after">label</a>';
+        expect(parseHtmlAnchors(parseMarkdownBody(body))).toEqual([expect.objectContaining({ id: 'after' })]);
     });
 
     it('captures a block anchor closed past a blank line, which lands outside its region', () => {
