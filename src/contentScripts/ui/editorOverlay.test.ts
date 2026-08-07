@@ -9,7 +9,7 @@ const disconnected: HTMLElement[] = [];
 
 /** Minimal ResizeObserver stand-in: jsdom has none, and the callback is driven manually. */
 class FakeResizeObserver {
-    public static instances: FakeResizeObserver[] = [];
+    public static readonly instances: FakeResizeObserver[] = [];
 
     private target: HTMLElement | null = null;
 
@@ -68,7 +68,7 @@ describe('EditorOverlay', () => {
         document.head.replaceChildren();
         observed.length = 0;
         disconnected.length = 0;
-        FakeResizeObserver.instances = [];
+        FakeResizeObserver.instances.length = 0;
     });
 
     it('mounts into the scroller’s parent so it does not scroll with the document', () => {
