@@ -52,6 +52,12 @@ describe('cleanSnippetLine', () => {
         expect(result.endsWith('…')).toBe(true);
         expect(result.length).toBe(120);
     });
+
+    it('keeps malformed links while unwrapping later valid links', () => {
+        expect(cleanSnippetLine('[broken] text [valid](url) and [unfinished](url')).toBe(
+            '[broken] text valid and [unfinished](url'
+        );
+    });
 });
 
 describe('findSection', () => {

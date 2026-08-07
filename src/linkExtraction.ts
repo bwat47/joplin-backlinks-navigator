@@ -53,21 +53,26 @@ const NOTE_LINK_RE = /:\/([0-9a-fA-F]{32})(?:#([^\s)\]]*))?/g;
 const THEMATIC_BREAK_RE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
 
 /**
- * Matches an HTML opening tag that carries an `id` or `name` attribute, e.g.
- * `<a id="in3b65">` or `<span name='foo'>`. Group 1 is the tag name; groups 2/3/4 hold the
- * id value from a double-quoted, single-quoted, or unquoted attribute.
+ * Matches an HTML opening tag, e.g. `<a id="in3b65">`. Group 1 is the tag name. Excluding angle
+ * brackets from the tag body ensures malformed input cannot make later `<` candidates repeatedly
+ * rescan the rest of the string.
+ */
+const HTML_OPEN_TAG_RE = /<([a-z][a-z0-9-]*)\b[^<>]*>/gi;
+
+/**
+ * Matches an `id` or `name` attribute within an opening tag. Groups 1/2/3 hold the value from a
+ * double-quoted, single-quoted, or unquoted attribute.
  *
  * The attribute name must be preceded by whitespace so prefixed attributes (`data-id`,
  * `data-name`) aren't mistaken for anchors, and the match is case-insensitive because HTML
  * attribute names are (`<a ID="Top">` is a valid anchor).
  */
-const HTML_ANCHOR_RE =
-    /<([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*?\s(?:id|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))[^>]*>/gi;
+const HTML_ANCHOR_ATTRIBUTE_RE = /\s(?:id|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i;
 
 /**
  * Builds a matcher for `tagName`'s closing tag, e.g. `</a>` or `</A >`, used to find where an
- * anchor element ends. Interpolation is safe without escaping because {@link HTML_ANCHOR_RE} only
- * ever captures a tag name matching `[a-zA-Z][a-zA-Z0-9-]*`.
+ * anchor element ends. Interpolation is safe without escaping because {@link HTML_OPEN_TAG_RE} only
+ * ever captures a tag name matching `[a-z][a-z0-9-]*` case-insensitively.
  */
 function closeTagRe(tagName: string): RegExp {
     return new RegExp(`</${tagName}\\s*>`, 'i');
@@ -101,10 +106,9 @@ export function linkNeedle(noteId: string): string {
  * never surfaces in the UI.
  */
 export function cleanSnippetLine(line: string): string {
-    const cleaned = line
-        // Images first (so the leading "!" doesn't survive the link pass), then links.
-        .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    // Images first (so the leading "!" doesn't survive the link pass), then links.
+    const withoutLinkDestinations = unwrapMarkdownLinks(unwrapMarkdownLinks(line, '!['), '[');
+    const cleaned = withoutLinkDestinations
         // Leading block markers: blockquote, heading hashes, task checkbox, list bullet/number.
         .replace(/^\s*>+\s?/, '')
         .replace(/^\s*#{1,6}\s+/, '')
@@ -117,6 +121,45 @@ export function cleanSnippetLine(line: string): string {
         return cleaned;
     }
     return `${cleaned.slice(0, SNIPPET_MAX_LENGTH - 1)}…`;
+}
+
+/**
+ * Replaces simple Markdown links/images with their label using a linear delimiter scan.
+ *
+ * This deliberately mirrors the previous regex behavior: labels end at the first `]`, destinations
+ * end at the first `)`, and nested Markdown constructs are not parsed recursively.
+ */
+function unwrapMarkdownLinks(value: string, openingMarker: '![' | '['): string {
+    const pieces: string[] = [];
+    let unchangedStart = 0;
+    let searchStart = 0;
+
+    while (searchStart < value.length) {
+        const opening = value.indexOf(openingMarker, searchStart);
+        if (opening === -1) {
+            break;
+        }
+        const labelStart = opening + openingMarker.length;
+        const labelEnd = value.indexOf(']', labelStart);
+        if (labelEnd === -1) {
+            break;
+        }
+        if (value[labelEnd + 1] !== '(') {
+            searchStart = labelEnd + 1;
+            continue;
+        }
+        const destinationEnd = value.indexOf(')', labelEnd + 2);
+        if (destinationEnd === -1) {
+            break;
+        }
+
+        pieces.push(value.slice(unchangedStart, opening), value.slice(labelStart, labelEnd));
+        unchangedStart = destinationEnd + 1;
+        searchStart = unchangedStart;
+    }
+
+    pieces.push(value.slice(unchangedStart));
+    return pieces.join('');
 }
 
 function extractOpening(
@@ -382,6 +425,41 @@ function anchorSnippet(lines: readonly string[], lineIndex: number): string {
     return '';
 }
 
+/** Returns an opening tag's normalized anchor id/name, or an empty string when it has none. */
+function htmlAnchorId(openingTag: string): string {
+    const attribute = HTML_ANCHOR_ATTRIBUTE_RE.exec(openingTag);
+    return (attribute?.[1] ?? attribute?.[2] ?? attribute?.[3] ?? '').trim().toLowerCase();
+}
+
+/** Builds one anchor after its opening tag and id/name attribute have been identified. */
+function createHtmlAnchor(
+    parsed: ParsedMarkdownBody,
+    region: string,
+    regionStart: number,
+    match: RegExpExecArray,
+    id: string
+): HtmlAnchor {
+    const { lines, lineStarts } = parsed;
+    const from = regionStart + match.index;
+    let to = from + match[0].length;
+    let text = '';
+    const rest = region.slice(match.index + match[0].length);
+    const close = closeTagRe(match[1]).exec(rest);
+
+    if (close) {
+        text = cleanSnippetLine(stripHtmlTags(rest.slice(0, close.index)));
+        to += close.index + close[0].length;
+    }
+
+    return {
+        id,
+        text,
+        snippet: anchorSnippet(lines, offsetToLineIndex(lineStarts, from)),
+        from,
+        to,
+    };
+}
+
 /**
  * Parses explicit HTML anchors (`<tag id="…">` / `<tag name="…">`) from a Markdown body.
  *
@@ -393,7 +471,7 @@ function anchorSnippet(lines: readonly string[], lineIndex: number): string {
  * mirroring how a fragment link lands on the first matching id.
  */
 export function parseHtmlAnchors(parsed: ParsedMarkdownBody): HtmlAnchor[] {
-    const { body, lines, lineStarts, tokens } = parsed;
+    const { body, lineStarts, tokens } = parsed;
     const anchors: HtmlAnchor[] = [];
     const seenOffsets = new Set<number>();
 
@@ -408,10 +486,10 @@ export function parseHtmlAnchors(parsed: ParsedMarkdownBody): HtmlAnchor[] {
         // Scan a copy with inline code blanked out; offsets still line up with `region`.
         const scanText = maskInlineCode(region);
 
-        HTML_ANCHOR_RE.lastIndex = 0;
+        HTML_OPEN_TAG_RE.lastIndex = 0;
         let match: RegExpExecArray | null;
-        while ((match = HTML_ANCHOR_RE.exec(scanText)) !== null) {
-            const id = (match[2] ?? match[3] ?? match[4] ?? '').trim().toLowerCase();
+        while ((match = HTML_OPEN_TAG_RE.exec(scanText)) !== null) {
+            const id = htmlAnchorId(match[0]);
             if (!id) {
                 continue;
             }
@@ -421,27 +499,10 @@ export function parseHtmlAnchors(parsed: ParsedMarkdownBody): HtmlAnchor[] {
                 continue;
             }
             seenOffsets.add(from);
-            let to = from + match[0].length;
-
             // When the element is closed within this region, its content becomes the label and the
-            // range covers the whole element, so navigating to the anchor highlights all of it
-            // rather than just the opening tag. A block-level tag closed past a blank line ends up
-            // in a separate token, so it keeps the opening-tag range.
-            let text = '';
-            const rest = region.slice(match.index + match[0].length);
-            const close = closeTagRe(match[1]).exec(rest);
-            if (close) {
-                text = cleanSnippetLine(stripHtmlTags(rest.slice(0, close.index)));
-                to += close.index + close[0].length;
-            }
-
-            anchors.push({
-                id,
-                text,
-                snippet: anchorSnippet(lines, offsetToLineIndex(lineStarts, from)),
-                from,
-                to,
-            });
+            // range covers the whole element. A block-level tag closed past a blank line lands in a
+            // separate token, so it keeps only the opening-tag range.
+            anchors.push(createHtmlAnchor(parsed, region, regionStart, match, id));
         }
     }
 
