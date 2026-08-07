@@ -352,6 +352,13 @@ describe('parseHtmlAnchors', () => {
         ).toEqual([]);
     });
 
+    it('skips leading tags that carry no id/name and still ranges the anchor that follows', () => {
+        const body = '<span class="x"><a id="y">The MERN stack</a></span>';
+        const anchors = parseHtmlAnchors(parseMarkdownBody(body));
+        expect(anchors).toEqual([expect.objectContaining({ id: 'y', text: 'The MERN stack' })]);
+        expect(body.slice(anchors[0].from, anchors[0].to)).toBe('<a id="y">The MERN stack</a>');
+    });
+
     it('strips nested markup that a single pass would splice back into a tag', () => {
         const body = '<a id="nested">Safe</a> then <<a>script>alert(1)<</a>/script> tail.';
         expect(parseHtmlAnchors(parseMarkdownBody(body))[0].snippet).toBe('Safe then alert(1) tail.');

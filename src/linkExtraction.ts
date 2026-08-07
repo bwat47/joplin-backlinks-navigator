@@ -431,7 +431,14 @@ function htmlAnchorId(openingTag: string): string {
     return (attribute?.[1] ?? attribute?.[2] ?? attribute?.[3] ?? '').trim().toLowerCase();
 }
 
-/** Builds one anchor after its opening tag and id/name attribute have been identified. */
+/**
+ * Builds one anchor after its opening tag and id/name attribute have been identified.
+ *
+ * When the element is closed within `region`, its content becomes the label and the range covers the
+ * whole element, so navigating to the anchor highlights all of it rather than just the opening tag.
+ * A block-level tag closed past a blank line lands in a separate token, so it keeps only the
+ * opening-tag range.
+ */
 function createHtmlAnchor(
     parsed: ParsedMarkdownBody,
     region: string,
@@ -499,9 +506,6 @@ export function parseHtmlAnchors(parsed: ParsedMarkdownBody): HtmlAnchor[] {
                 continue;
             }
             seenOffsets.add(from);
-            // When the element is closed within this region, its content becomes the label and the
-            // range covers the whole element. A block-level tag closed past a blank line lands in a
-            // separate token, so it keeps only the opening-tag range.
             anchors.push(createHtmlAnchor(parsed, region, regionStart, match, id));
         }
     }
