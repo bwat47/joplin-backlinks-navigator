@@ -53,16 +53,25 @@ const NOTE_LINK_RE = /:\/([0-9a-fA-F]{32})(?:#([^\s)\]]*))?/g;
 const THEMATIC_BREAK_RE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
 
 /**
- * Matches an HTML opening tag that carries an `id` or `name` attribute, e.g.
- * `<a id="in3b65">` or `<span name='foo'>`. Group 1 is the tag name; groups 2/3/4 hold the
- * id value from a double-quoted, single-quoted, or unquoted attribute.
+ * Matches an HTML opening tag with its attribute text, e.g. `<a id="in3b65">` or `<span
+ * name='foo'>`. Group 1 is the tag name, group 2 the raw attribute text (empty for `<a>`).
+ * As before, a `>` inside a quoted attribute value ends the match.
+ *
+ * The attributes are matched separately by {@link HTML_ANCHOR_ATTR_RE} rather than in one
+ * pattern, which keeps both regexes free of the overlapping quantifiers that make a combined
+ * pattern backtrack super-linearly.
+ */
+const HTML_TAG_WITH_ATTRS_RE = /<([a-z][a-z0-9-]*)(\s[^>]*)?>/gi;
+
+/**
+ * Matches the `id`/`name` attribute of an anchor within a tag's attribute text, e.g. ` id="in3b65"`.
+ * Groups 1/2/3 hold the id value from a double-quoted, single-quoted, or unquoted attribute.
  *
  * The attribute name must be preceded by whitespace so prefixed attributes (`data-id`,
  * `data-name`) aren't mistaken for anchors, and the match is case-insensitive because HTML
  * attribute names are (`<a ID="Top">` is a valid anchor).
  */
-const HTML_ANCHOR_RE =
-    /<([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*?\s(?:id|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))[^>]*>/gi;
+const HTML_ANCHOR_ATTR_RE = /\s(?:id|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i;
 
 /**
  * Builds a matcher for `tagName`'s closing tag, e.g. `</a>` or `</A >`, used to find where an
@@ -103,8 +112,10 @@ export function linkNeedle(noteId: string): string {
 export function cleanSnippetLine(line: string): string {
     const cleaned = line
         // Images first (so the leading "!" doesn't survive the link pass), then links.
-        .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+        // The label excludes "[" as well as "]" so nested brackets resolve to the innermost
+        // label instead of making the scan restart from every "[" in the line.
+        .replace(/!\[([^[\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/\[([^[\]]*)\]\([^)]*\)/g, '$1')
         // Leading block markers: blockquote, heading hashes, task checkbox, list bullet/number.
         .replace(/^\s*>+\s?/, '')
         .replace(/^\s*#{1,6}\s+/, '')
@@ -370,6 +381,40 @@ function maskInlineCode(value: string): string {
     return value.replace(INLINE_CODE_RE, (span) => ' '.repeat(span.length));
 }
 
+/**
+ * Reads the anchor id out of a tag's attribute text, lowercased for case-insensitive matching.
+ *
+ * @returns The id/name value, or '' when the tag carries no anchor attribute.
+ */
+function anchorIdFromAttributes(attributes: string): string {
+    const attribute = HTML_ANCHOR_ATTR_RE.exec(attributes);
+    if (!attribute) {
+        return '';
+    }
+    return (attribute[1] ?? attribute[2] ?? attribute[3] ?? '').trim().toLowerCase();
+}
+
+/**
+ * Resolves an anchor element's readable label and end offset, given the region-relative offset
+ * just past its opening tag.
+ *
+ * When the element is closed within this region, its content becomes the label and the range
+ * covers the whole element, so navigating to the anchor highlights all of it rather than just the
+ * opening tag. A block-level tag closed past a blank line ends up in a separate token, so it keeps
+ * the opening-tag range.
+ */
+function resolveAnchorElement(region: string, tagName: string, contentStart: number): { text: string; to: number } {
+    const rest = region.slice(contentStart);
+    const close = closeTagRe(tagName).exec(rest);
+    if (!close) {
+        return { text: '', to: contentStart };
+    }
+    return {
+        text: cleanSnippetLine(stripHtmlTags(rest.slice(0, close.index))),
+        to: contentStart + close.index + close[0].length,
+    };
+}
+
 /** Cleaned prose of the first non-empty line at or after `lineIndex`, with HTML tags removed. */
 function anchorSnippet(lines: readonly string[], lineIndex: number): string {
     const limit = Math.min(lineIndex + 5, lines.length);
@@ -408,39 +453,25 @@ export function parseHtmlAnchors(parsed: ParsedMarkdownBody): HtmlAnchor[] {
         // Scan a copy with inline code blanked out; offsets still line up with `region`.
         const scanText = maskInlineCode(region);
 
-        HTML_ANCHOR_RE.lastIndex = 0;
+        HTML_TAG_WITH_ATTRS_RE.lastIndex = 0;
         let match: RegExpExecArray | null;
-        while ((match = HTML_ANCHOR_RE.exec(scanText)) !== null) {
-            const id = (match[2] ?? match[3] ?? match[4] ?? '').trim().toLowerCase();
-            if (!id) {
-                continue;
-            }
+        while ((match = HTML_TAG_WITH_ATTRS_RE.exec(scanText)) !== null) {
+            const id = anchorIdFromAttributes(match[2] ?? '');
             const from = regionStart + match.index;
-            // Container tokens (e.g. a paragraph inside a blockquote) can overlap; keep one row per tag.
-            if (seenOffsets.has(from)) {
+            // Tags without an anchor attribute are skipped, and container tokens (e.g. a paragraph
+            // inside a blockquote) can overlap, so keep one row per tag.
+            if (!id || seenOffsets.has(from)) {
                 continue;
             }
             seenOffsets.add(from);
-            let to = from + match[0].length;
 
-            // When the element is closed within this region, its content becomes the label and the
-            // range covers the whole element, so navigating to the anchor highlights all of it
-            // rather than just the opening tag. A block-level tag closed past a blank line ends up
-            // in a separate token, so it keeps the opening-tag range.
-            let text = '';
-            const rest = region.slice(match.index + match[0].length);
-            const close = closeTagRe(match[1]).exec(rest);
-            if (close) {
-                text = cleanSnippetLine(stripHtmlTags(rest.slice(0, close.index)));
-                to += close.index + close[0].length;
-            }
-
+            const { text, to } = resolveAnchorElement(region, match[1], match.index + match[0].length);
             anchors.push({
                 id,
                 text,
                 snippet: anchorSnippet(lines, offsetToLineIndex(lineStarts, from)),
                 from,
-                to,
+                to: regionStart + to,
             });
         }
     }
