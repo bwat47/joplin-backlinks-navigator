@@ -12,7 +12,7 @@ const noteIdFacet = Facet.define<string, string>({
 });
 
 class FakeResizeObserver {
-    public static instances: FakeResizeObserver[] = [];
+    public static readonly instances: FakeResizeObserver[] = [];
 
     public constructor() {
         FakeResizeObserver.instances.push(this);
@@ -93,7 +93,7 @@ describe('backlinksNavigator indicator teardown', () => {
         vi.useFakeTimers();
         document.body.replaceChildren();
         document.head.replaceChildren();
-        FakeResizeObserver.instances = [];
+        FakeResizeObserver.instances.length = 0;
     });
 
     afterEach(() => {
