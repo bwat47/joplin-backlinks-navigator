@@ -5,6 +5,8 @@
  */
 
 import uslug from '@joplin/fork-uslug';
+import type { SyntaxNode } from '@lezer/common';
+import { parser as markdownSyntaxParser } from '@lezer/markdown';
 import MarkdownIt from 'markdown-it';
 import type Token from 'markdown-it/lib/token.mjs';
 
@@ -43,11 +45,11 @@ export function parseMarkdownBody(body: string): ParsedMarkdownBody {
 }
 
 /**
- * Matches a 32-char hex Joplin note id immediately after `:/`, plus an optional heading anchor.
- * e.g. `:/7013f475748d41819ff9d21f084663d5#getting-started` -> id, "getting-started".
- * The anchor stops at whitespace or the closing `)` of the markdown link.
+ * Matches a complete Joplin note-link destination: a 32-char hex id after `:/`, optionally followed
+ * by an anchor. Anchoring both ends prevents malformed longer ids, paths, and query strings from
+ * being treated as links to the first 32 characters.
  */
-const NOTE_LINK_RE = /:\/([0-9a-fA-F]{32})(?:#([^\s)\]]*))?/g;
+const NOTE_LINK_DESTINATION_RE = /^:\/([0-9a-fA-F]{32})(?:#([\s\S]*))?$/;
 
 /** Matches a thematic break / horizontal rule, e.g. "---", "***", "___". */
 const THEMATIC_BREAK_RE = /^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/;
@@ -550,8 +552,10 @@ export interface NoteLinkOccurrence {
      * URL-decoded, lowercased heading anchor following the id (`#…`); empty when the link has none.
      */
     anchor: string;
-    /** Offset of the `:/` in the body. */
-    offset: number;
+    /** Offset of the start of the rendered Markdown link syntax in the body. */
+    from: number;
+    /** Offset immediately after the rendered Markdown link syntax in the body. */
+    to: number;
 }
 
 /**
@@ -566,20 +570,103 @@ function normalizeLinkAnchor(anchor: string): string {
     }
 }
 
+/** Normalizes a reference label using CommonMark's whitespace and Unicode case-folding rules. */
+function normalizeReferenceLabel(label: string): string {
+    return label.trim().replace(/\s+/g, ' ').toLowerCase().toUpperCase();
+}
+
+/** Parses and unescapes a URL node exactly as markdown-it parses a link destination. */
+function parseLinkDestination(body: string, urlNode: SyntaxNode): string | null {
+    const source = body.slice(urlNode.from, urlNode.to);
+    const parsed = markdownParser.helpers.parseLinkDestination(source, 0, source.length);
+    return parsed.ok && parsed.pos === source.length ? parsed.str : null;
+}
+
+/** Returns a link's primary label (the text between its first `[` and `]` markers). */
+function primaryLinkLabel(body: string, linkNode: SyntaxNode): string {
+    const marks = linkNode.getChildren('LinkMark');
+    return marks.length >= 2 ? body.slice(marks[0].to, marks[1].from) : '';
+}
+
+/** Resolves the normalized reference label used by a full, collapsed, or shortcut link. */
+function linkReferenceLabel(body: string, linkNode: SyntaxNode): string {
+    const explicitLabel = linkNode.getChild('LinkLabel');
+    const explicitText = explicitLabel ? body.slice(explicitLabel.from + 1, explicitLabel.to - 1) : '';
+    return normalizeReferenceLabel(explicitText || primaryLinkLabel(body, linkNode));
+}
+
+/** Parses one already-unescaped Markdown destination as a Joplin note target. */
+function parseNoteLinkDestination(destination: string): Pick<NoteLinkOccurrence, 'targetId' | 'anchor'> | null {
+    const match = NOTE_LINK_DESTINATION_RE.exec(destination);
+    if (!match) {
+        return null;
+    }
+    return {
+        targetId: match[1].toLowerCase(),
+        anchor: normalizeLinkAnchor(match[2] ?? ''),
+    };
+}
+
 /**
- * Finds every internal note link (`:/<id>`, optionally `#<anchor>`) in `body`, in document order.
+ * Finds every rendered Markdown note link (`:/<id>`, optionally `#<anchor>`) in document order.
+ *
+ * Inline links and valid full/collapsed/shortcut reference links are included. Images, raw HTML,
+ * bare destinations, code, comments, invalid references, and malformed destinations are excluded.
  */
 export function extractNoteLinks(body: string): NoteLinkOccurrence[] {
+    const tree = markdownSyntaxParser.parse(body);
+    const references = new Map<string, string>();
     const occurrences: NoteLinkOccurrence[] = [];
-    NOTE_LINK_RE.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = NOTE_LINK_RE.exec(body)) !== null) {
-        occurrences.push({
-            targetId: match[1].toLowerCase(),
-            anchor: normalizeLinkAnchor(match[2] ?? ''),
-            offset: match.index,
-        });
-    }
+
+    // Lezer deliberately recognizes reference-looking links without checking whether a definition
+    // exists. Build the definition index ourselves so only links markdown-it would render survive.
+    tree.iterate({
+        enter: (cursor) => {
+            if (cursor.name !== 'LinkReference') {
+                return;
+            }
+            const labelNode = cursor.node.getChild('LinkLabel');
+            const urlNode = cursor.node.getChild('URL');
+            if (!labelNode || !urlNode) {
+                return false;
+            }
+            const label = normalizeReferenceLabel(body.slice(labelNode.from + 1, labelNode.to - 1));
+            const destination = parseLinkDestination(body, urlNode);
+            if (label && destination !== null && !references.has(label)) {
+                references.set(label, destination);
+            }
+            return false;
+        },
+    });
+
+    tree.iterate({
+        enter: (cursor) => {
+            // An image may contain link-like label text, but it renders as an image rather than a
+            // navigable note link, so neither it nor anything nested inside it is an occurrence.
+            if (cursor.name === 'Image') {
+                return false;
+            }
+            if (cursor.name !== 'Link') {
+                return;
+            }
+
+            const urlNode = cursor.node.getChild('URL');
+            const destination = urlNode
+                ? parseLinkDestination(body, urlNode)
+                : references.get(linkReferenceLabel(body, cursor.node));
+            const target =
+                destination === undefined || destination === null ? null : parseNoteLinkDestination(destination);
+            if (target) {
+                occurrences.push({
+                    ...target,
+                    from: cursor.from,
+                    to: cursor.to,
+                });
+            }
+            return false;
+        },
+    });
+
     return occurrences;
 }
 

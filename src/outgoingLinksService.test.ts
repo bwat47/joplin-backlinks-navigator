@@ -352,6 +352,36 @@ describe('findOutgoingLinks', () => {
         });
     });
 
+    it('counts rendered inline and reference links while ignoring non-link note destinations', async () => {
+        const body =
+            `[Inline](:/${NOTE_A})\n` +
+            `[First][alpha] and [Second][alpha]\n` +
+            `\`[code](:/${NOTE_A})\`\n` +
+            `\`\`\`md\n[fenced](:/${NOTE_A})\n\`\`\`\n` +
+            `<!-- [comment](:/${NOTE_A}) -->\n` +
+            `<a href=":/${NOTE_A}">HTML</a>\n` +
+            `![image](:/${NOTE_A})\n\n` +
+            `[alpha]: :/${NOTE_A}`;
+
+        mockDataGet.mockImplementation(async (path: string[]) => {
+            if (path[0] === 'notes' && path[1] === SOURCE_NOTE_ID) {
+                return { id: SOURCE_NOTE_ID, body };
+            }
+            if (path[0] === 'notes' && path[1] === NOTE_A) {
+                return { id: NOTE_A, title: 'Alpha', parent_id: 'folder-1', body: 'Alpha opening line.' };
+            }
+            if (path[0] === 'folders' && path[1] === 'folder-1') {
+                return { id: 'folder-1', title: 'Projects' };
+            }
+            throw new Error(`Unexpected Data API request: ${path.join('/')}`);
+        });
+
+        const result = await findOutgoingLinks(SOURCE_NOTE_ID);
+
+        expect(result).toHaveLength(1);
+        expect(result[0]).toMatchObject({ noteId: NOTE_A, occurrenceCount: 3 });
+    });
+
     it('returns an empty list without fetching when note id is missing', async () => {
         await expect(findOutgoingLinks('')).resolves.toEqual([]);
         expect(mockDataGet).not.toHaveBeenCalled();
