@@ -29,15 +29,16 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 
 ### Link Discovery
 
-- `src/backlinksService.ts` finds notes that contain `:/<currentNoteId>`, verifies each match, and
-  returns one backlink row per occurrence.
-- `src/outgoingLinksService.ts` reads the current note, extracts distinct `:/<noteId>[#<anchor>]`
+- `src/backlinksService.ts` finds notes that mention the current note id, verifies their rendered
+  Markdown links, and returns one backlink row per valid link use.
+- `src/outgoingLinksService.ts` reads the current note, extracts distinct rendered note-link
   destinations, and returns one outgoing-link row per destination.
 - Each service also exposes a counting entry point (`countBacklinks`, `countOutgoingLinks`) that
   shares the discovery work but stops before row enrichment. See [Indicator Counts](#indicator-counts).
 - `src/linkExtraction.ts` contains Joplin-free parsing helpers for note links, snippets, sections,
-  occurrence offsets, and heading/HTML-anchor indexes. Its parsed-body context shares one
-  `markdown-it` tokenization and line index across those helpers.
+  and heading/HTML-anchor indexes. Lezer supplies exact source ranges for rendered Markdown links;
+  its parsed-body context separately shares one `markdown-it` tokenization and line index for
+  headings, HTML anchors, and snippets.
 - `src/noteMetadata.ts` resolves note and notebook metadata with per-call caching.
 - `src/linkSort.ts` centralizes row ordering.
 
@@ -49,8 +50,6 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 - `src/contentScripts/pluginSettings.ts` stores editor-side settings in a CodeMirror facet so UI
   behavior can update without rebuilding the editor extension.
 - `src/contentScripts/ui/noteIdWatcher.ts` reports note changes inside the reused editor view.
-- `src/contentScripts/markdownLinkPosition.ts` locates the full Markdown link around a matched
-  `:/<noteId>` reference.
 - `src/contentScripts/referenceHighlight.ts` briefly highlights the matched reference after
   navigation.
 
@@ -89,6 +88,9 @@ Both tabs use `LinkItem`. The `direction` field distinguishes rows:
 - `out` means an outgoing link from the current note to another note.
 
 Backlinks are occurrence-based because the same source note can link to the current note many times.
+Inline links and valid full, collapsed, or shortcut reference links each count at the rendered use;
+an unused reference definition does not count. Images, raw HTML, bare destinations, code, comments,
+undefined references, and malformed note destinations are not links in this model.
 
 Outgoing links are destination-based, where a destination is a target note plus an optional
 anchor: `[a](:/id)` and `[b](:/id#some-anchor)` produce separate rows, while repeats of either
@@ -115,10 +117,11 @@ source range editor navigation highlights for non-heading anchors.
 
 The badge renders two numbers, so the host counts links for it instead of resolving `LinkItem`
 rows. `countBacklinks` and `countOutgoingLinks` reuse each service's discovery step and skip the
-enrichment: no snippets, no section headings, no notebook titles, and — the expensive part — no
-body fetch or `markdown-it` parse for each outgoing target. Counting outgoing links still costs one
-body-less lookup per destination, because a link to a deleted note is broken and the panel drops it;
-counting it would put the badge out of step with the list.
+enrichment: no snippets, no section headings, no notebook titles, and — the expensive part — no body
+fetch or `markdown-it` parse for each outgoing target. Discovery still performs the lightweight
+Lezer parse needed to distinguish rendered links from code and examples. Counting outgoing links
+also costs one body-less lookup per destination, because a link to a deleted note is broken and the
+panel drops it; counting it would put the badge out of step with the list.
 
 `LinkCounts` carries both `backlinkOccurrences` and `backlinkNotes` because the choice between them
 is display policy: title-only backlink mode collapses occurrences to one row per source note. That
@@ -136,7 +139,8 @@ Both directions can carry a pending scroll, recorded by the content script befor
 applied after the next note id change: it places the cursor, scrolls the target into view, and
 highlights it briefly.
 
-- Backlinks scroll to the matching `:/<currentNoteId>` reference in the source note. Title-only
+- Backlinks rerun the shared link extractor and scroll to the exact rendered Markdown-link use in the
+  source note. This also highlights reference-style uses instead of their definitions. Title-only
   backlink previews collapse occurrences into one row per source note, so those rows don't scroll.
 - Outgoing links to an anchor scroll to the heading that anchor names, or to the explicit HTML
   anchor (`<a id="…">`) it points at. The anchor is also passed to the host, which opens

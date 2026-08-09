@@ -1,7 +1,7 @@
 /**
- * Pure helpers for finding and describing Joplin internal links (`[text](:/<noteId>)`) in
- * markdown bodies. Shared by the backlink and outgoing-link services. No Joplin API access here,
- * so this module is straightforward to unit test.
+ * Pure helpers for finding and describing rendered Joplin Markdown links in note bodies. Shared by
+ * the backlink and outgoing-link services and by editor navigation. No Joplin API access here, so
+ * this module is straightforward to unit test.
  */
 
 import uslug from '@joplin/fork-uslug';

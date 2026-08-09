@@ -1,13 +1,13 @@
 /**
  * Outgoing-link discovery (plugin host side).
  *
- * Finds every distinct destination the current note links to via Joplin's internal link syntax
- * `[text](:/<noteId>)` or `[text](:/<noteId>#<anchor>)`. Unlike backlinks, this needs no FTS
- * search: the current note's own body is fetched and its `:/<id>` links are extracted directly.
+ * Finds every distinct destination the current note links to through a rendered Markdown link,
+ * including inline and valid reference-style links. Unlike backlinks, this needs no FTS search: the
+ * current note's own body is fetched and parsed directly.
  *
  * Strategy:
  * 1. Fetch the current note's body.
- * 2. Extract every `:/<id>` occurrence and its optional heading anchor, in document order.
+ * 2. Extract every rendered note-link use and its optional heading anchor, in document order.
  * 3. Group by target id *and* anchor, skipping self-links and ignored notes. A link to a note and a
  *    link to one of its anchors are different destinations, so they get their own rows; repeats of
  *    either collapse into one row.

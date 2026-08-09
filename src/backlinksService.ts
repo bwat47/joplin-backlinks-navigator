@@ -1,14 +1,14 @@
 /**
  * Backlink discovery (plugin host side).
  *
- * Finds every note whose body links to a given note via Joplin's internal
- * link syntax `[text](:/<noteId>)` (optionally with an anchor `#...`).
+ * Finds every note whose body contains a rendered Markdown link to a given note, using either
+ * inline syntax (`[text](:/<noteId>)`) or a valid reference-style link.
  *
  * Strategy:
  * 1. Search the Data API for the note id token. A note id is a 32-char hex
  *    string, indexed by FTS as a single token, so this returns candidate notes.
- * 2. Verify each candidate's body actually contains `:/<noteId>` to drop loose
- *    FTS matches, and capture each matching occurrence as a backlink row.
+ * 2. Parse each candidate's rendered Markdown links to drop loose/code/example matches, and capture
+ *    each matching link use as a backlink row.
  * 3. Resolve each candidate's parent notebook title (cached per call).
  *
  * Steps 1 and 2 are shared by {@link findBacklinks} and {@link countBacklinks}; only the former
