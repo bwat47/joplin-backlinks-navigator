@@ -21,7 +21,13 @@
 import joplin from 'api';
 import logger from './logger';
 import type { LinkItem } from './types';
-import { extractOccurrenceContexts, findOccurrenceOffsets, linkNeedle, parseMarkdownBody } from './linkExtraction';
+import {
+    extractNoteLinks,
+    extractOccurrenceContexts,
+    linkNeedle,
+    parseMarkdownBody,
+    type NoteLinkOccurrence,
+} from './linkExtraction';
 import { resolveNotebookName } from './noteMetadata';
 import { compareLinkItems } from './linkSort';
 
@@ -43,10 +49,10 @@ interface FindBacklinksOptions {
     ignoredNoteIds?: ReadonlySet<string>;
 }
 
-/** A search hit confirmed to contain the link, with the offset of every occurrence in its body. */
+/** A search hit confirmed to contain one or more rendered links to the target note. */
 interface BacklinkCandidate {
     note: SearchNote;
-    offsets: number[];
+    occurrences: NoteLinkOccurrence[];
 }
 
 /**
@@ -59,7 +65,8 @@ async function collectBacklinkCandidates(
     noteId: string,
     ignoredNoteIds: ReadonlySet<string>
 ): Promise<BacklinkCandidate[]> {
-    const needle = linkNeedle(noteId);
+    const normalizedNoteId = noteId.toLowerCase();
+    const needle = linkNeedle(normalizedNoteId);
     const searchHits: SearchNote[] = [];
 
     try {
@@ -89,19 +96,21 @@ async function collectBacklinkCandidates(
     const candidates: BacklinkCandidate[] = [];
     for (const note of searchHits) {
         // Drop the note itself and any candidate that doesn't actually contain the link.
-        if (note.id === noteId || ignoredNoteIds.has(note.id.toLowerCase())) {
+        if (note.id.toLowerCase() === normalizedNoteId || ignoredNoteIds.has(note.id.toLowerCase())) {
             continue;
         }
-        if (typeof note.body !== 'string' || !note.body.includes(needle)) {
-            continue;
-        }
-
-        const offsets = findOccurrenceOffsets(note.body, needle);
-        if (!offsets.length) {
+        if (typeof note.body !== 'string' || !note.body.toLowerCase().includes(needle)) {
             continue;
         }
 
-        candidates.push({ note, offsets });
+        const occurrences = extractNoteLinks(note.body).filter(
+            (occurrence) => occurrence.targetId === normalizedNoteId
+        );
+        if (!occurrences.length) {
+            continue;
+        }
+
+        candidates.push({ note, occurrences });
     }
 
     return candidates;
@@ -123,8 +132,11 @@ export async function findBacklinks(noteId: string, options: FindBacklinksOption
     const notebookCache = new Map<string, string>();
     const backlinks: LinkItem[] = [];
 
-    for (const { note, offsets } of candidates) {
-        const contexts = extractOccurrenceContexts(parseMarkdownBody(note.body), offsets);
+    for (const { note, occurrences } of candidates) {
+        const contexts = extractOccurrenceContexts(
+            parseMarkdownBody(note.body),
+            occurrences.map((occurrence) => occurrence.from)
+        );
         const notebookName = await resolveNotebookName(note.parent_id, notebookCache);
         const title = typeof note.title === 'string' && note.title ? note.title : 'Untitled';
         const occurrenceCount = contexts.length;
@@ -175,7 +187,7 @@ export async function countBacklinks(noteId: string, options: FindBacklinksOptio
 
     const candidates = await collectBacklinkCandidates(noteId, options.ignoredNoteIds ?? new Set<string>());
     const counts: BacklinkCounts = {
-        occurrences: candidates.reduce((total, candidate) => total + candidate.offsets.length, 0),
+        occurrences: candidates.reduce((total, candidate) => total + candidate.occurrences.length, 0),
         notes: candidates.length,
     };
 

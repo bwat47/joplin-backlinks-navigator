@@ -525,25 +525,6 @@ export function findHtmlAnchorById(anchors: readonly HtmlAnchor[], anchorId: str
     return target ? (anchors.find((anchor) => anchor.id === target) ?? null) : null;
 }
 
-/**
- * Finds the offset of every occurrence of `needle` in `text` (ascending order).
- */
-export function findOccurrenceOffsets(text: string, needle: string): number[] {
-    const offsets: number[] = [];
-    let fromIndex = 0;
-
-    while (fromIndex < text.length) {
-        const offset = text.indexOf(needle, fromIndex);
-        if (offset === -1) {
-            break;
-        }
-        offsets.push(offset);
-        fromIndex = offset + needle.length;
-    }
-
-    return offsets;
-}
-
 /** A single internal-link occurrence found in a note body. */
 export interface NoteLinkOccurrence {
     /** Lowercased 32-char target note id. */

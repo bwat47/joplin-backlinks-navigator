@@ -21,21 +21,21 @@ import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../
 import type { LinkCounts, LinkDirection, LinkItem } from '../types';
 import { EMPTY_LINK_COUNTS } from '../types';
 import {
+    extractNoteLinks,
     findHeadingByAnchor,
     findHtmlAnchorById,
-    findOccurrenceOffsets,
     parseHtmlAnchors,
     parseMarkdownBody,
     parseMarkdownHeadings,
     type HtmlAnchor,
     type MarkdownHeading,
+    type NoteLinkOccurrence,
 } from '../linkExtraction';
 import type { ContentScriptToPluginMessage, IndicatorState } from '../messages';
 import { getDisplayCounts, toBacklinkCounts } from '../linkDisplay';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
 import { createNoteIdWatcher } from './ui/noteIdWatcher';
-import { findMarkdownLinkRange } from './markdownLinkPosition';
 import { referenceHighlightExtension, setReferenceHighlightEffect } from './referenceHighlight';
 import type { TextRange } from './textRange';
 import {
@@ -51,13 +51,13 @@ const INDICATOR_DEBOUNCE_MS = 350;
 /**
  * Where to scroll the target note once it loads, recorded before navigating away.
  *
- * - `reference` — a backlink: the occurrence of `needle` (`:/<currentNoteId>`) that links back to
- *   the note we came from.
+ * - `reference` — a backlink: the rendered Markdown-link occurrence that links back to the note we
+ *   came from.
  * - `anchor` — an outgoing link to an anchor: the heading that anchor names, or the explicit HTML
  *   anchor (`<a id="…">`) it points at.
  */
 type PendingScroll = { targetNoteId: string } & (
-    | { kind: 'reference'; needle: string; occurrenceIndex: number }
+    | { kind: 'reference'; referencedNoteId: string; occurrenceIndex: number }
     | { kind: 'anchor'; anchor: string }
 );
 
@@ -222,7 +222,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     pendingScroll = {
                         targetNoteId: link.noteId,
                         kind: 'reference',
-                        needle: `:/${currentNoteId}`,
+                        referencedNoteId: currentNoteId.toLowerCase(),
                         occurrenceIndex: link.occurrenceIndex,
                     };
                 } else {
@@ -243,7 +243,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             // Returns null while the target can't be found (the note content may not have settled).
             const resolveScrollRange = (
                 target: PendingScroll,
-                text: string,
+                links: readonly NoteLinkOccurrence[] = [],
                 headings: readonly MarkdownHeading[] = [],
                 htmlAnchors: readonly HtmlAnchor[] = []
             ): TextRange | null => {
@@ -257,8 +257,10 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     const htmlAnchor = findHtmlAnchorById(htmlAnchors, target.anchor);
                     return htmlAnchor ? { from: htmlAnchor.from, to: htmlAnchor.to } : null;
                 }
-                const pos = findOccurrenceOffsets(text, target.needle)[target.occurrenceIndex] ?? -1;
-                return pos === -1 ? null : findMarkdownLinkRange(text, pos, target.needle.length);
+                const occurrence = links.filter((link) => link.targetId === target.referencedNoteId)[
+                    target.occurrenceIndex
+                ];
+                return occurrence ? { from: occurrence.from, to: occurrence.to } : null;
             };
 
             // Scrolls the (just-loaded) target note to the spot the selected row stands for.
@@ -267,7 +269,8 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 const MAX_ATTEMPTS = 15;
                 const RETRY_DELAY_MS = 80;
                 let attempt = 0;
-                let parsedAnchorText: string | null = null;
+                let parsedText: string | null = null;
+                let parsedLinks: NoteLinkOccurrence[] = [];
                 let parsedHeadings: MarkdownHeading[] = [];
                 let parsedHtmlAnchors: HtmlAnchor[] = [];
 
@@ -293,13 +296,17 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     }
 
                     const text = view.state.doc.toString();
-                    if (target.kind === 'anchor' && text !== parsedAnchorText) {
-                        parsedAnchorText = text;
-                        const parsed = parseMarkdownBody(text);
-                        parsedHeadings = parseMarkdownHeadings(parsed);
-                        parsedHtmlAnchors = parseHtmlAnchors(parsed);
+                    if (text !== parsedText) {
+                        parsedText = text;
+                        if (target.kind === 'anchor') {
+                            const parsed = parseMarkdownBody(text);
+                            parsedHeadings = parseMarkdownHeadings(parsed);
+                            parsedHtmlAnchors = parseHtmlAnchors(parsed);
+                        } else {
+                            parsedLinks = extractNoteLinks(text);
+                        }
                     }
-                    const highlightRange = resolveScrollRange(target, text, parsedHeadings, parsedHtmlAnchors);
+                    const highlightRange = resolveScrollRange(target, parsedLinks, parsedHeadings, parsedHtmlAnchors);
                     if (!highlightRange) {
                         attempt += 1;
                         if (attempt <= MAX_ATTEMPTS) {

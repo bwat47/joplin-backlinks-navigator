@@ -7,7 +7,6 @@ import {
     extractSectionOpening,
     findHeadingByAnchor,
     findHtmlAnchorById,
-    findOccurrenceOffsets,
     findSection,
     linkNeedle,
     parseHtmlAnchors,
@@ -390,13 +389,6 @@ describe('findHtmlAnchorById', () => {
     });
 });
 
-describe('findOccurrenceOffsets', () => {
-    it('finds every occurrence in ascending order', () => {
-        expect(findOccurrenceOffsets('a-x-a-x-a', 'a')).toEqual([0, 4, 8]);
-        expect(findOccurrenceOffsets('none', 'z')).toEqual([]);
-    });
-});
-
 describe('extractNoteLinks', () => {
     it('finds internal note links in document order, lowercasing ids', () => {
         const one = `[One](:/${ID_A})`;
@@ -519,12 +511,24 @@ describe('extractNoteLinks', () => {
 
         expect(extractNoteLinks(body)).toEqual([]);
     });
+
+    it('keeps valid occurrence indexes stable when ignored raw matches come first', () => {
+        const first = `[First](:/${ID_A})`;
+        const second = `[Second](:/${ID_A})`;
+        const body = `\`[code](:/${ID_A})\`\n` + `${first}\n` + `<!-- [comment](:/${ID_A}) -->\n` + second;
+
+        const occurrences = extractNoteLinks(body);
+
+        expect(occurrences).toHaveLength(2);
+        expect(body.slice(occurrences[0].from, occurrences[0].to)).toBe(first);
+        expect(body.slice(occurrences[1].from, occurrences[1].to)).toBe(second);
+    });
 });
 
 describe('extractOccurrenceContexts', () => {
     it('maps each offset to its line snippet and section', () => {
         const body = `# Heading\nSee [Target](:/${ID_A}) here\nplain`;
-        const offsets = findOccurrenceOffsets(body, linkNeedle(ID_A));
+        const offsets = extractNoteLinks(body).map((occurrence) => occurrence.from);
         expect(extractOccurrenceContexts(parseMarkdownBody(body), offsets)).toEqual([
             { snippet: 'See Target here', section: 'Heading' },
         ]);
@@ -533,7 +537,7 @@ describe('extractOccurrenceContexts', () => {
     it('ignores heading-like code and recognizes Setext sections', () => {
         const body =
             `Real Section\n============\n\n` + '```md\n## Fake Section\n```\n\n' + `See [Target](:/${ID_A}) here`;
-        const offsets = findOccurrenceOffsets(body, linkNeedle(ID_A));
+        const offsets = extractNoteLinks(body).map((occurrence) => occurrence.from);
 
         expect(extractOccurrenceContexts(parseMarkdownBody(body), offsets)).toEqual([
             { snippet: 'See Target here', section: 'Real Section' },
