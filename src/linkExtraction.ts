@@ -4,46 +4,12 @@
  * this module is straightforward to unit test.
  */
 
-import uslug from '@joplin/fork-uslug';
 import type { SyntaxNode } from '@lezer/common';
-import { parser as markdownSyntaxParser } from '@lezer/markdown';
-import MarkdownIt from 'markdown-it';
-import type Token from 'markdown-it/lib/token.mjs';
+import { findSection, parseMarkdownHeadings, type MarkdownHeading } from './markdownHeadings';
+import { offsetToLineIndex, type ParsedMarkdownBody } from './markdownParser';
+import { extractLogicalSource, unescapeMarkdownText } from './markdownText';
 
 const SNIPPET_MAX_LENGTH = 120;
-// Joplin renders Markdown with inline HTML enabled. Parsing it the same way keeps tag names out of
-// the visible heading text that is passed to the slugger.
-const markdownParser = new MarkdownIt({ html: true });
-
-/**
- * Markdown source and the shared structures derived from it. Callers create one context per body
- * and reuse it for heading, HTML-anchor, and snippet extraction.
- */
-export interface ParsedMarkdownBody {
-    readonly body: string;
-    readonly tokens: readonly Token[];
-    readonly lineStarts: readonly number[];
-    readonly lines: readonly string[];
-}
-
-/** Tokenizes a Markdown body once and prepares the line indexes derived from it. */
-export function parseMarkdownBody(body: string): ParsedMarkdownBody {
-    const lines = body.split('\n');
-    // Ascending line-start offsets (index 0 is offset 0), accumulated from the split rather than by
-    // rescanning the body. +1 accounts for the newline that split() removed.
-    const lineStarts = [0];
-    for (let lineIndex = 0; lineIndex < lines.length - 1; lineIndex++) {
-        lineStarts.push(lineStarts[lineIndex] + lines[lineIndex].length + 1);
-    }
-
-    return {
-        body,
-        tokens: markdownParser.parse(body, {}),
-        lineStarts,
-        lines,
-    };
-}
-
 /**
  * Matches a complete Joplin note-link destination: a 32-char hex id after `:/`, optionally followed
  * by an anchor. Anchoring both ends prevents malformed longer ids, paths, and query strings from
@@ -237,114 +203,6 @@ export function extractSectionOpening(
  *
  * @returns The section heading text, or an empty string if the link isn't under a heading.
  */
-export function findSection(headings: readonly MarkdownHeading[], linkLineIndex: number): string {
-    for (let i = headings.length - 1; i >= 0; i--) {
-        if (headings[i].startLineIndex <= linkLineIndex) {
-            return headings[i].text;
-        }
-    }
-    return '';
-}
-
-/**
- * Builds the anchor slug for a heading's rendered inline text using Joplin's `uslug` fork.
- *
- * e.g. "Getting Started with MERN Stack" -> "getting-started-with-mern-stack"
- */
-export function slugifyHeading(text: string): string {
-    return uslug(text);
-}
-
-/** A Markdown heading and its generated anchor/source range. */
-export interface MarkdownHeading {
-    /**
-     * Generated anchor slug, including duplicate disambiguation. The first unsluggable heading has
-     * an empty anchor; later unsluggable headings receive `-2`, `-3`, and so on.
-     */
-    anchor: string;
-    /** Rendered inline heading text. */
-    text: string;
-    /** Heading level from 1 through 6. */
-    level: number;
-    /** Zero-based first source line occupied by the heading. */
-    startLineIndex: number;
-    /** Zero-based first source line after the heading. */
-    endLineIndex: number;
-    /** Offset of the start of the heading source in the body. */
-    from: number;
-    /** Offset immediately after the heading source, excluding a trailing line break. */
-    to: number;
-}
-
-/**
- * Parses the headings rendered from a Markdown body, excluding heading-like text in code blocks.
- *
- * Repeated slugs are disambiguated the way Joplin's renderer does it: the first heading keeps the
- * bare slug and later ones are numbered from two (`intro`, `intro-2`, `intro-3`, …).
- */
-export function parseMarkdownHeadings(parsed: ParsedMarkdownBody): MarkdownHeading[] {
-    const { body, lineStarts, tokens } = parsed;
-
-    const seenSlugs = new Set<string>();
-    const headings: MarkdownHeading[] = [];
-
-    for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex++) {
-        const token = tokens[tokenIndex];
-        if (token.type !== 'heading_open' || !token.map) {
-            continue;
-        }
-
-        const inlineToken = tokens[tokenIndex + 1];
-        if (inlineToken?.type !== 'inline') {
-            continue;
-        }
-
-        // Joplin's anchor renderer derives heading titles from text and inline-code tokens. Link
-        // labels contribute text children, while image alt text and raw HTML tags do not.
-        const text = (inlineToken.children ?? [])
-            .filter((child) => child.type === 'text' || child.type === 'code_inline')
-            .map((child) => child.content)
-            .join('');
-        const baseSlug = slugifyHeading(text);
-        let anchor = baseSlug;
-        let counter = 1;
-        while (seenSlugs.has(anchor)) {
-            counter += 1;
-            anchor = `${baseSlug}-${counter}`;
-        }
-        seenSlugs.add(anchor);
-
-        const [startLineIndex, endLineIndex] = token.map;
-        const from = lineStarts[startLineIndex] ?? body.length;
-        let to = endLineIndex < lineStarts.length ? lineStarts[endLineIndex] - 1 : body.length;
-        if (to > from && body[to - 1] === '\r') {
-            to -= 1;
-        }
-
-        headings.push({
-            anchor,
-            text,
-            level: Number(token.tag.slice(1)),
-            startLineIndex,
-            endLineIndex,
-            from,
-            to,
-        });
-    }
-
-    return headings;
-}
-
-/**
- * Locates the parsed heading an anchor such as `getting-started-with-mern-stack` refers to.
- *
- * @returns The matching heading, or `null` when the anchor doesn't name one.
- */
-export function findHeadingByAnchor(headings: readonly MarkdownHeading[], anchor: string): MarkdownHeading | null {
-    const target = anchor.trim().toLowerCase();
-    return target ? (headings.find((heading) => heading.anchor === target) ?? null) : null;
-}
-
 /**
  * An explicit HTML anchor found in a Markdown body — a tag carrying an `id`/`name` attribute, e.g.
  * `<a id="in3b65">The MERN stack</a>`. These are navigable link targets in Joplin just like heading
@@ -372,23 +230,6 @@ export interface HtmlAnchor {
  * carry no source map of their own, so `tr_open` (which does) covers anchors written in a table.
  */
 const HTML_ANCHOR_TOKEN_TYPES = new Set(['html_block', 'heading_open', 'paragraph_open', 'tr_open']);
-
-/** Returns the index of the line containing `offset` given ascending `lineStarts`. */
-function offsetToLineIndex(lineStarts: readonly number[], offset: number): number {
-    let lo = 0;
-    let hi = lineStarts.length - 1;
-    let result = 0;
-    while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        if (lineStarts[mid] <= offset) {
-            result = mid;
-            lo = mid + 1;
-        } else {
-            hi = mid - 1;
-        }
-    }
-    return result;
-}
 
 /**
  * Removes HTML tags so an anchor's surrounding markup doesn't leak into its preview.
@@ -480,7 +321,8 @@ function createHtmlAnchor(
  * mirroring how a fragment link lands on the first matching id.
  */
 export function parseHtmlAnchors(parsed: ParsedMarkdownBody): HtmlAnchor[] {
-    const { body, lineStarts, tokens } = parsed;
+    const { body, lineStarts } = parsed;
+    const tokens = parsed.getLegacyTokens();
     const anchors: HtmlAnchor[] = [];
     const seenOffsets = new Set<number>();
 
@@ -556,24 +398,26 @@ function normalizeReferenceLabel(label: string): string {
     return label.trim().replace(/\s+/g, ' ').toLowerCase().toUpperCase();
 }
 
-/** Parses and unescapes a URL node exactly as markdown-it parses a link destination. */
-function parseLinkDestination(body: string, urlNode: SyntaxNode): string | null {
-    const source = body.slice(urlNode.from, urlNode.to);
-    const parsed = markdownParser.helpers.parseLinkDestination(source, 0, source.length);
-    return parsed.ok && parsed.pos === source.length ? parsed.str : null;
+/** Decodes a URL node whose Markdown structure Lezer has already validated. */
+function parseLinkDestination(parsed: ParsedMarkdownBody, urlNode: SyntaxNode): string {
+    const source = parsed.body.slice(urlNode.from, urlNode.to);
+    const destination = source.startsWith('<') && source.endsWith('>') ? source.slice(1, -1) : source;
+    return unescapeMarkdownText(destination);
 }
 
 /** Returns a link's primary label (the text between its first `[` and `]` markers). */
-function primaryLinkLabel(body: string, linkNode: SyntaxNode): string {
+function primaryLinkLabel(parsed: ParsedMarkdownBody, linkNode: SyntaxNode): string {
     const marks = linkNode.getChildren('LinkMark');
-    return marks.length >= 2 ? body.slice(marks[0].to, marks[1].from) : '';
+    return marks.length >= 2 ? extractLogicalSource(parsed, linkNode, marks[0].to, marks[1].from) : '';
 }
 
 /** Resolves the normalized reference label used by a full, collapsed, or shortcut link. */
-function linkReferenceLabel(body: string, linkNode: SyntaxNode): string {
+function linkReferenceLabel(parsed: ParsedMarkdownBody, linkNode: SyntaxNode): string {
     const explicitLabel = linkNode.getChild('LinkLabel');
-    const explicitText = explicitLabel ? body.slice(explicitLabel.from + 1, explicitLabel.to - 1) : '';
-    return normalizeReferenceLabel(explicitText || primaryLinkLabel(body, linkNode));
+    const explicitText = explicitLabel
+        ? extractLogicalSource(parsed, explicitLabel, explicitLabel.from + 1, explicitLabel.to - 1)
+        : '';
+    return normalizeReferenceLabel(explicitText || primaryLinkLabel(parsed, linkNode));
 }
 
 /** Parses one already-unescaped Markdown destination as a Joplin note target. */
@@ -594,8 +438,8 @@ function parseNoteLinkDestination(destination: string): Pick<NoteLinkOccurrence,
  * Inline links and valid full/collapsed/shortcut reference links are included. Images, raw HTML,
  * bare destinations, code, comments, invalid references, and malformed destinations are excluded.
  */
-export function extractNoteLinks(body: string): NoteLinkOccurrence[] {
-    const tree = markdownSyntaxParser.parse(body);
+export function extractNoteLinks(parsed: ParsedMarkdownBody): NoteLinkOccurrence[] {
+    const { tree } = parsed;
     const references = new Map<string, string>();
     const occurrences: NoteLinkOccurrence[] = [];
 
@@ -611,9 +455,11 @@ export function extractNoteLinks(body: string): NoteLinkOccurrence[] {
             if (!labelNode || !urlNode) {
                 return false;
             }
-            const label = normalizeReferenceLabel(body.slice(labelNode.from + 1, labelNode.to - 1));
-            const destination = parseLinkDestination(body, urlNode);
-            if (label && destination !== null && !references.has(label)) {
+            const label = normalizeReferenceLabel(
+                extractLogicalSource(parsed, labelNode, labelNode.from + 1, labelNode.to - 1)
+            );
+            const destination = parseLinkDestination(parsed, urlNode);
+            if (label && !references.has(label)) {
                 references.set(label, destination);
             }
             return false;
@@ -633,8 +479,8 @@ export function extractNoteLinks(body: string): NoteLinkOccurrence[] {
 
             const urlNode = cursor.node.getChild('URL');
             const destination = urlNode
-                ? parseLinkDestination(body, urlNode)
-                : references.get(linkReferenceLabel(body, cursor.node));
+                ? parseLinkDestination(parsed, urlNode)
+                : references.get(linkReferenceLabel(parsed, cursor.node));
             const target =
                 destination === undefined || destination === null ? null : parseNoteLinkDestination(destination);
             if (target) {

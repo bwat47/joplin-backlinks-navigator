@@ -22,15 +22,13 @@ import type { LinkCounts, LinkDirection, LinkItem } from '../types';
 import { EMPTY_LINK_COUNTS } from '../types';
 import {
     extractNoteLinks,
-    findHeadingByAnchor,
     findHtmlAnchorById,
     parseHtmlAnchors,
-    parseMarkdownBody,
-    parseMarkdownHeadings,
     type HtmlAnchor,
-    type MarkdownHeading,
     type NoteLinkOccurrence,
 } from '../linkExtraction';
+import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from '../markdownHeadings';
+import { parseMarkdownBody } from '../markdownParser';
 import type { ContentScriptToPluginMessage, IndicatorState } from '../messages';
 import { getDisplayCounts, toBacklinkCounts } from '../linkDisplay';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
@@ -303,7 +301,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                             parsedHeadings = parseMarkdownHeadings(parsed);
                             parsedHtmlAnchors = parseHtmlAnchors(parsed);
                         } else {
-                            parsedLinks = extractNoteLinks(text);
+                            parsedLinks = extractNoteLinks(parseMarkdownBody(text));
                         }
                     }
                     const highlightRange = resolveScrollRange(target, parsedLinks, parsedHeadings, parsedHtmlAnchors);

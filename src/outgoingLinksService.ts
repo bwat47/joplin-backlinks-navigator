@@ -29,15 +29,12 @@ import {
     extractNoteLinks,
     extractNoteOpening,
     extractSectionOpening,
-    findHeadingByAnchor,
     findHtmlAnchorById,
     parseHtmlAnchors,
-    parseMarkdownBody,
-    parseMarkdownHeadings,
     type HtmlAnchor,
-    type MarkdownHeading,
-    type ParsedMarkdownBody,
 } from './linkExtraction';
+import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from './markdownHeadings';
+import { parseMarkdownBody, type ParsedMarkdownBody } from './markdownParser';
 import { resolveNoteMeta, resolveNotebookName, type NoteMeta } from './noteMetadata';
 import { compareLinkItems } from './linkSort';
 
@@ -81,10 +78,14 @@ async function fetchNoteBody(noteId: string): Promise<string | null> {
  * self-links and ignored notes. A link to a note and a link to one of its anchors are different
  * destinations, so they get their own entries; repeats of either collapse into one.
  */
-function collectDestinations(body: string, noteId: string, ignoredNoteIds: ReadonlySet<string>): Destination[] {
+function collectDestinations(
+    parsed: ParsedMarkdownBody,
+    noteId: string,
+    ignoredNoteIds: ReadonlySet<string>
+): Destination[] {
     const groups = new Map<string, Destination>();
 
-    for (const { targetId, anchor } of extractNoteLinks(body)) {
+    for (const { targetId, anchor } of extractNoteLinks(parsed)) {
         if (targetId === noteId.toLowerCase() || ignoredNoteIds.has(targetId)) {
             continue;
         }
@@ -117,7 +118,11 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
         return [];
     }
 
-    const destinations = collectDestinations(body, noteId, options.ignoredNoteIds ?? new Set<string>());
+    const destinations = collectDestinations(
+        parseMarkdownBody(body),
+        noteId,
+        options.ignoredNoteIds ?? new Set<string>()
+    );
     if (!destinations.length) {
         return [];
     }
@@ -208,7 +213,11 @@ export async function countOutgoingLinks(noteId: string, options: FindOutgoingLi
         return 0;
     }
 
-    const destinations = collectDestinations(body, noteId, options.ignoredNoteIds ?? new Set<string>());
+    const destinations = collectDestinations(
+        parseMarkdownBody(body),
+        noteId,
+        options.ignoredNoteIds ?? new Set<string>()
+    );
     const noteMetaCache = new Map<string, NoteMeta | null>();
     let count = 0;
 

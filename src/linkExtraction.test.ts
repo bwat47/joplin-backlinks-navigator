@@ -5,26 +5,40 @@ import {
     extractNoteOpening,
     extractOccurrenceContexts,
     extractSectionOpening,
-    findHeadingByAnchor,
     findHtmlAnchorById,
-    findSection,
     linkNeedle,
     parseHtmlAnchors,
-    parseMarkdownBody,
-    parseMarkdownHeadings,
-    slugifyHeading,
 } from './linkExtraction';
+import { findHeadingByAnchor, findSection, parseMarkdownHeadings, slugifyHeading } from './markdownHeadings';
+import { parseMarkdownBody } from './markdownParser';
 
 const ID_A = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const ID_B = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 
+function extractLinks(body: string) {
+    return extractNoteLinks(parseMarkdownBody(body));
+}
+
 describe('parseMarkdownBody', () => {
-    it('shares one markdown-it parse across heading and HTML-anchor extraction', () => {
+    it('does not invoke markdown-it for links and headings', () => {
+        const parseSpy = vi.spyOn(MarkdownIt.prototype, 'parse');
+        try {
+            const parsed = parseMarkdownBody(`# Heading\n\n[link](:/${ID_A})`);
+
+            expect(parseMarkdownHeadings(parsed)).toHaveLength(1);
+            expect(extractNoteLinks(parsed)).toHaveLength(1);
+            expect(parseSpy).not.toHaveBeenCalled();
+        } finally {
+            parseSpy.mockRestore();
+        }
+    });
+
+    it('lazily shares one markdown-it parse across repeated HTML-anchor extraction', () => {
         const parseSpy = vi.spyOn(MarkdownIt.prototype, 'parse');
         try {
             const parsed = parseMarkdownBody('# Heading\n\n<a id="target">Target</a>');
 
-            expect(parseMarkdownHeadings(parsed)).toHaveLength(1);
+            expect(parseHtmlAnchors(parsed)).toHaveLength(1);
             expect(parseHtmlAnchors(parsed)).toHaveLength(1);
             expect(parseSpy).toHaveBeenCalledTimes(1);
         } finally {
@@ -395,7 +409,7 @@ describe('extractNoteLinks', () => {
         const two = `[Two](:/${ID_B.toUpperCase()})`;
         const oneAgain = `[One again](:/${ID_A})`;
         const body = `${one} text ${two} ${oneAgain}`;
-        expect(extractNoteLinks(body)).toEqual([
+        expect(extractLinks(body)).toEqual([
             { targetId: ID_A, anchor: '', from: body.indexOf(one), to: body.indexOf(one) + one.length },
             { targetId: ID_B, anchor: '', from: body.indexOf(two), to: body.indexOf(two) + two.length },
             {
@@ -411,7 +425,7 @@ describe('extractNoteLinks', () => {
         const section = `[Section](:/${ID_A}#Getting-Started "Title")`;
         const whole = `[Whole](:/${ID_A})`;
         const body = `${section} and ${whole}`;
-        expect(extractNoteLinks(body)).toEqual([
+        expect(extractLinks(body)).toEqual([
             { targetId: ID_A, anchor: 'getting-started', from: 0, to: section.length },
             { targetId: ID_A, anchor: '', from: body.indexOf(whole), to: body.length },
         ]);
@@ -420,13 +434,13 @@ describe('extractNoteLinks', () => {
     it('handles angle destinations and URL-decodes anchors before lowercasing them', () => {
         const body = `[Japanese](<:/${ID_A}#%E6%97%A5%E6%9C%AC%E8%AA%9E>)`;
 
-        expect(extractNoteLinks(body)).toEqual([{ targetId: ID_A, anchor: '日本語', from: 0, to: body.length }]);
+        expect(extractLinks(body)).toEqual([{ targetId: ID_A, anchor: '日本語', from: 0, to: body.length }]);
     });
 
     it('preserves malformed URL escapes without aborting link extraction', () => {
         const body = `[Broken](:/${ID_A}#Bad%E0%A4%A)`;
 
-        expect(extractNoteLinks(body)).toEqual([{ targetId: ID_A, anchor: 'bad%e0%a4%a', from: 0, to: body.length }]);
+        expect(extractLinks(body)).toEqual([{ targetId: ID_A, anchor: 'bad%e0%a4%a', from: 0, to: body.length }]);
     });
 
     it('resolves full, collapsed, and shortcut references at each rendered use', () => {
@@ -435,7 +449,7 @@ describe('extractNoteLinks', () => {
         const third = '[target]';
         const body = `${first}, ${second}, ${third}\n\n` + `[target]: :/${ID_A}#Referenced "Reference title"`;
 
-        expect(extractNoteLinks(body)).toEqual([
+        expect(extractLinks(body)).toEqual([
             { targetId: ID_A, anchor: 'referenced', from: 0, to: first.length },
             {
                 targetId: ID_A,
@@ -452,15 +466,45 @@ describe('extractNoteLinks', () => {
         ]);
     });
 
+    it('resolves multiline reference labels inside nested blockquotes', () => {
+        const use = '[Use][multi line]';
+        const body = `> > [multi\n> > line]: :/${ID_A}\n> >\n> > ${use}`;
+
+        expect(extractLinks(body)).toEqual([
+            {
+                targetId: ID_A,
+                anchor: '',
+                from: body.indexOf(use),
+                to: body.indexOf(use) + use.length,
+            },
+        ]);
+    });
+
+    it('decodes CommonMark escapes and entities in destinations', () => {
+        const escaped = `[Escaped](:/${ID_A}#A\\)B)`;
+        const entity = `[Entity](:/${ID_A}#A&amp;B)`;
+        const body = `${escaped} ${entity}`;
+
+        expect(extractLinks(body)).toEqual([
+            { targetId: ID_A, anchor: 'a)b', from: 0, to: escaped.length },
+            {
+                targetId: ID_A,
+                anchor: 'a&b',
+                from: body.indexOf(entity),
+                to: body.indexOf(entity) + entity.length,
+            },
+        ]);
+    });
+
     it('normalizes reference labels and uses the first duplicate definition', () => {
         const use = '[Go][  MiXeD   Label ]';
         const body = `${use}\n\n[mixed label]: :/${ID_A}\n[MIXED LABEL]: :/${ID_B}`;
 
-        expect(extractNoteLinks(body)).toEqual([{ targetId: ID_A, anchor: '', from: 0, to: use.length }]);
+        expect(extractLinks(body)).toEqual([{ targetId: ID_A, anchor: '', from: 0, to: use.length }]);
     });
 
     it('ignores undefined references and unused definitions', () => {
-        expect(extractNoteLinks(`[Missing][unknown]\n\n[defined]: :/${ID_A}`)).toEqual([]);
+        expect(extractLinks(`[Missing][unknown]\n\n[defined]: :/${ID_A}`)).toEqual([]);
     });
 
     it('ignores note-looking text that does not render as a Markdown link', () => {
@@ -473,7 +517,7 @@ describe('extractNoteLinks', () => {
             `<a href=":/${ID_A}">HTML</a>\n` +
             `![image](:/${ID_A})`;
 
-        expect(extractNoteLinks(body)).toEqual([]);
+        expect(extractLinks(body)).toEqual([]);
     });
 
     it('finds links inside blockquotes, lists, and table-like rows with exact source ranges', () => {
@@ -482,7 +526,7 @@ describe('extractNoteLinks', () => {
         const table = `[Table](:/${ID_A}#cell)`;
         const body = `> ${quoted}\n\n- ${listed}\n\n| Link |\n| --- |\n| ${table} |`;
 
-        expect(extractNoteLinks(body)).toEqual([
+        expect(extractLinks(body)).toEqual([
             {
                 targetId: ID_A,
                 anchor: '',
@@ -509,7 +553,7 @@ describe('extractNoteLinks', () => {
             `[web](https://example.com) [short](:/abc) ` +
             `[long](:/${ID_A}f) [path](:/${ID_A}/extra) [query](:/${ID_A}?x=1)`;
 
-        expect(extractNoteLinks(body)).toEqual([]);
+        expect(extractLinks(body)).toEqual([]);
     });
 
     it('keeps valid occurrence indexes stable when ignored raw matches come first', () => {
@@ -517,7 +561,7 @@ describe('extractNoteLinks', () => {
         const second = `[Second](:/${ID_A})`;
         const body = `\`[code](:/${ID_A})\`\n` + `${first}\n` + `<!-- [comment](:/${ID_A}) -->\n` + second;
 
-        const occurrences = extractNoteLinks(body);
+        const occurrences = extractLinks(body);
 
         expect(occurrences).toHaveLength(2);
         expect(body.slice(occurrences[0].from, occurrences[0].to)).toBe(first);
@@ -528,7 +572,7 @@ describe('extractNoteLinks', () => {
 describe('extractOccurrenceContexts', () => {
     it('maps each offset to its line snippet and section', () => {
         const body = `# Heading\nSee [Target](:/${ID_A}) here\nplain`;
-        const offsets = extractNoteLinks(body).map((occurrence) => occurrence.from);
+        const offsets = extractLinks(body).map((occurrence) => occurrence.from);
         expect(extractOccurrenceContexts(parseMarkdownBody(body), offsets)).toEqual([
             { snippet: 'See Target here', section: 'Heading' },
         ]);
@@ -537,7 +581,7 @@ describe('extractOccurrenceContexts', () => {
     it('ignores heading-like code and recognizes Setext sections', () => {
         const body =
             `Real Section\n============\n\n` + '```md\n## Fake Section\n```\n\n' + `See [Target](:/${ID_A}) here`;
-        const offsets = extractNoteLinks(body).map((occurrence) => occurrence.from);
+        const offsets = extractLinks(body).map((occurrence) => occurrence.from);
 
         expect(extractOccurrenceContexts(parseMarkdownBody(body), offsets)).toEqual([
             { snippet: 'See Target here', section: 'Real Section' },

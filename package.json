@@ -52,6 +52,7 @@
         "@lezer/common": "1.5.0",
         "@lezer/markdown": "1.6.3",
         "fuzzysort": "^3.1.0",
+        "html-entities": "^2.6.0",
         "markdown-it": "^14.3.0"
     },
     "overrides": {

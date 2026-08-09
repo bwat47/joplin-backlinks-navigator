@@ -4,9 +4,9 @@ import {
     extractOccurrenceContexts,
     extractSectionOpening,
     parseHtmlAnchors,
-    parseMarkdownBody,
-    parseMarkdownHeadings,
 } from './linkExtraction';
+import { parseMarkdownHeadings } from './markdownHeadings';
+import { parseMarkdownBody } from './markdownParser';
 
 const ID_A = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const ID_B = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -17,7 +17,8 @@ describe('Markdown extraction golden behavior', () => {
             `# Links\n[Inline](:/${ID_A}#One) [Angle](<:/${ID_B}#Two%20Words>)\n` +
             `[Ref][target] [target][] [target]\n\n[target]: :/${ID_A}#Referenced "Title"`;
 
-        expect(extractNoteLinks(body)).toEqual([
+        const parsed = parseMarkdownBody(body);
+        expect(extractNoteLinks(parsed)).toEqual([
             { targetId: ID_A, anchor: 'one', from: 8, to: 56 },
             { targetId: ID_B, anchor: 'two words', from: 57, to: 114 },
             { targetId: ID_A, anchor: 'referenced', from: 115, to: 128 },
@@ -25,11 +26,10 @@ describe('Markdown extraction golden behavior', () => {
             { targetId: ID_A, anchor: 'referenced', from: 140, to: 148 },
         ]);
 
-        const parsed = parseMarkdownBody(body);
         expect(
             extractOccurrenceContexts(
                 parsed,
-                extractNoteLinks(body).map(({ from }) => from)
+                extractNoteLinks(parsed).map(({ from }) => from)
             )
         ).toEqual([
             { snippet: 'Inline Angle', section: 'Links' },

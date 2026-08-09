@@ -21,13 +21,8 @@
 import joplin from 'api';
 import logger from './logger';
 import type { LinkItem } from './types';
-import {
-    extractNoteLinks,
-    extractOccurrenceContexts,
-    linkNeedle,
-    parseMarkdownBody,
-    type NoteLinkOccurrence,
-} from './linkExtraction';
+import { extractNoteLinks, extractOccurrenceContexts, linkNeedle, type NoteLinkOccurrence } from './linkExtraction';
+import { parseMarkdownBody, type ParsedMarkdownBody } from './markdownParser';
 import { resolveNotebookName } from './noteMetadata';
 import { compareLinkItems } from './linkSort';
 
@@ -52,6 +47,7 @@ interface FindBacklinksOptions {
 /** A search hit confirmed to contain one or more rendered links to the target note. */
 interface BacklinkCandidate {
     note: SearchNote;
+    parsed: ParsedMarkdownBody;
     occurrences: NoteLinkOccurrence[];
 }
 
@@ -103,14 +99,13 @@ async function collectBacklinkCandidates(
             continue;
         }
 
-        const occurrences = extractNoteLinks(note.body).filter(
-            (occurrence) => occurrence.targetId === normalizedNoteId
-        );
+        const parsed = parseMarkdownBody(note.body);
+        const occurrences = extractNoteLinks(parsed).filter((occurrence) => occurrence.targetId === normalizedNoteId);
         if (!occurrences.length) {
             continue;
         }
 
-        candidates.push({ note, occurrences });
+        candidates.push({ note, parsed, occurrences });
     }
 
     return candidates;
@@ -132,9 +127,9 @@ export async function findBacklinks(noteId: string, options: FindBacklinksOption
     const notebookCache = new Map<string, string>();
     const backlinks: LinkItem[] = [];
 
-    for (const { note, occurrences } of candidates) {
+    for (const { note, parsed, occurrences } of candidates) {
         const contexts = extractOccurrenceContexts(
-            parseMarkdownBody(note.body),
+            parsed,
             occurrences.map((occurrence) => occurrence.from)
         );
         const notebookName = await resolveNotebookName(note.parent_id, notebookCache);
