@@ -21,10 +21,11 @@
 import joplin from 'api';
 import logger from './logger';
 import type { LinkItem } from './types';
-import { extractNoteLinks, extractOccurrenceContexts, linkNeedle, type NoteLinkOccurrence } from './linkExtraction';
+import { extractNoteLinks, linkNeedle, type NoteLinkOccurrence } from './linkExtraction';
 import { parseMarkdownBody, type ParsedMarkdownBody } from './markdownParser';
 import { resolveNotebookName } from './noteMetadata';
 import { compareLinkItems } from './linkSort';
+import { extractOccurrenceContexts } from './snippetExtraction';
 
 const SEARCH_PAGE_LIMIT = 100;
 

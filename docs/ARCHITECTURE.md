@@ -35,10 +35,11 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
   destinations, and returns one outgoing-link row per destination.
 - Each service also exposes a counting entry point (`countBacklinks`, `countOutgoingLinks`) that
   shares the discovery work but stops before row enrichment. See [Indicator Counts](#indicator-counts).
-- `src/linkExtraction.ts` contains Joplin-free parsing helpers for note links, snippets, sections,
-  and heading/HTML-anchor indexes. Lezer supplies exact source ranges for rendered Markdown links;
-  its parsed-body context separately shares one `markdown-it` tokenization and line index for
-  headings, HTML anchors, and snippets.
+- `src/markdownParser.ts` creates one standalone Lezer tree and line index per body. The focused
+  `linkExtraction.ts`, `markdownHeadings.ts`, `htmlAnchors.ts`, and `snippetExtraction.ts` helpers
+  share that context for links, headings, HTML anchors, sections, and rendered-text previews.
+- `src/markdownText.ts` centralizes logical-label extraction, CommonMark unescaping, and the
+  consumer-specific visible-text policies used by headings and snippets.
 - `src/noteMetadata.ts` resolves note and notebook metadata with per-call caching.
 - `src/linkSort.ts` centralizes row ordering.
 
@@ -98,16 +99,21 @@ collapse into one row. The row's `anchor` holds the fragment (empty for a whole-
 `section` names what it resolves to, which the panel always shows for anchored rows so they can be
 told apart from the note's own row.
 
-An anchor resolves in priority order: first against the heading index (`parseMarkdownHeadings`),
-then against the HTML-anchor index (`parseHtmlAnchors`), both in `linkExtraction.ts`.
+An anchor resolves in priority order: first against the heading index (`parseMarkdownHeadings` in
+`markdownHeadings.ts`), then against the HTML-anchor index (`parseHtmlAnchors` in `htmlAnchors.ts`).
 
-The shared `markdown-it` heading index excludes heading-like text in code blocks, recognizes ATX and
-Setext headings, and records each heading's rendered text and source range. Anchor slugs use
-Joplin's `fork-uslug` with the plugin's existing global duplicate policy (`intro`, `intro-2`,
-`intro-3`, …). The HTML-anchor index scans prose and HTML-block regions (skipping fenced/inline
-code) for explicit `id`/`name` attributes, e.g. `<a id="in3b65">The MERN stack</a>`; an `<a>`
-element's own text becomes the row label and the anchor's line is previewed. An anchor that names
-neither a heading nor an HTML anchor falls back to displaying the raw slug and the note's opening.
+The shared Lezer heading index excludes heading-like text in code blocks, recognizes ATX and Setext
+headings, and records each heading's rendered text and source range. Anchor slugs use Joplin's
+`fork-uslug` with the plugin's existing global duplicate policy (`intro`, `intro-2`, `intro-3`, …).
+The HTML-anchor index scans only Lezer-recognized inline/block HTML regions for explicit `id`/`name`
+attributes, e.g. `<a id="in3b65">The MERN stack</a>`; comments and code are excluded by syntax-tree
+structure. An element's rendered text becomes the row label and its line is previewed. An anchor
+that names neither a heading nor an HTML anchor falls back to the raw slug and note opening.
+
+Snippet extraction walks the same tree with a prose policy: Markdown/HTML markers and link
+destinations are omitted, while link labels, image alt text, inline code, escapes, and entities are
+rendered as visible text. Code blocks, reference definitions, and thematic breaks do not become
+opening previews.
 
 The heading index also bounds anchored-section previews, supplies backlink section labels, and gives
 editor navigation the exact source range to highlight; the HTML-anchor index likewise provides the
@@ -118,10 +124,10 @@ source range editor navigation highlights for non-heading anchors.
 The badge renders two numbers, so the host counts links for it instead of resolving `LinkItem`
 rows. `countBacklinks` and `countOutgoingLinks` reuse each service's discovery step and skip the
 enrichment: no snippets, no section headings, no notebook titles, and — the expensive part — no body
-fetch or `markdown-it` parse for each outgoing target. Discovery still performs the lightweight
-Lezer parse needed to distinguish rendered links from code and examples. Counting outgoing links
-also costs one body-less lookup per destination, because a link to a deleted note is broken and the
-panel drops it; counting it would put the badge out of step with the list.
+fetch or target-body parse. Discovery still performs the lightweight Lezer parse needed to
+distinguish rendered links from code and examples. Counting outgoing links also costs one body-less
+lookup per destination, because a link to a deleted note is broken and the panel drops it; counting
+it would put the badge out of step with the list.
 
 `LinkCounts` carries both `backlinkOccurrences` and `backlinkNotes` because the choice between them
 is display policy: title-only backlink mode collapses occurrences to one row per source note. That

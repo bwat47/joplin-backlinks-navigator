@@ -20,13 +20,8 @@ import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScri
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
 import type { LinkCounts, LinkDirection, LinkItem } from '../types';
 import { EMPTY_LINK_COUNTS } from '../types';
-import {
-    extractNoteLinks,
-    findHtmlAnchorById,
-    parseHtmlAnchors,
-    type HtmlAnchor,
-    type NoteLinkOccurrence,
-} from '../linkExtraction';
+import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from '../htmlAnchors';
+import { extractNoteLinks, type NoteLinkOccurrence } from '../linkExtraction';
 import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from '../markdownHeadings';
 import { parseMarkdownBody } from '../markdownParser';
 import type { ContentScriptToPluginMessage, IndicatorState } from '../messages';

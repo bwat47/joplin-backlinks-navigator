@@ -1,12 +1,8 @@
-import {
-    extractNoteLinks,
-    extractNoteOpening,
-    extractOccurrenceContexts,
-    extractSectionOpening,
-    parseHtmlAnchors,
-} from './linkExtraction';
+import { parseHtmlAnchors } from './htmlAnchors';
+import { extractNoteLinks } from './linkExtraction';
 import { parseMarkdownHeadings } from './markdownHeadings';
 import { parseMarkdownBody } from './markdownParser';
+import { extractNoteOpening, extractOccurrenceContexts, extractSectionOpening } from './snippetExtraction';
 
 const ID_A = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const ID_B = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -34,9 +30,9 @@ describe('Markdown extraction golden behavior', () => {
         ).toEqual([
             { snippet: 'Inline Angle', section: 'Links' },
             { snippet: 'Inline Angle', section: 'Links' },
-            { snippet: '[Ref][target] [target][] [target]', section: 'Links' },
-            { snippet: '[Ref][target] [target][] [target]', section: 'Links' },
-            { snippet: '[Ref][target] [target][] [target]', section: 'Links' },
+            { snippet: 'Ref target target', section: 'Links' },
+            { snippet: 'Ref target target', section: 'Links' },
+            { snippet: 'Ref target target', section: 'Links' },
         ]);
     });
 
@@ -79,7 +75,7 @@ describe('Markdown extraction golden behavior', () => {
 
         expect(parseHtmlAnchors(parseMarkdownBody(body))).toEqual([
             { id: 'top', text: 'Visible label', snippet: 'Visible label', from: 29, to: 67 },
-            { id: 'cell', text: 'Cell text', snippet: '| Cell text |', from: 95, to: 127 },
+            { id: 'cell', text: 'Cell text', snippet: 'Cell text', from: 95, to: 127 },
         ]);
     });
 
@@ -87,7 +83,7 @@ describe('Markdown extraction golden behavior', () => {
         const opening = parseMarkdownBody(
             '# Title\n\n> [!NOTE]\n> - [x] Read **this** [guide](https://example.com) and ![diagram](x.png).'
         );
-        expect(extractNoteOpening(opening)).toBe('Read **this** guide and diagram.');
+        expect(extractNoteOpening(opening)).toBe('Read this guide and diagram.');
 
         const headingOnly = parseMarkdownBody('---\n\n## Only heading');
         expect(extractNoteOpening(headingOnly)).toBe('Only heading');

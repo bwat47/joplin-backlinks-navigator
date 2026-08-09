@@ -25,18 +25,13 @@
 import joplin from 'api';
 import logger from './logger';
 import type { LinkItem } from './types';
-import {
-    extractNoteLinks,
-    extractNoteOpening,
-    extractSectionOpening,
-    findHtmlAnchorById,
-    parseHtmlAnchors,
-    type HtmlAnchor,
-} from './linkExtraction';
+import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from './htmlAnchors';
+import { extractNoteLinks } from './linkExtraction';
 import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from './markdownHeadings';
 import { parseMarkdownBody, type ParsedMarkdownBody } from './markdownParser';
 import { resolveNoteMeta, resolveNotebookName, type NoteMeta } from './noteMetadata';
 import { compareLinkItems } from './linkSort';
+import { extractNoteOpening, extractSectionOpening } from './snippetExtraction';
 
 interface FindOutgoingLinksOptions {
     ignoredNoteIds?: ReadonlySet<string>;

@@ -1,16 +1,13 @@
-import MarkdownIt from 'markdown-it';
+import { findHtmlAnchorById, parseHtmlAnchors } from './htmlAnchors';
+import { extractNoteLinks, linkNeedle } from './linkExtraction';
+import { findHeadingByAnchor, findSection, parseMarkdownHeadings, slugifyHeading } from './markdownHeadings';
+import { parseMarkdownBody } from './markdownParser';
 import {
-    cleanSnippetLine,
-    extractNoteLinks,
     extractNoteOpening,
     extractOccurrenceContexts,
     extractSectionOpening,
-    findHtmlAnchorById,
-    linkNeedle,
-    parseHtmlAnchors,
-} from './linkExtraction';
-import { findHeadingByAnchor, findSection, parseMarkdownHeadings, slugifyHeading } from './markdownHeadings';
-import { parseMarkdownBody } from './markdownParser';
+    extractSnippetLine,
+} from './snippetExtraction';
 
 const ID_A = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const ID_B = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -19,57 +16,31 @@ function extractLinks(body: string) {
     return extractNoteLinks(parseMarkdownBody(body));
 }
 
-describe('parseMarkdownBody', () => {
-    it('does not invoke markdown-it for links and headings', () => {
-        const parseSpy = vi.spyOn(MarkdownIt.prototype, 'parse');
-        try {
-            const parsed = parseMarkdownBody(`# Heading\n\n[link](:/${ID_A})`);
-
-            expect(parseMarkdownHeadings(parsed)).toHaveLength(1);
-            expect(extractNoteLinks(parsed)).toHaveLength(1);
-            expect(parseSpy).not.toHaveBeenCalled();
-        } finally {
-            parseSpy.mockRestore();
-        }
-    });
-
-    it('lazily shares one markdown-it parse across repeated HTML-anchor extraction', () => {
-        const parseSpy = vi.spyOn(MarkdownIt.prototype, 'parse');
-        try {
-            const parsed = parseMarkdownBody('# Heading\n\n<a id="target">Target</a>');
-
-            expect(parseHtmlAnchors(parsed)).toHaveLength(1);
-            expect(parseHtmlAnchors(parsed)).toHaveLength(1);
-            expect(parseSpy).toHaveBeenCalledTimes(1);
-        } finally {
-            parseSpy.mockRestore();
-        }
-    });
-});
-
 describe('linkNeedle', () => {
     it('prefixes the note id with the internal link scheme', () => {
         expect(linkNeedle(ID_A)).toBe(`:/${ID_A}`);
     });
 });
 
-describe('cleanSnippetLine', () => {
+describe('extractSnippetLine', () => {
     it('unwraps links/images and strips leading block markers', () => {
-        expect(cleanSnippetLine(`- [ ] see [Target](:/${ID_A}) and ![pic](:/res)`)).toBe('see Target and pic');
-        expect(cleanSnippetLine('> ## Quoted heading')).toBe('Quoted heading');
+        const task = parseMarkdownBody(`- [ ] see [Target](:/${ID_A}) and ![pic](:/res)`);
+        expect(extractSnippetLine(task, 0)).toBe('see Target and pic');
+
+        const quote = parseMarkdownBody('> ## Quoted heading');
+        expect(extractSnippetLine(quote, 0)).toBe('Quoted heading');
     });
 
     it('truncates very long lines', () => {
-        const long = 'x'.repeat(200);
-        const result = cleanSnippetLine(long);
+        const parsed = parseMarkdownBody('x'.repeat(200));
+        const result = extractSnippetLine(parsed, 0);
         expect(result.endsWith('…')).toBe(true);
         expect(result.length).toBe(120);
     });
 
     it('keeps malformed links while unwrapping later valid links', () => {
-        expect(cleanSnippetLine('[broken] text [valid](url) and [unfinished](url')).toBe(
-            '[broken] text valid and [unfinished](url'
-        );
+        const parsed = parseMarkdownBody('[broken] text [valid](url) and [unfinished](url');
+        expect(extractSnippetLine(parsed, 0)).toBe('[broken] text valid and [unfinished](url');
     });
 });
 

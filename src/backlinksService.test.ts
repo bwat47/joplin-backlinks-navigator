@@ -206,7 +206,7 @@ describe('findBacklinks', () => {
         const result = await findBacklinks(TARGET_NOTE_ID);
 
         expect(result).toHaveLength(2);
-        expect(result.map((row) => row.snippet)).toEqual([first, second]);
+        expect(result.map((row) => row.snippet)).toEqual(['First', 'Second']);
         expect(result.map((row) => row.occurrenceIndex)).toEqual([0, 1]);
         expect(result.every((row) => row.occurrenceCount === 2)).toBe(true);
     });

@@ -4,9 +4,27 @@ import type { ParsedMarkdownBody } from './markdownParser';
 
 const MARKDOWN_ESCAPE_RE = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
 const MARKDOWN_ENTITY_RE = /&(?:[a-z][a-z\d]{1,31}|#(?:x[a-f\d]{1,8}|\d{1,8}));/gi;
+const HTML_COMMENT_RE = /<!--[\s\S]*?(?:-->|$)/g;
+const HTML_TAG_RE = /<\/?[a-zA-Z][^>]*>/g;
 
-const SKIPPED_RENDERED_NODE_NAMES = new Set(['HTMLTag', 'LinkLabel', 'LinkTitle', 'TableDelimiter', 'TaskMarker']);
-const SKIPPED_BLOCK_NODE_NAMES = new Set(['FencedCode', 'IndentedCode', 'LinkReference', 'HorizontalRule']);
+const SKIPPED_RENDERED_NODE_NAMES = new Set([
+    'Comment',
+    'HTMLTag',
+    'HardBreak',
+    'LinkLabel',
+    'LinkTitle',
+    'TableDelimiter',
+    'TaskMarker',
+]);
+const SKIPPED_BLOCK_NODE_NAMES = new Set([
+    'CommentBlock',
+    'FencedCode',
+    'HorizontalRule',
+    'IndentedCode',
+    'LinkReference',
+    'ProcessingInstructionBlock',
+]);
+const referenceLabelCache = new WeakMap<ParsedMarkdownBody, ReadonlySet<string>>();
 
 export interface MarkdownTextPolicy {
     readonly includeImageAlt: boolean;
@@ -55,8 +73,80 @@ export function unescapeMarkdownText(value: string): string {
     return value.replace(MARKDOWN_ESCAPE_RE, '$1').replace(MARKDOWN_ENTITY_RE, decodeMarkdownEntity);
 }
 
+/** Removes HTML tags/comments, repeating until malformed nesting can no longer expose a new tag. */
+export function stripHtmlTags(value: string): string {
+    let current = value.replace(HTML_COMMENT_RE, '');
+    let previous: string;
+    do {
+        previous = current;
+        current = current.replace(HTML_TAG_RE, '');
+    } while (current !== previous);
+    return current;
+}
+
+/** Removes HTML markup and decodes the text content it would render. */
+export function renderHtmlText(value: string): string {
+    return decode(stripHtmlTags(value), { level: 'html5', scope: 'body' });
+}
+
 function clippedSlice(body: string, from: number, to: number, rangeFrom: number, rangeTo: number): string {
     return body.slice(Math.max(from, rangeFrom), Math.min(to, rangeTo));
+}
+
+/** Applies CommonMark's whitespace collapse and Unicode case-folding approximation. */
+export function normalizeReferenceLabel(label: string): string {
+    return label.trim().replace(/\s+/g, ' ').toLowerCase().toUpperCase();
+}
+
+function primaryLabel(parsed: ParsedMarkdownBody, node: SyntaxNode): string {
+    const marks = node.getChildren('LinkMark');
+    return marks.length >= 2 ? extractLogicalSource(parsed, node, marks[0].to, marks[1].from) : '';
+}
+
+/** Resolves the normalized label used by a full, collapsed, or shortcut reference. */
+export function extractReferenceLabel(parsed: ParsedMarkdownBody, node: SyntaxNode): string {
+    const explicitLabel = node.getChild('LinkLabel');
+    const explicitText = explicitLabel
+        ? extractLogicalSource(parsed, explicitLabel, explicitLabel.from + 1, explicitLabel.to - 1)
+        : '';
+    return normalizeReferenceLabel(explicitText || primaryLabel(parsed, node));
+}
+
+function definedReferenceLabels(parsed: ParsedMarkdownBody): ReadonlySet<string> {
+    const cached = referenceLabelCache.get(parsed);
+    if (cached) {
+        return cached;
+    }
+
+    const labels = new Set<string>();
+    parsed.tree.iterate({
+        enter(cursor) {
+            if (cursor.name !== 'LinkReference') {
+                return;
+            }
+            const labelNode = cursor.node.getChild('LinkLabel');
+            if (labelNode) {
+                labels.add(
+                    normalizeReferenceLabel(
+                        extractLogicalSource(parsed, labelNode, labelNode.from + 1, labelNode.to - 1)
+                    )
+                );
+            }
+            return false;
+        },
+    });
+    referenceLabelCache.set(parsed, labels);
+    return labels;
+}
+
+function isUnresolvedReference(parsed: ParsedMarkdownBody, node: SyntaxNode): boolean {
+    const isReference = node.getChild('LinkLabel') !== null || node.getChildren('LinkMark').length === 2;
+    return (
+        (node.name === 'Link' || node.name === 'Image') &&
+        isReference &&
+        !node.getChild('URL') &&
+        !definedReferenceLabels(parsed).has(extractReferenceLabel(parsed, node))
+    );
 }
 
 function extractRenderedChild(
@@ -67,12 +157,6 @@ function extractRenderedChild(
     rangeTo: number
 ): string {
     if (node.name.endsWith('Mark') || SKIPPED_RENDERED_NODE_NAMES.has(node.name)) {
-        return '';
-    }
-    if (policy.skipBlockNodes && SKIPPED_BLOCK_NODE_NAMES.has(node.name)) {
-        return '';
-    }
-    if (node.name === 'Image' && !policy.includeImageAlt) {
         return '';
     }
     if (node.name === 'Entity') {
@@ -101,6 +185,18 @@ export function extractRenderedText(
     const to = Math.min(node.to, rangeTo);
     if (from >= to) {
         return '';
+    }
+    if (policy.skipBlockNodes && SKIPPED_BLOCK_NODE_NAMES.has(node.name)) {
+        return '';
+    }
+    if (node.name === 'Image' && !policy.includeImageAlt) {
+        return '';
+    }
+    if (isUnresolvedReference(parsed, node)) {
+        return clippedSlice(parsed.body, node.from, node.to, from, to);
+    }
+    if (node.name === 'HTMLBlock') {
+        return renderHtmlText(clippedSlice(parsed.body, node.from, node.to, from, to));
     }
 
     const cursor = node.cursor();
