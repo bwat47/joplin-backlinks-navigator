@@ -18,6 +18,12 @@ describe('tree-based snippet extraction', () => {
         expect(extractSnippetLine(parsed, 0)).toBe('marked inserted 2 == 2 and c++ ++');
     });
 
+    it('strips subscript and superscript markers without disturbing strikethrough', () => {
+        const parsed = parseMarkdownBody('H~2~O x^2^ ~~gone~~ a ~ b');
+
+        expect(extractSnippetLine(parsed, 0)).toBe('H2O x2 gone a ~ b');
+    });
+
     it('renders valid references and preserves unresolved reference syntax', () => {
         const parsed = parseMarkdownBody(`[Valid][target] [target][] [target] [Missing][unknown]\n\n[target]: :/${ID}`);
 

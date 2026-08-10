@@ -1,11 +1,19 @@
 import type { Tree } from '@lezer/common';
-import { parser, Strikethrough, Table, TaskList } from '@lezer/markdown';
+import { parser, Strikethrough, Subscript, Superscript, Table, TaskList } from '@lezer/markdown';
 import { Highlight, Insert } from './markdownDelimiters';
 
 // Keep the standalone grammar explicit. The full GFM bundle also enables bare-URL autolinking,
 // which is not part of the Markdown behavior this plugin needs to model. Highlight and Insert are
 // not Lezer built-ins; they cover the `==`/`++` syntax Joplin's renderer enables.
-const markdownSyntaxParser = parser.configure([Table, TaskList, Strikethrough, Highlight, Insert]);
+const markdownSyntaxParser = parser.configure([
+    Table,
+    TaskList,
+    Strikethrough,
+    Subscript,
+    Superscript,
+    Highlight,
+    Insert,
+]);
 
 /** Markdown source and the shared structures derived from one parse. */
 export interface ParsedMarkdownBody {
