@@ -38,7 +38,8 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 - `src/markdown/markdownParser.ts` creates one standalone Lezer tree and line index per body. The
   focused helpers in `src/markdown/` — `linkExtraction.ts`, `markdownHeadings.ts`, `htmlAnchors.ts`,
   and `snippetExtraction.ts` — share that context for links, headings, HTML anchors, sections, and
-  rendered-text previews.
+  rendered-text previews. `src/markdown/markdownDelimiters.ts` adds the `==highlight==` and
+  `++insert++` inline nodes Lezer lacks, so their delimiters strip like any other Markdown mark.
 - `src/markdown/markdownText.ts` centralizes logical-label extraction, CommonMark unescaping, and the
   consumer-specific visible-text policies used by headings and snippets.
 - `src/host/noteMetadata.ts` resolves note and notebook metadata with per-call caching.
