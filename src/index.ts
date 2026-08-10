@@ -32,7 +32,7 @@ import {
     loadIgnoredBacklinkNoteIdsSetting,
     loadShowIndicatorSetting,
     registerSettings,
-} from './settings';
+} from './host/settings';
 import type {
     ContentScriptToPluginMessage,
     GetBacklinksResponse,
@@ -40,8 +40,8 @@ import type {
     GetOutgoingLinksResponse,
     IndicatorState,
 } from './messages';
-import { countBacklinks, findBacklinks } from './backlinksService';
-import { countOutgoingLinks, findOutgoingLinks } from './outgoingLinksService';
+import { countBacklinks, findBacklinks } from './host/backlinksService';
+import { countOutgoingLinks, findOutgoingLinks } from './host/outgoingLinksService';
 import type { BacklinkOpenBehavior } from './types';
 
 type ResolvedOpenNoteMode = 'current' | BacklinkOpenBehavior;

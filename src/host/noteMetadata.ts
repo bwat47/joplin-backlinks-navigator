@@ -7,7 +7,7 @@
  */
 
 import joplin from 'api';
-import logger from './logger';
+import logger from '../logger';
 
 /** A resolved note's title and parent notebook id. */
 export interface NoteMeta {

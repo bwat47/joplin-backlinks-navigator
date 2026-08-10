@@ -10,9 +10,9 @@
 
 import joplin from 'api';
 import { SettingItemType } from 'api/types';
-import logger from './logger';
-import type { BacklinkOpenBehavior, ContentScriptSettings, LinkPreviewMode, PanelSettings } from './types';
-import { DEFAULT_LINK_PREVIEW_SETTINGS, isLinkPreviewMode } from './types';
+import logger from '../logger';
+import type { BacklinkOpenBehavior, ContentScriptSettings, LinkPreviewMode, PanelSettings } from '../types';
+import { DEFAULT_LINK_PREVIEW_SETTINGS, isLinkPreviewMode } from '../types';
 import {
     DEFAULT_PANEL_HEIGHT_PERCENTAGE,
     DEFAULT_PANEL_WIDTH,
@@ -22,7 +22,7 @@ import {
     MIN_PANEL_WIDTH,
     normalizePanelHeightPercentage,
     normalizePanelWidth,
-} from './panelDimensions';
+} from '../panelDimensions';
 
 const SECTION_ID = 'backlinksNavigator';
 const SETTING_PANEL_WIDTH = 'backlinksNavigator.panelWidth';
