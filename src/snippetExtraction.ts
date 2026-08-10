@@ -4,7 +4,12 @@ import { offsetToLineIndex, type ParsedMarkdownBody } from './markdownParser';
 import { extractRenderedText, SNIPPET_TEXT_POLICY, stripHtmlTags } from './markdownText';
 
 const SNIPPET_MAX_LENGTH = 120;
-const ALERT_MARKER_RE = /^(?:\[!\w+\]|!\w+)[+-]?\s*/;
+/**
+ * Matches a leading GitHub/Obsidian alert marker on an already-rendered line, e.g. "[!NOTE]",
+ * "[!warning]-", "[!tip]+ Title". Unresolved shortcut references keep their brackets in rendered
+ * text, so the marker is still bracketed here; an unbracketed `!word` is ordinary prose.
+ */
+const ALERT_MARKER_RE = /^\[!\w+\][+-]?\s*/;
 
 /** Collapses and truncates already-rendered text for display in a link row. */
 export function normalizeSnippetText(value: string): string {

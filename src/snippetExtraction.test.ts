@@ -36,6 +36,11 @@ describe('tree-based snippet extraction', () => {
         expect(extractNoteOpening(parsed)).toBe('Visible & readable');
     });
 
+    it('drops a bracketed alert marker without touching prose that opens with "!word"', () => {
+        expect(extractNoteOpening(parseMarkdownBody('> [!warning]- Collapsed title'))).toBe('Collapsed title');
+        expect(extractNoteOpening(parseMarkdownBody('!important do this'))).toBe('!important do this');
+    });
+
     it('omits inline comments and hard-break syntax', () => {
         const parsed = parseMarkdownBody('Visible <!-- hidden --> text  \nnext');
 
