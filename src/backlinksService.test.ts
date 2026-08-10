@@ -171,6 +171,45 @@ describe('findBacklinks', () => {
 
         expect(mockDataGet).not.toHaveBeenCalledWith(['folders', 'folder-2'], expect.anything());
     });
+
+    it('returns one backlink per rendered reference use and ignores non-link matches', async () => {
+        const first = '[First][current]';
+        const second = '[Second][current]';
+        mockDataGet.mockImplementation(async (path: string[]) => {
+            if (path[0] === 'search') {
+                return {
+                    items: [
+                        {
+                            id: 'references',
+                            title: 'References',
+                            body:
+                                `# Links\n\`[code](:/${TARGET_NOTE_ID})\`\n${first}\n${second}\n\n` +
+                                `[current]: :/${TARGET_NOTE_ID}`,
+                            parent_id: 'folder-1',
+                        },
+                        {
+                            id: 'false-only',
+                            title: 'Code example',
+                            body: `\`\`\`md\n[Example](:/${TARGET_NOTE_ID})\n\`\`\``,
+                            parent_id: 'folder-1',
+                        },
+                    ],
+                    has_more: false,
+                };
+            }
+            if (path[0] === 'folders' && path[1] === 'folder-1') {
+                return { id: 'folder-1', title: 'Projects' };
+            }
+            throw new Error(`Unexpected Data API request: ${path.join('/')}`);
+        });
+
+        const result = await findBacklinks(TARGET_NOTE_ID);
+
+        expect(result).toHaveLength(2);
+        expect(result.map((row) => row.snippet)).toEqual(['First', 'Second']);
+        expect(result.map((row) => row.occurrenceIndex)).toEqual([0, 1]);
+        expect(result.every((row) => row.occurrenceCount === 2)).toBe(true);
+    });
 });
 
 describe('countBacklinks', () => {
@@ -206,6 +245,12 @@ describe('countBacklinks', () => {
                             id: 'loose-match',
                             title: 'Loose match',
                             body: `Mentions ${TARGET_NOTE_ID} without a note link prefix`,
+                            parent_id: 'folder-1',
+                        },
+                        {
+                            id: 'code-example',
+                            title: 'Code example',
+                            body: `\`\`\`md\n[Current](:/${TARGET_NOTE_ID})\n\`\`\``,
                             parent_id: 'folder-1',
                         },
                     ],

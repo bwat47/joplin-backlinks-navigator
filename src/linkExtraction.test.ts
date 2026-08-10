@@ -1,38 +1,20 @@
-import MarkdownIt from 'markdown-it';
+import { findHtmlAnchorById, parseHtmlAnchors } from './htmlAnchors';
+import { extractNoteLinks, linkNeedle } from './linkExtraction';
+import { findHeadingByAnchor, findSection, parseMarkdownHeadings, slugifyHeading } from './markdownHeadings';
+import { parseMarkdownBody } from './markdownParser';
 import {
-    cleanSnippetLine,
-    extractNoteLinks,
     extractNoteOpening,
     extractOccurrenceContexts,
     extractSectionOpening,
-    findHeadingByAnchor,
-    findHtmlAnchorById,
-    findOccurrenceOffsets,
-    findSection,
-    linkNeedle,
-    parseHtmlAnchors,
-    parseMarkdownBody,
-    parseMarkdownHeadings,
-    slugifyHeading,
-} from './linkExtraction';
+    extractSnippetLine,
+} from './snippetExtraction';
 
 const ID_A = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const ID_B = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 
-describe('parseMarkdownBody', () => {
-    it('shares one markdown-it parse across heading and HTML-anchor extraction', () => {
-        const parseSpy = vi.spyOn(MarkdownIt.prototype, 'parse');
-        try {
-            const parsed = parseMarkdownBody('# Heading\n\n<a id="target">Target</a>');
-
-            expect(parseMarkdownHeadings(parsed)).toHaveLength(1);
-            expect(parseHtmlAnchors(parsed)).toHaveLength(1);
-            expect(parseSpy).toHaveBeenCalledTimes(1);
-        } finally {
-            parseSpy.mockRestore();
-        }
-    });
-});
+function extractLinks(body: string) {
+    return extractNoteLinks(parseMarkdownBody(body));
+}
 
 describe('linkNeedle', () => {
     it('prefixes the note id with the internal link scheme', () => {
@@ -40,23 +22,25 @@ describe('linkNeedle', () => {
     });
 });
 
-describe('cleanSnippetLine', () => {
+describe('extractSnippetLine', () => {
     it('unwraps links/images and strips leading block markers', () => {
-        expect(cleanSnippetLine(`- [ ] see [Target](:/${ID_A}) and ![pic](:/res)`)).toBe('see Target and pic');
-        expect(cleanSnippetLine('> ## Quoted heading')).toBe('Quoted heading');
+        const task = parseMarkdownBody(`- [ ] see [Target](:/${ID_A}) and ![pic](:/res)`);
+        expect(extractSnippetLine(task, 0)).toBe('see Target and pic');
+
+        const quote = parseMarkdownBody('> ## Quoted heading');
+        expect(extractSnippetLine(quote, 0)).toBe('Quoted heading');
     });
 
     it('truncates very long lines', () => {
-        const long = 'x'.repeat(200);
-        const result = cleanSnippetLine(long);
+        const parsed = parseMarkdownBody('x'.repeat(200));
+        const result = extractSnippetLine(parsed, 0);
         expect(result.endsWith('…')).toBe(true);
         expect(result.length).toBe(120);
     });
 
     it('keeps malformed links while unwrapping later valid links', () => {
-        expect(cleanSnippetLine('[broken] text [valid](url) and [unfinished](url')).toBe(
-            '[broken] text valid and [unfinished](url'
-        );
+        const parsed = parseMarkdownBody('[broken] text [valid](url) and [unfinished](url');
+        expect(extractSnippetLine(parsed, 0)).toBe('[broken] text valid and [unfinished](url');
     });
 });
 
@@ -390,56 +374,176 @@ describe('findHtmlAnchorById', () => {
     });
 });
 
-describe('findOccurrenceOffsets', () => {
-    it('finds every occurrence in ascending order', () => {
-        expect(findOccurrenceOffsets('a-x-a-x-a', 'a')).toEqual([0, 4, 8]);
-        expect(findOccurrenceOffsets('none', 'z')).toEqual([]);
-    });
-});
-
 describe('extractNoteLinks', () => {
     it('finds internal note links in document order, lowercasing ids', () => {
-        const body = `[One](:/${ID_A}) text [Two](:/${ID_B.toUpperCase()}) [One again](:/${ID_A})`;
-        expect(extractNoteLinks(body)).toEqual([
-            { targetId: ID_A, anchor: '', offset: body.indexOf(`:/${ID_A}`) },
-            { targetId: ID_B, anchor: '', offset: body.indexOf(`:/${ID_B.toUpperCase()}`) },
-            { targetId: ID_A, anchor: '', offset: body.lastIndexOf(`:/${ID_A}`) },
+        const one = `[One](:/${ID_A})`;
+        const two = `[Two](:/${ID_B.toUpperCase()})`;
+        const oneAgain = `[One again](:/${ID_A})`;
+        const body = `${one} text ${two} ${oneAgain}`;
+        expect(extractLinks(body)).toEqual([
+            { targetId: ID_A, anchor: '', from: body.indexOf(one), to: body.indexOf(one) + one.length },
+            { targetId: ID_B, anchor: '', from: body.indexOf(two), to: body.indexOf(two) + two.length },
+            {
+                targetId: ID_A,
+                anchor: '',
+                from: body.indexOf(oneAgain),
+                to: body.indexOf(oneAgain) + oneAgain.length,
+            },
         ]);
     });
 
-    it('captures a heading anchor, lowercased, without swallowing the closing paren', () => {
-        const body = `[Section](:/${ID_A}#Getting-Started) and [Whole](:/${ID_A})`;
-        expect(extractNoteLinks(body)).toEqual([
-            { targetId: ID_A, anchor: 'getting-started', offset: body.indexOf(`:/${ID_A}`) },
-            { targetId: ID_A, anchor: '', offset: body.lastIndexOf(`:/${ID_A}`) },
+    it('captures and normalizes inline-link anchors without including titles in the destination', () => {
+        const section = `[Section](:/${ID_A}#Getting-Started "Title")`;
+        const whole = `[Whole](:/${ID_A})`;
+        const body = `${section} and ${whole}`;
+        expect(extractLinks(body)).toEqual([
+            { targetId: ID_A, anchor: 'getting-started', from: 0, to: section.length },
+            { targetId: ID_A, anchor: '', from: body.indexOf(whole), to: body.length },
         ]);
     });
 
-    it('URL-decodes heading anchors before lowercasing them', () => {
-        const body = `[Japanese](:/${ID_A}#%E6%97%A5%E6%9C%AC%E8%AA%9E)`;
+    it('handles angle destinations and URL-decodes anchors before lowercasing them', () => {
+        const body = `[Japanese](<:/${ID_A}#%E6%97%A5%E6%9C%AC%E8%AA%9E>)`;
 
-        expect(extractNoteLinks(body)).toEqual([
-            { targetId: ID_A, anchor: '日本語', offset: body.indexOf(`:/${ID_A}`) },
-        ]);
+        expect(extractLinks(body)).toEqual([{ targetId: ID_A, anchor: '日本語', from: 0, to: body.length }]);
     });
 
     it('preserves malformed URL escapes without aborting link extraction', () => {
         const body = `[Broken](:/${ID_A}#Bad%E0%A4%A)`;
 
-        expect(extractNoteLinks(body)).toEqual([
-            { targetId: ID_A, anchor: 'bad%e0%a4%a', offset: body.indexOf(`:/${ID_A}`) },
+        expect(extractLinks(body)).toEqual([{ targetId: ID_A, anchor: 'bad%e0%a4%a', from: 0, to: body.length }]);
+    });
+
+    it('resolves full, collapsed, and shortcut references at each rendered use', () => {
+        const first = '[First][target]';
+        const second = '[target][]';
+        const third = '[target]';
+        const body = `${first}, ${second}, ${third}\n\n` + `[target]: :/${ID_A}#Referenced "Reference title"`;
+
+        expect(extractLinks(body)).toEqual([
+            { targetId: ID_A, anchor: 'referenced', from: 0, to: first.length },
+            {
+                targetId: ID_A,
+                anchor: 'referenced',
+                from: body.indexOf(second),
+                to: body.indexOf(second) + second.length,
+            },
+            {
+                targetId: ID_A,
+                anchor: 'referenced',
+                from: body.indexOf(third, body.indexOf(second) + second.length),
+                to: body.indexOf(third, body.indexOf(second) + second.length) + third.length,
+            },
         ]);
     });
 
-    it('ignores non-note URLs and malformed ids', () => {
-        expect(extractNoteLinks('[web](https://example.com) and [short](:/abc)')).toEqual([]);
+    it('resolves multiline reference labels inside nested blockquotes', () => {
+        const use = '[Use][multi line]';
+        const body = `> > [multi\n> > line]: :/${ID_A}\n> >\n> > ${use}`;
+
+        expect(extractLinks(body)).toEqual([
+            {
+                targetId: ID_A,
+                anchor: '',
+                from: body.indexOf(use),
+                to: body.indexOf(use) + use.length,
+            },
+        ]);
+    });
+
+    it('decodes CommonMark escapes and entities in destinations', () => {
+        const escaped = `[Escaped](:/${ID_A}#A\\)B)`;
+        const entity = `[Entity](:/${ID_A}#A&amp;B)`;
+        const body = `${escaped} ${entity}`;
+
+        expect(extractLinks(body)).toEqual([
+            { targetId: ID_A, anchor: 'a)b', from: 0, to: escaped.length },
+            {
+                targetId: ID_A,
+                anchor: 'a&b',
+                from: body.indexOf(entity),
+                to: body.indexOf(entity) + entity.length,
+            },
+        ]);
+    });
+
+    it('normalizes reference labels and uses the first duplicate definition', () => {
+        const use = '[Go][  MiXeD   Label ]';
+        const body = `${use}\n\n[mixed label]: :/${ID_A}\n[MIXED LABEL]: :/${ID_B}`;
+
+        expect(extractLinks(body)).toEqual([{ targetId: ID_A, anchor: '', from: 0, to: use.length }]);
+    });
+
+    it('ignores undefined references and unused definitions', () => {
+        expect(extractLinks(`[Missing][unknown]\n\n[defined]: :/${ID_A}`)).toEqual([]);
+    });
+
+    it('ignores note-looking text that does not render as a Markdown link', () => {
+        const body =
+            `plain :/${ID_A}\n` +
+            `\`[inline code](:/${ID_A})\`\n` +
+            `\`\`\`md\n[fenced](:/${ID_A})\n\`\`\`\n` +
+            `<!-- [comment](:/${ID_A}) -->\n` +
+            `\\[escaped](:/${ID_A})\n` +
+            `<a href=":/${ID_A}">HTML</a>\n` +
+            `![image](:/${ID_A})`;
+
+        expect(extractLinks(body)).toEqual([]);
+    });
+
+    it('finds links inside blockquotes, lists, and table-like rows with exact source ranges', () => {
+        const quoted = `[Quoted](:/${ID_A})`;
+        const listed = `[Listed](:/${ID_B})`;
+        const table = `[Table](:/${ID_A}#cell)`;
+        const body = `> ${quoted}\n\n- ${listed}\n\n| Link |\n| --- |\n| ${table} |`;
+
+        expect(extractLinks(body)).toEqual([
+            {
+                targetId: ID_A,
+                anchor: '',
+                from: body.indexOf(quoted),
+                to: body.indexOf(quoted) + quoted.length,
+            },
+            {
+                targetId: ID_B,
+                anchor: '',
+                from: body.indexOf(listed),
+                to: body.indexOf(listed) + listed.length,
+            },
+            {
+                targetId: ID_A,
+                anchor: 'cell',
+                from: body.indexOf(table),
+                to: body.indexOf(table) + table.length,
+            },
+        ]);
+    });
+
+    it('requires an exact note destination and 32-character id', () => {
+        const body =
+            `[web](https://example.com) [short](:/abc) ` +
+            `[long](:/${ID_A}f) [path](:/${ID_A}/extra) [query](:/${ID_A}?x=1)`;
+
+        expect(extractLinks(body)).toEqual([]);
+    });
+
+    it('keeps valid occurrence indexes stable when ignored raw matches come first', () => {
+        const first = `[First](:/${ID_A})`;
+        const second = `[Second](:/${ID_A})`;
+        const body = `\`[code](:/${ID_A})\`\n` + `${first}\n` + `<!-- [comment](:/${ID_A}) -->\n` + second;
+
+        const occurrences = extractLinks(body);
+
+        expect(occurrences).toHaveLength(2);
+        expect(body.slice(occurrences[0].from, occurrences[0].to)).toBe(first);
+        expect(body.slice(occurrences[1].from, occurrences[1].to)).toBe(second);
     });
 });
 
 describe('extractOccurrenceContexts', () => {
     it('maps each offset to its line snippet and section', () => {
         const body = `# Heading\nSee [Target](:/${ID_A}) here\nplain`;
-        const offsets = findOccurrenceOffsets(body, linkNeedle(ID_A));
+        const offsets = extractLinks(body).map((occurrence) => occurrence.from);
         expect(extractOccurrenceContexts(parseMarkdownBody(body), offsets)).toEqual([
             { snippet: 'See Target here', section: 'Heading' },
         ]);
@@ -448,7 +552,7 @@ describe('extractOccurrenceContexts', () => {
     it('ignores heading-like code and recognizes Setext sections', () => {
         const body =
             `Real Section\n============\n\n` + '```md\n## Fake Section\n```\n\n' + `See [Target](:/${ID_A}) here`;
-        const offsets = findOccurrenceOffsets(body, linkNeedle(ID_A));
+        const offsets = extractLinks(body).map((occurrence) => occurrence.from);
 
         expect(extractOccurrenceContexts(parseMarkdownBody(body), offsets)).toEqual([
             { snippet: 'See Target here', section: 'Real Section' },

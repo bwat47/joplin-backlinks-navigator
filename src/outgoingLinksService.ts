@@ -1,13 +1,13 @@
 /**
  * Outgoing-link discovery (plugin host side).
  *
- * Finds every distinct destination the current note links to via Joplin's internal link syntax
- * `[text](:/<noteId>)` or `[text](:/<noteId>#<anchor>)`. Unlike backlinks, this needs no FTS
- * search: the current note's own body is fetched and its `:/<id>` links are extracted directly.
+ * Finds every distinct destination the current note links to through a rendered Markdown link,
+ * including inline and valid reference-style links. Unlike backlinks, this needs no FTS search: the
+ * current note's own body is fetched and parsed directly.
  *
  * Strategy:
  * 1. Fetch the current note's body.
- * 2. Extract every `:/<id>` occurrence and its optional heading anchor, in document order.
+ * 2. Extract every rendered note-link use and its optional heading anchor, in document order.
  * 3. Group by target id *and* anchor, skipping self-links and ignored notes. A link to a note and a
  *    link to one of its anchors are different destinations, so they get their own rows; repeats of
  *    either collapse into one row.
@@ -25,21 +25,13 @@
 import joplin from 'api';
 import logger from './logger';
 import type { LinkItem } from './types';
-import {
-    extractNoteLinks,
-    extractNoteOpening,
-    extractSectionOpening,
-    findHeadingByAnchor,
-    findHtmlAnchorById,
-    parseHtmlAnchors,
-    parseMarkdownBody,
-    parseMarkdownHeadings,
-    type HtmlAnchor,
-    type MarkdownHeading,
-    type ParsedMarkdownBody,
-} from './linkExtraction';
+import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from './htmlAnchors';
+import { extractNoteLinks } from './linkExtraction';
+import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from './markdownHeadings';
+import { parseMarkdownBody, type ParsedMarkdownBody } from './markdownParser';
 import { resolveNoteMeta, resolveNotebookName, type NoteMeta } from './noteMetadata';
 import { compareLinkItems } from './linkSort';
+import { extractNoteOpening, extractSectionOpening } from './snippetExtraction';
 
 interface FindOutgoingLinksOptions {
     ignoredNoteIds?: ReadonlySet<string>;
@@ -81,10 +73,14 @@ async function fetchNoteBody(noteId: string): Promise<string | null> {
  * self-links and ignored notes. A link to a note and a link to one of its anchors are different
  * destinations, so they get their own entries; repeats of either collapse into one.
  */
-function collectDestinations(body: string, noteId: string, ignoredNoteIds: ReadonlySet<string>): Destination[] {
+function collectDestinations(
+    parsed: ParsedMarkdownBody,
+    noteId: string,
+    ignoredNoteIds: ReadonlySet<string>
+): Destination[] {
     const groups = new Map<string, Destination>();
 
-    for (const { targetId, anchor } of extractNoteLinks(body)) {
+    for (const { targetId, anchor } of extractNoteLinks(parsed)) {
         if (targetId === noteId.toLowerCase() || ignoredNoteIds.has(targetId)) {
             continue;
         }
@@ -117,7 +113,11 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
         return [];
     }
 
-    const destinations = collectDestinations(body, noteId, options.ignoredNoteIds ?? new Set<string>());
+    const destinations = collectDestinations(
+        parseMarkdownBody(body),
+        noteId,
+        options.ignoredNoteIds ?? new Set<string>()
+    );
     if (!destinations.length) {
         return [];
     }
@@ -208,7 +208,11 @@ export async function countOutgoingLinks(noteId: string, options: FindOutgoingLi
         return 0;
     }
 
-    const destinations = collectDestinations(body, noteId, options.ignoredNoteIds ?? new Set<string>());
+    const destinations = collectDestinations(
+        parseMarkdownBody(body),
+        noteId,
+        options.ignoredNoteIds ?? new Set<string>()
+    );
     const noteMetaCache = new Map<string, NoteMeta | null>();
     let count = 0;
 

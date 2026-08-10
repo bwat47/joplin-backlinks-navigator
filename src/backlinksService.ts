@@ -1,14 +1,14 @@
 /**
  * Backlink discovery (plugin host side).
  *
- * Finds every note whose body links to a given note via Joplin's internal
- * link syntax `[text](:/<noteId>)` (optionally with an anchor `#...`).
+ * Finds every note whose body contains a rendered Markdown link to a given note, using either
+ * inline syntax (`[text](:/<noteId>)`) or a valid reference-style link.
  *
  * Strategy:
  * 1. Search the Data API for the note id token. A note id is a 32-char hex
  *    string, indexed by FTS as a single token, so this returns candidate notes.
- * 2. Verify each candidate's body actually contains `:/<noteId>` to drop loose
- *    FTS matches, and capture each matching occurrence as a backlink row.
+ * 2. Parse each candidate's rendered Markdown links to drop loose/code/example matches, and capture
+ *    each matching link use as a backlink row.
  * 3. Resolve each candidate's parent notebook title (cached per call).
  *
  * Steps 1 and 2 are shared by {@link findBacklinks} and {@link countBacklinks}; only the former
@@ -21,9 +21,11 @@
 import joplin from 'api';
 import logger from './logger';
 import type { LinkItem } from './types';
-import { extractOccurrenceContexts, findOccurrenceOffsets, linkNeedle, parseMarkdownBody } from './linkExtraction';
+import { extractNoteLinks, linkNeedle, type NoteLinkOccurrence } from './linkExtraction';
+import { parseMarkdownBody, type ParsedMarkdownBody } from './markdownParser';
 import { resolveNotebookName } from './noteMetadata';
 import { compareLinkItems } from './linkSort';
+import { extractOccurrenceContexts } from './snippetExtraction';
 
 const SEARCH_PAGE_LIMIT = 100;
 
@@ -43,10 +45,11 @@ interface FindBacklinksOptions {
     ignoredNoteIds?: ReadonlySet<string>;
 }
 
-/** A search hit confirmed to contain the link, with the offset of every occurrence in its body. */
+/** A search hit confirmed to contain one or more rendered links to the target note. */
 interface BacklinkCandidate {
     note: SearchNote;
-    offsets: number[];
+    parsed: ParsedMarkdownBody;
+    occurrences: NoteLinkOccurrence[];
 }
 
 /**
@@ -59,7 +62,8 @@ async function collectBacklinkCandidates(
     noteId: string,
     ignoredNoteIds: ReadonlySet<string>
 ): Promise<BacklinkCandidate[]> {
-    const needle = linkNeedle(noteId);
+    const normalizedNoteId = noteId.toLowerCase();
+    const needle = linkNeedle(normalizedNoteId);
     const searchHits: SearchNote[] = [];
 
     try {
@@ -89,19 +93,20 @@ async function collectBacklinkCandidates(
     const candidates: BacklinkCandidate[] = [];
     for (const note of searchHits) {
         // Drop the note itself and any candidate that doesn't actually contain the link.
-        if (note.id === noteId || ignoredNoteIds.has(note.id.toLowerCase())) {
+        if (note.id.toLowerCase() === normalizedNoteId || ignoredNoteIds.has(note.id.toLowerCase())) {
             continue;
         }
-        if (typeof note.body !== 'string' || !note.body.includes(needle)) {
-            continue;
-        }
-
-        const offsets = findOccurrenceOffsets(note.body, needle);
-        if (!offsets.length) {
+        if (typeof note.body !== 'string' || !note.body.toLowerCase().includes(needle)) {
             continue;
         }
 
-        candidates.push({ note, offsets });
+        const parsed = parseMarkdownBody(note.body);
+        const occurrences = extractNoteLinks(parsed).filter((occurrence) => occurrence.targetId === normalizedNoteId);
+        if (!occurrences.length) {
+            continue;
+        }
+
+        candidates.push({ note, parsed, occurrences });
     }
 
     return candidates;
@@ -123,8 +128,11 @@ export async function findBacklinks(noteId: string, options: FindBacklinksOption
     const notebookCache = new Map<string, string>();
     const backlinks: LinkItem[] = [];
 
-    for (const { note, offsets } of candidates) {
-        const contexts = extractOccurrenceContexts(parseMarkdownBody(note.body), offsets);
+    for (const { note, parsed, occurrences } of candidates) {
+        const contexts = extractOccurrenceContexts(
+            parsed,
+            occurrences.map((occurrence) => occurrence.from)
+        );
         const notebookName = await resolveNotebookName(note.parent_id, notebookCache);
         const title = typeof note.title === 'string' && note.title ? note.title : 'Untitled';
         const occurrenceCount = contexts.length;
@@ -175,7 +183,7 @@ export async function countBacklinks(noteId: string, options: FindBacklinksOptio
 
     const candidates = await collectBacklinkCandidates(noteId, options.ignoredNoteIds ?? new Set<string>());
     const counts: BacklinkCounts = {
-        occurrences: candidates.reduce((total, candidate) => total + candidate.offsets.length, 0),
+        occurrences: candidates.reduce((total, candidate) => total + candidate.occurrences.length, 0),
         notes: candidates.length,
     };
 
