@@ -12,6 +12,12 @@ describe('tree-based snippet extraction', () => {
         expect(extractSnippetLine(parsed, 0)).toBe('Bold gone Link Alt *literal* code & HTML');
     });
 
+    it('strips highlight and insert delimiters while leaving unpaired ones intact', () => {
+        const parsed = parseMarkdownBody('==marked== ++inserted++ 2 == 2 and c++ ++');
+
+        expect(extractSnippetLine(parsed, 0)).toBe('marked inserted 2 == 2 and c++ ++');
+    });
+
     it('renders valid references and preserves unresolved reference syntax', () => {
         const parsed = parseMarkdownBody(`[Valid][target] [target][] [target] [Missing][unknown]\n\n[target]: :/${ID}`);
 
