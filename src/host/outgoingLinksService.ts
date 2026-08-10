@@ -23,15 +23,15 @@
  */
 
 import joplin from 'api';
-import logger from './logger';
-import type { LinkItem } from './types';
-import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from './htmlAnchors';
-import { extractNoteLinks } from './linkExtraction';
-import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from './markdownHeadings';
-import { parseMarkdownBody, type ParsedMarkdownBody } from './markdownParser';
+import logger from '../logger';
+import type { LinkItem } from '../types';
+import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from '../markdown/htmlAnchors';
+import { extractNoteLinks } from '../markdown/linkExtraction';
+import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from '../markdown/markdownHeadings';
+import { parseMarkdownBody, type ParsedMarkdownBody } from '../markdown/markdownParser';
 import { resolveNoteMeta, resolveNotebookName, type NoteMeta } from './noteMetadata';
-import { compareLinkItems } from './linkSort';
-import { extractNoteOpening, extractSectionOpening } from './snippetExtraction';
+import { compareLinkItems } from '../linkSort';
+import { extractNoteOpening, extractSectionOpening } from '../markdown/snippetExtraction';
 
 interface FindOutgoingLinksOptions {
     ignoredNoteIds?: ReadonlySet<string>;

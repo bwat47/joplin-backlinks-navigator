@@ -1,5 +1,5 @@
-import type { LinkCounts, LinkDirection, LinkItem, LinkPreviewMode, LinkPreviewSettings } from './types';
-import { dedupeByNoteId } from './linkSort';
+import type { LinkCounts, LinkDirection, LinkItem, LinkPreviewMode, LinkPreviewSettings } from '../types';
+import { dedupeByNoteId } from '../linkSort';
 
 /**
  * Whether a direction's rows collapse to one per linked note under the given preview mode.

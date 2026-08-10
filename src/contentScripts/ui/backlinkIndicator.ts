@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { createIndicatorCss } from '../theme/panelTheme';
+import { createIndicatorCss } from './panelTheme';
 import { EditorOverlay, ensureOverlayStyles } from './editorOverlay';
 
 const INDICATOR_STYLE_ID = 'backlinks-navigator-indicator-styles';

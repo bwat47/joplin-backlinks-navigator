@@ -19,13 +19,13 @@
  */
 
 import joplin from 'api';
-import logger from './logger';
-import type { LinkItem } from './types';
-import { extractNoteLinks, linkNeedle, type NoteLinkOccurrence } from './linkExtraction';
-import { parseMarkdownBody, type ParsedMarkdownBody } from './markdownParser';
+import logger from '../logger';
+import type { LinkItem } from '../types';
+import { extractNoteLinks, linkNeedle, type NoteLinkOccurrence } from '../markdown/linkExtraction';
+import { parseMarkdownBody, type ParsedMarkdownBody } from '../markdown/markdownParser';
 import { resolveNotebookName } from './noteMetadata';
-import { compareLinkItems } from './linkSort';
-import { extractOccurrenceContexts } from './snippetExtraction';
+import { compareLinkItems } from '../linkSort';
+import { extractOccurrenceContexts } from '../markdown/snippetExtraction';
 
 const SEARCH_PAGE_LIMIT = 100;
 

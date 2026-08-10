@@ -22,25 +22,26 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 
 - `src/index.ts` boots the plugin, registers commands, settings, toolbar/menu integration, the
   content script, and the message handler.
-- `src/settings.ts` defines user-facing settings.
+- `src/host/settings.ts` defines user-facing settings.
 - `src/messages.ts` defines the request and response shapes shared across the host/content-script
   boundary.
 - `src/types.ts` defines shared domain types, including `LinkItem`.
 
 ### Link Discovery
 
-- `src/backlinksService.ts` finds notes that mention the current note id, verifies their rendered
+- `src/host/backlinksService.ts` finds notes that mention the current note id, verifies their rendered
   Markdown links, and returns one backlink row per valid link use.
-- `src/outgoingLinksService.ts` reads the current note, extracts distinct rendered note-link
+- `src/host/outgoingLinksService.ts` reads the current note, extracts distinct rendered note-link
   destinations, and returns one outgoing-link row per destination.
 - Each service also exposes a counting entry point (`countBacklinks`, `countOutgoingLinks`) that
   shares the discovery work but stops before row enrichment. See [Indicator Counts](#indicator-counts).
-- `src/markdownParser.ts` creates one standalone Lezer tree and line index per body. The focused
-  `linkExtraction.ts`, `markdownHeadings.ts`, `htmlAnchors.ts`, and `snippetExtraction.ts` helpers
-  share that context for links, headings, HTML anchors, sections, and rendered-text previews.
-- `src/markdownText.ts` centralizes logical-label extraction, CommonMark unescaping, and the
+- `src/markdown/markdownParser.ts` creates one standalone Lezer tree and line index per body. The
+  focused helpers in `src/markdown/` — `linkExtraction.ts`, `markdownHeadings.ts`, `htmlAnchors.ts`,
+  and `snippetExtraction.ts` — share that context for links, headings, HTML anchors, sections, and
+  rendered-text previews.
+- `src/markdown/markdownText.ts` centralizes logical-label extraction, CommonMark unescaping, and the
   consumer-specific visible-text policies used by headings and snippets.
-- `src/noteMetadata.ts` resolves note and notebook metadata with per-call caching.
+- `src/host/noteMetadata.ts` resolves note and notebook metadata with per-call caching.
 - `src/linkSort.ts` centralizes row ordering.
 
 ### Editor Integration
@@ -48,10 +49,10 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 - `src/contentScripts/backlinksNavigator.ts` is the content-script entry point. It reads the current
   note id, opens/closes the popup, fetches link data, forwards navigation requests, and coordinates
   backlink scrolling after note changes.
-- `src/contentScripts/pluginSettings.ts` stores editor-side settings in a CodeMirror facet so UI
-  behavior can update without rebuilding the editor extension.
-- `src/contentScripts/ui/noteIdWatcher.ts` reports note changes inside the reused editor view.
-- `src/contentScripts/referenceHighlight.ts` briefly highlights the matched reference after
+- `src/contentScripts/editor/pluginSettings.ts` stores editor-side settings in a CodeMirror facet so
+  UI behavior can update without rebuilding the editor extension.
+- `src/contentScripts/editor/noteIdWatcher.ts` reports note changes inside the reused editor view.
+- `src/contentScripts/editor/referenceHighlight.ts` briefly highlights the matched reference after
   navigation.
 
 ### UI
@@ -60,13 +61,13 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
   keyboard navigation, loading/empty/error states, and row previews.
 - `src/contentScripts/ui/backlinkIndicator.ts` renders the optional editor-corner badge showing
   inbound and outbound counts.
-- `src/linkDisplay.ts` contains the shared display policy used by both the popup and the indicator.
-  In title-only backlink mode, inbound rows are collapsed to one row per source note.
+- `src/contentScripts/linkDisplay.ts` contains the shared display policy used by both the popup and
+  the indicator. In title-only backlink mode, inbound rows are collapsed to one row per source note.
 - `src/contentScripts/ui/fuzzyFilter.ts` handles popup filtering.
 - `src/contentScripts/ui/editorOverlay.ts` mounts both floating elements into the editor's scroll
   DOM, keeps them clear of the scrollbar, and injects their stylesheets. The popup and the badge
   are positioned by one implementation rather than two that happen to match.
-- `src/contentScripts/theme/panelTheme.ts` injects the popup and indicator CSS using Joplin theme
+- `src/contentScripts/ui/panelTheme.ts` injects the popup and indicator CSS using Joplin theme
   variables. Their shared anchoring is one constant, matching `editorOverlay.ts`.
 
 ## Message Boundary

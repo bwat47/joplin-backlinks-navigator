@@ -1,5 +1,5 @@
-import { MAX_PANEL_WIDTH, MIN_PANEL_HEIGHT_PERCENTAGE } from '../panelDimensions';
-import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS } from '../types';
+import { MAX_PANEL_WIDTH, MIN_PANEL_HEIGHT_PERCENTAGE } from '../../panelDimensions';
+import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS } from '../../types';
 import { DEFAULT_CONTENT_SCRIPT_SETTINGS, normalizeContentScriptSettings } from './pluginSettings';
 
 describe('content script settings normalization', () => {

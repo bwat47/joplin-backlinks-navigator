@@ -1,5 +1,5 @@
 import { getDisplayCounts, getDisplayLinkCount, getDisplayLinks, toBacklinkCounts } from './linkDisplay';
-import type { LinkCounts, LinkDirection, LinkItem, LinkPreviewMode } from './types';
+import type { LinkCounts, LinkDirection, LinkItem, LinkPreviewMode } from '../types';
 
 const makeLink = (direction: LinkDirection, noteId: string, occurrenceIndex: number): LinkItem => ({
     direction,

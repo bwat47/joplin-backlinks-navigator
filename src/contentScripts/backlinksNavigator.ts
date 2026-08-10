@@ -20,23 +20,23 @@ import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScri
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
 import type { LinkCounts, LinkDirection, LinkItem } from '../types';
 import { EMPTY_LINK_COUNTS } from '../types';
-import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from '../htmlAnchors';
-import { extractNoteLinks, type NoteLinkOccurrence } from '../linkExtraction';
-import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from '../markdownHeadings';
-import { parseMarkdownBody } from '../markdownParser';
+import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from '../markdown/htmlAnchors';
+import { extractNoteLinks, type NoteLinkOccurrence } from '../markdown/linkExtraction';
+import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from '../markdown/markdownHeadings';
+import { parseMarkdownBody } from '../markdown/markdownParser';
 import type { ContentScriptToPluginMessage, IndicatorState } from '../messages';
-import { getDisplayCounts, toBacklinkCounts } from '../linkDisplay';
+import { getDisplayCounts, toBacklinkCounts } from './linkDisplay';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
-import { createNoteIdWatcher } from './ui/noteIdWatcher';
-import { referenceHighlightExtension, setReferenceHighlightEffect } from './referenceHighlight';
-import type { TextRange } from './textRange';
+import { createNoteIdWatcher } from './editor/noteIdWatcher';
+import { referenceHighlightExtension, setReferenceHighlightEffect } from './editor/referenceHighlight';
+import type { TextRange } from './editor/textRange';
 import {
     applyContentScriptSettings,
     createSettingsExtension,
     getContentScriptSettings,
     syncInitialContentScriptSettings,
-} from './pluginSettings';
+} from './editor/pluginSettings';
 import logger from '../logger';
 
 const INDICATOR_DEBOUNCE_MS = 350;

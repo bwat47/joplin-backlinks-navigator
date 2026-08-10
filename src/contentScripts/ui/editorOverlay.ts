@@ -4,7 +4,7 @@
  *
  * Both anchor to the top-right of the editor's scroll area and must stay clear of its scrollbar, so
  * that behavior lives here instead of being repeated per component. The CSS half of the same
- * contract is `OVERLAY_ANCHOR_CSS` in `theme/panelTheme.ts`.
+ * contract is `OVERLAY_ANCHOR_CSS` in `panelTheme.ts`.
  */
 
 import { EditorView } from '@codemirror/view';
