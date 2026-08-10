@@ -140,13 +140,13 @@ function definedReferenceLabels(parsed: ParsedMarkdownBody): ReadonlySet<string>
 }
 
 function isUnresolvedReference(parsed: ParsedMarkdownBody, node: SyntaxNode): boolean {
+    // Check the node name before anything else: `getChild`/`getChildren` walk the whole child list,
+    // and this runs for every node visited, including blocks holding thousands of children.
+    if ((node.name !== 'Link' && node.name !== 'Image') || node.getChild('URL')) {
+        return false;
+    }
     const isReference = node.getChild('LinkLabel') !== null || node.getChildren('LinkMark').length === 2;
-    return (
-        (node.name === 'Link' || node.name === 'Image') &&
-        isReference &&
-        !node.getChild('URL') &&
-        !definedReferenceLabels(parsed).has(extractReferenceLabel(parsed, node))
-    );
+    return isReference && !definedReferenceLabels(parsed).has(extractReferenceLabel(parsed, node));
 }
 
 function extractRenderedChild(
@@ -199,28 +199,43 @@ export function extractRenderedText(
         return renderHtmlText(clippedSlice(parsed.body, node.from, node.to, from, to));
     }
 
-    const cursor = node.cursor();
-    if (!cursor.firstChild()) {
+    if (!node.firstChild) {
         return clippedSlice(parsed.body, node.from, node.to, rangeFrom, rangeTo);
     }
+    return renderChildren(parsed, node, policy, from, to);
+}
 
+/** Renders the children of `node` that fall inside an already-clamped `[from, to)` range. */
+function renderChildren(
+    parsed: ParsedMarkdownBody,
+    node: SyntaxNode,
+    policy: MarkdownTextPolicy,
+    from: number,
+    to: number
+): string {
+    // Descend to the first child reaching into the range rather than walking every sibling from the
+    // start. Callers clip a single line out of its whole enclosing block, so a long list or table
+    // would otherwise cost one full sibling scan per line.
+    const firstInRange = node.childAfter(from);
     let output = '';
     let position = from;
-    do {
-        if (cursor.to <= from || cursor.from >= to) {
-            continue;
-        }
-        if (cursor.from > position) {
-            output += parsed.body.slice(position, Math.min(cursor.from, to));
-        }
-        output += extractRenderedChild(parsed, cursor.node, policy, from, to);
-        position = Math.max(position, Math.min(cursor.to, to));
-    } while (cursor.nextSibling());
 
-    if (position < to) {
-        output += parsed.body.slice(position, to);
+    if (firstInRange) {
+        const cursor = firstInRange.cursor();
+        // Siblings are ordered, so the first one starting past the range ends the walk.
+        while (cursor.from < to) {
+            if (cursor.from > position) {
+                output += parsed.body.slice(position, Math.min(cursor.from, to));
+            }
+            output += extractRenderedChild(parsed, cursor.node, policy, from, to);
+            position = Math.max(position, Math.min(cursor.to, to));
+            if (!cursor.nextSibling()) {
+                break;
+            }
+        }
     }
-    return output;
+
+    return position < to ? output + parsed.body.slice(position, to) : output;
 }
 
 /** Extracts logical label source while removing Markdown container prefixes. */

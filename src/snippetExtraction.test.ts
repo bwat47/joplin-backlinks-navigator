@@ -41,6 +41,23 @@ describe('tree-based snippet extraction', () => {
         expect(extractNoteOpening(parseMarkdownBody('!important do this'))).toBe('!important do this');
     });
 
+    it('renders any line of a large block without depending on its position', () => {
+        const items = Array.from({ length: 400 }, (_, i) => `- item ${i} with **bold** [Link](:/${ID})`);
+        const parsed = parseMarkdownBody(items.join('\n'));
+
+        for (const index of [0, 1, 200, 398, 399]) {
+            expect(extractSnippetLine(parsed, index)).toBe(`item ${index} with bold Link`);
+        }
+    });
+
+    it('renders any row of a large table without depending on its position', () => {
+        const rows = ['| Head |', '| --- |', ...Array.from({ length: 400 }, (_, i) => `| cell ${i} |`)];
+        const parsed = parseMarkdownBody(rows.join('\n'));
+
+        expect(extractSnippetLine(parsed, 2)).toBe('cell 0');
+        expect(extractSnippetLine(parsed, 401)).toBe('cell 399');
+    });
+
     it('omits inline comments and hard-break syntax', () => {
         const parsed = parseMarkdownBody('Visible <!-- hidden --> text  \nnext');
 
