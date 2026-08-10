@@ -1,4 +1,26 @@
-import { unescapeMarkdownText } from './markdownText';
+import { parseMarkdownBody } from './markdownParser';
+import { referenceDefinitions, unescapeMarkdownText } from './markdownText';
+
+const ID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+describe('referenceDefinitions', () => {
+    it('indexes normalized labels to unescaped destinations, first definition winning', () => {
+        const parsed = parseMarkdownBody(
+            `[Use][  MiXeD   Label ]\n\n[mixed label]: <:/${ID}>\n[MIXED LABEL]: /second\n[other]: /third`
+        );
+
+        expect([...referenceDefinitions(parsed)]).toEqual([
+            ['MIXED LABEL', `:/${ID}`],
+            ['OTHER', '/third'],
+        ]);
+    });
+
+    it('builds the index once per parsed body', () => {
+        const parsed = parseMarkdownBody(`[Use][target]\n\n[target]: :/${ID}`);
+
+        expect(referenceDefinitions(parsed)).toBe(referenceDefinitions(parsed));
+    });
+});
 
 describe('unescapeMarkdownText', () => {
     it('decodes CommonMark escapes and strict HTML5 entities', () => {

@@ -1,13 +1,7 @@
 /** Pure helpers for finding rendered Joplin note links in a shared Markdown parse. */
 
-import type { SyntaxNode } from '@lezer/common';
 import type { ParsedMarkdownBody } from './markdownParser';
-import {
-    extractLogicalSource,
-    extractReferenceLabel,
-    normalizeReferenceLabel,
-    unescapeMarkdownText,
-} from './markdownText';
+import { extractReferenceLabel, parseLinkDestination, referenceDefinitions } from './markdownText';
 
 const NOTE_LINK_DESTINATION_RE = /^:\/([0-9a-fA-F]{32})(?:#([\s\S]*))?$/;
 
@@ -32,12 +26,6 @@ function normalizeLinkAnchor(anchor: string): string {
     }
 }
 
-function parseLinkDestination(parsed: ParsedMarkdownBody, urlNode: SyntaxNode): string {
-    const source = parsed.body.slice(urlNode.from, urlNode.to);
-    const destination = source.startsWith('<') && source.endsWith('>') ? source.slice(1, -1) : source;
-    return unescapeMarkdownText(destination);
-}
-
 function parseNoteLinkDestination(destination: string): Pick<NoteLinkOccurrence, 'targetId' | 'anchor'> | null {
     const match = NOTE_LINK_DESTINATION_RE.exec(destination);
     if (!match) {
@@ -54,28 +42,9 @@ function parseNoteLinkDestination(destination: string): Pick<NoteLinkOccurrence,
  * Images, raw HTML, bare destinations, code, comments, and undefined references are excluded.
  */
 export function extractNoteLinks(parsed: ParsedMarkdownBody): NoteLinkOccurrence[] {
-    const references = new Map<string, string>();
+    // Definitions may follow their uses, so the whole index has to exist before resolving any link.
+    const references = referenceDefinitions(parsed);
     const occurrences: NoteLinkOccurrence[] = [];
-
-    parsed.tree.iterate({
-        enter(cursor) {
-            if (cursor.name !== 'LinkReference') {
-                return;
-            }
-            const labelNode = cursor.node.getChild('LinkLabel');
-            const urlNode = cursor.node.getChild('URL');
-            if (!labelNode || !urlNode) {
-                return false;
-            }
-            const label = normalizeReferenceLabel(
-                extractLogicalSource(parsed, labelNode, labelNode.from + 1, labelNode.to - 1)
-            );
-            if (label && !references.has(label)) {
-                references.set(label, parseLinkDestination(parsed, urlNode));
-            }
-            return false;
-        },
-    });
 
     parsed.tree.iterate({
         enter(cursor) {

@@ -24,7 +24,7 @@ const SKIPPED_BLOCK_NODE_NAMES = new Set([
     'LinkReference',
     'ProcessingInstructionBlock',
 ]);
-const referenceLabelCache = new WeakMap<ParsedMarkdownBody, ReadonlySet<string>>();
+const referenceDefinitionCache = new WeakMap<ParsedMarkdownBody, ReadonlyMap<string, string>>();
 
 export interface MarkdownTextPolicy {
     readonly includeImageAlt: boolean;
@@ -94,7 +94,7 @@ function clippedSlice(body: string, from: number, to: number, rangeFrom: number,
 }
 
 /** Applies CommonMark's whitespace collapse and Unicode case-folding approximation. */
-export function normalizeReferenceLabel(label: string): string {
+function normalizeReferenceLabel(label: string): string {
     return label.trim().replace(/\s+/g, ' ').toLowerCase().toUpperCase();
 }
 
@@ -112,31 +112,46 @@ export function extractReferenceLabel(parsed: ParsedMarkdownBody, node: SyntaxNo
     return normalizeReferenceLabel(explicitText || primaryLabel(parsed, node));
 }
 
-function definedReferenceLabels(parsed: ParsedMarkdownBody): ReadonlySet<string> {
-    const cached = referenceLabelCache.get(parsed);
+/** Unescapes a link destination, dropping the `<…>` wrapper CommonMark allows around it. */
+export function parseLinkDestination(parsed: ParsedMarkdownBody, urlNode: SyntaxNode): string {
+    const source = parsed.body.slice(urlNode.from, urlNode.to);
+    const destination = source.startsWith('<') && source.endsWith('>') ? source.slice(1, -1) : source;
+    return unescapeMarkdownText(destination);
+}
+
+/**
+ * Indexes a body's link reference definitions by normalized label, the first definition winning as
+ * CommonMark specifies. Cached per parsed body: link extraction needs the destinations and
+ * rendered-text extraction needs the labels, and building it costs a full tree walk.
+ */
+export function referenceDefinitions(parsed: ParsedMarkdownBody): ReadonlyMap<string, string> {
+    const cached = referenceDefinitionCache.get(parsed);
     if (cached) {
         return cached;
     }
 
-    const labels = new Set<string>();
+    const definitions = new Map<string, string>();
     parsed.tree.iterate({
         enter(cursor) {
             if (cursor.name !== 'LinkReference') {
                 return;
             }
             const labelNode = cursor.node.getChild('LinkLabel');
-            if (labelNode) {
-                labels.add(
-                    normalizeReferenceLabel(
-                        extractLogicalSource(parsed, labelNode, labelNode.from + 1, labelNode.to - 1)
-                    )
-                );
+            const urlNode = cursor.node.getChild('URL');
+            if (!labelNode || !urlNode) {
+                return false;
+            }
+            const label = normalizeReferenceLabel(
+                extractLogicalSource(parsed, labelNode, labelNode.from + 1, labelNode.to - 1)
+            );
+            if (label && !definitions.has(label)) {
+                definitions.set(label, parseLinkDestination(parsed, urlNode));
             }
             return false;
         },
     });
-    referenceLabelCache.set(parsed, labels);
-    return labels;
+    referenceDefinitionCache.set(parsed, definitions);
+    return definitions;
 }
 
 function isUnresolvedReference(parsed: ParsedMarkdownBody, node: SyntaxNode): boolean {
@@ -146,7 +161,7 @@ function isUnresolvedReference(parsed: ParsedMarkdownBody, node: SyntaxNode): bo
         return false;
     }
     const isReference = node.getChild('LinkLabel') !== null || node.getChildren('LinkMark').length === 2;
-    return isReference && !definedReferenceLabels(parsed).has(extractReferenceLabel(parsed, node));
+    return isReference && !referenceDefinitions(parsed).has(extractReferenceLabel(parsed, node));
 }
 
 function extractRenderedChild(
@@ -239,7 +254,7 @@ function renderChildren(
 }
 
 /** Extracts logical label source while removing Markdown container prefixes. */
-export function extractLogicalSource(
+function extractLogicalSource(
     parsed: ParsedMarkdownBody,
     node: SyntaxNode,
     rangeFrom: number,
