@@ -13,8 +13,8 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 3. The popup asks the plugin host for backlinks and outgoing links.
 4. The host searches or parses note bodies, resolves note metadata, and returns `LinkItem` rows.
 5. The content script filters, displays, and keyboard-navigates those rows.
-6. Selecting a row asks the host to open the note. Backlink selections also try to scroll to the
-   matched reference in the target note.
+6. Selecting a row asks the host to open the note. Backlink selections and Outgoing selections with anchors also try to scroll to the
+   matched reference (or anchor) in the target note.
 
 ## Main Pieces
 
