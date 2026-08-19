@@ -204,7 +204,7 @@ async function toggleIgnoredNotebook(folderId: string): Promise<void> {
     if (nowIgnored) {
         ignored.add(notebookId);
     }
-    // Writing the setting fires onChange, which refreshes the open panel and the indicator.
+    // Writing the setting fires onChange, which refreshes the indicator.
     await setIgnoredNotebookIdsSetting(ignored);
 
     const notebookName = (await resolveNotebookName(folderId, new Map())) || 'this notebook';

@@ -390,7 +390,7 @@ export async function loadIgnoredNotebookIdsSetting(): Promise<Set<string>> {
 
 /**
  * Replaces the ignored notebooks, so the folder context-menu toggle doesn't have to know how the
- * setting is stored. Writing it fires `onChange`, which refreshes the panel and indicator.
+ * setting is stored. Writing it fires `onChange`, which refreshes the indicator.
  */
 export async function setIgnoredNotebookIdsSetting(ids: Iterable<string>): Promise<void> {
     await joplin.settings.setValue(SETTING_IGNORED_NOTEBOOK_IDS, serializeIgnoredIdList([...ids]));
