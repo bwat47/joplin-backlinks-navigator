@@ -4,9 +4,7 @@ docs/ARCHITECTURE.md
 
 ## Joplin Data API
 
-- `GET /folders` returns a flat, paginated `{ items, has_more }` list with `parent_id` by default.
-  The non-paginated tree response is opt-in with `as_tree=1`; the REST API documentation is outdated
-  on this behavior.
+- `GET /folders` returns a flat, paginated `{ items, has_more }` list with `parent_id` by default. The non-paginated tree response is opt-in with `as_tree=1`; the REST API documentation is outdated on this behavior.
 
 ## Build, Test, and Development Commands
 
