@@ -30,6 +30,7 @@ import {
     loadCtrlEnterBehaviorSetting,
     loadDebugSetting,
     loadIgnoredBacklinkNoteIdsSetting,
+    loadIgnoredNotebookIdsSetting,
     loadShowIndicatorSetting,
     registerSettings,
 } from './host/settings';
@@ -42,7 +43,8 @@ import type {
 } from './messages';
 import { countBacklinks, findBacklinks } from './host/backlinksService';
 import { countOutgoingLinks, findOutgoingLinks } from './host/outgoingLinksService';
-import type { BacklinkOpenBehavior } from './types';
+import { expandIgnoredFolderIds } from './host/noteMetadata';
+import type { BacklinkOpenBehavior, LinkFilters } from './types';
 
 type ResolvedOpenNoteMode = 'current' | BacklinkOpenBehavior;
 
@@ -99,14 +101,26 @@ async function openNote(noteId: string, mode: ResolvedOpenNoteMode, anchor = '')
     }
 }
 
+/**
+ * Reads the configured exclusions and resolves the ignored notebooks against the notebook tree.
+ *
+ * Loaded once per request and shared by every discovery call it feeds, so the indicator's two
+ * counters don't each pay for the folder listing.
+ */
+async function loadLinkFilters(): Promise<LinkFilters> {
+    const [ignoredNoteIds, configuredFolderIds] = await Promise.all([
+        loadIgnoredBacklinkNoteIdsSetting(),
+        loadIgnoredNotebookIdsSetting(),
+    ]);
+    return { ignoredNoteIds, ignoredFolderIds: await expandIgnoredFolderIds(configuredFolderIds) };
+}
+
 async function findBacklinksWithSettings(noteId: string): Promise<GetBacklinksResponse> {
-    const ignoredNoteIds = await loadIgnoredBacklinkNoteIdsSetting();
-    return findBacklinks(noteId, { ignoredNoteIds });
+    return findBacklinks(noteId, await loadLinkFilters());
 }
 
 async function findOutgoingLinksWithSettings(noteId: string): Promise<GetOutgoingLinksResponse> {
-    const ignoredNoteIds = await loadIgnoredBacklinkNoteIdsSetting();
-    return findOutgoingLinks(noteId, { ignoredNoteIds });
+    return findOutgoingLinks(noteId, await loadLinkFilters());
 }
 
 async function handleMessage(
@@ -131,10 +145,10 @@ async function handleMessage(
             // The badge only renders counts, so count links instead of resolving rows: this skips
             // the snippet, notebook, and anchor work — including a body fetch and markdown parse
             // per outgoing target — on every note open.
-            const ignoredNoteIds = await loadIgnoredBacklinkNoteIdsSetting();
+            const filters = await loadLinkFilters();
             const [backlinks, outgoing] = await Promise.all([
-                countBacklinks(message.noteId, { ignoredNoteIds }),
-                countOutgoingLinks(message.noteId, { ignoredNoteIds }),
+                countBacklinks(message.noteId, filters),
+                countOutgoingLinks(message.noteId, filters),
             ]);
             return {
                 enabled: true,

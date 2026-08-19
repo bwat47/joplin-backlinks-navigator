@@ -45,6 +45,23 @@ export interface LinkItem {
 }
 
 /**
+ * User-configured exclusions applied to both link directions and to the indicator counts, so the
+ * badge stays in step with the panel.
+ *
+ * Filtering applies to *results*, not to the note being viewed: a note that lives in an ignored
+ * notebook still shows its own backlinks and outgoing links.
+ */
+export interface LinkFilters {
+    /** Notes to omit from results, by id. */
+    ignoredNoteIds?: ReadonlySet<string>;
+    /**
+     * Notebooks whose notes are omitted from results, by id. Already expanded to include
+     * sub-notebooks — see `expandIgnoredFolderIds` in `host/noteMetadata.ts`.
+     */
+    ignoredFolderIds?: ReadonlySet<string>;
+}
+
+/**
  * Link tallies for the current note, resolved without building {@link LinkItem} rows.
  *
  * The indicator badge only needs numbers, so the host counts links instead of resolving snippets,

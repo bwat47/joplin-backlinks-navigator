@@ -12,19 +12,19 @@
  *    link to one of its anchors are different destinations, so they get their own rows; repeats of
  *    either collapse into one row.
  * 4. Resolve each target's title, parent notebook, and body, dropping broken links that can't be
- *    resolved. The snippet previews the opening of the linked note — or of the anchored section or
+ *    resolved and targets that live in an ignored notebook. The snippet previews the opening of the linked note — or of the anchored section or
  *    HTML-anchor line — rather than the context around the link in the current note. An anchor
  *    resolves to a heading slug first, then to an explicit HTML anchor (`<a id="…">`).
  *
- * Steps 1-3 are shared with {@link countOutgoingLinks}, which stops short of step 4's body fetches
- * and anchor parsing.
+ * Steps 1-3 are shared with {@link countOutgoingLinks}, which applies step 4's notebook filter but
+ * stops short of its body fetches and anchor parsing.
  *
  * Only the plugin host has Data API access, so this runs here rather than in the content script.
  */
 
 import joplin from 'api';
 import logger from '../logger';
-import type { LinkItem } from '../types';
+import type { LinkFilters, LinkItem } from '../types';
 import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from '../markdown/htmlAnchors';
 import { extractNoteLinks } from '../markdown/linkExtraction';
 import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from '../markdown/markdownHeadings';
@@ -32,10 +32,6 @@ import { parseMarkdownBody, type ParsedMarkdownBody } from '../markdown/markdown
 import { resolveNoteMeta, resolveNotebookName, type NoteMeta } from './noteMetadata';
 import { compareLinkItems } from '../linkSort';
 import { extractNoteOpening, extractSectionOpening } from '../markdown/snippetExtraction';
-
-interface FindOutgoingLinksOptions {
-    ignoredNoteIds?: ReadonlySet<string>;
-}
 
 interface ParsedTargetBody {
     parsed: ParsedMarkdownBody;
@@ -97,13 +93,61 @@ function collectDestinations(
 }
 
 /**
+ * Reports whether a resolved target should be dropped because it lives in an ignored notebook.
+ *
+ * Unlike ignored note ids, this can't be checked in {@link collectDestinations}: a destination is
+ * only a target id until its metadata is resolved. Both the row and the count path already fetch
+ * `parent_id`, so the check costs no extra lookup — and both must apply it, or the indicator badge
+ * would drift out of step with the panel.
+ */
+function isInIgnoredNotebook(meta: NoteMeta, ignoredFolderIds: ReadonlySet<string>): boolean {
+    return Boolean(meta.parent_id) && ignoredFolderIds.has(meta.parent_id);
+}
+
+/**
+ * Resolves the label and preview text for one destination in an already-parsed target note.
+ *
+ * Where an anchored link lands, in priority order:
+ *   1. a heading whose slug matches — name the heading, preview the section under it;
+ *   2. an explicit HTML anchor (`<a id="…">`) — use its own text as the label and preview the line
+ *      it sits on;
+ *   3. neither (stale slug, renamed heading) — fall back to the raw slug and the note opening.
+ *
+ * An unanchored link previews the target note's opening and has no section label.
+ */
+function resolveDestinationPreview(targetBody: ParsedTargetBody, anchor: string): { section: string; snippet: string } {
+    const { headings, parsed } = targetBody;
+    const heading = anchor ? findHeadingByAnchor(headings, anchor) : null;
+
+    if (heading) {
+        const nextHeading = headings[headings.indexOf(heading) + 1];
+        const sectionEndLineIndex = nextHeading?.startLineIndex ?? parsed.lines.length;
+        return {
+            section: heading.text,
+            snippet: extractSectionOpening(parsed, heading.endLineIndex, sectionEndLineIndex),
+        };
+    }
+
+    if (anchor) {
+        targetBody.htmlAnchors ??= parseHtmlAnchors(parsed);
+        const htmlAnchor = findHtmlAnchorById(targetBody.htmlAnchors, anchor);
+        return {
+            section: htmlAnchor?.text || anchor,
+            snippet: htmlAnchor?.snippet || extractNoteOpening(parsed, headings),
+        };
+    }
+
+    return { section: '', snippet: extractNoteOpening(parsed, headings) };
+}
+
+/**
  * Finds all distinct destinations that the given note links to.
  *
  * @param noteId - ID of the note to read outgoing links from.
- * @param options - Optional filters, including note ids to omit from results.
+ * @param filters - Optional exclusions; see {@link LinkFilters}.
  * @returns One entry per distinct note + anchor pair, sorted by title. Returns `[]` on failure.
  */
-export async function findOutgoingLinks(noteId: string, options: FindOutgoingLinksOptions = {}): Promise<LinkItem[]> {
+export async function findOutgoingLinks(noteId: string, filters: LinkFilters = {}): Promise<LinkItem[]> {
     if (!noteId) {
         return [];
     }
@@ -113,11 +157,8 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
         return [];
     }
 
-    const destinations = collectDestinations(
-        parseMarkdownBody(body),
-        noteId,
-        options.ignoredNoteIds ?? new Set<string>()
-    );
+    const ignoredFolderIds = filters.ignoredFolderIds ?? new Set<string>();
+    const destinations = collectDestinations(parseMarkdownBody(body), noteId, filters.ignoredNoteIds ?? new Set());
     if (!destinations.length) {
         return [];
     }
@@ -133,6 +174,9 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
             // Broken link (target note no longer exists) — nothing to navigate to.
             continue;
         }
+        if (isInIgnoredNotebook(meta, ignoredFolderIds)) {
+            continue;
+        }
         const notebookName = await resolveNotebookName(meta.parent_id, notebookCache);
         let targetBody = parsedBodyCache.get(group.targetId);
         if (!targetBody) {
@@ -143,30 +187,7 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
             };
             parsedBodyCache.set(group.targetId, targetBody);
         }
-        const { headings, parsed } = targetBody;
-        // Resolve where an anchored link lands, in priority order:
-        //   1. a heading whose slug matches — name the heading, preview the section under it;
-        //   2. an explicit HTML anchor (`<a id="…">`) — use its own text as the label and preview
-        //      the line it sits on;
-        //   3. neither (stale slug, renamed heading) — fall back to the raw slug and note opening.
-        const heading = group.anchor ? findHeadingByAnchor(headings, group.anchor) : null;
-        let section: string;
-        let snippet: string;
-        if (heading) {
-            const headingIndex = headings.indexOf(heading);
-            const nextHeading = headings[headingIndex + 1];
-            const sectionEndLineIndex = nextHeading?.startLineIndex ?? parsed.lines.length;
-            section = heading.text;
-            snippet = extractSectionOpening(parsed, heading.endLineIndex, sectionEndLineIndex);
-        } else if (group.anchor) {
-            targetBody.htmlAnchors ??= parseHtmlAnchors(parsed);
-            const htmlAnchor = findHtmlAnchorById(targetBody.htmlAnchors, group.anchor);
-            section = htmlAnchor?.text || group.anchor;
-            snippet = htmlAnchor?.snippet || extractNoteOpening(parsed, headings);
-        } else {
-            section = '';
-            snippet = extractNoteOpening(parsed, headings);
-        }
+        const { section, snippet } = resolveDestinationPreview(targetBody, group.anchor);
         outgoing.push({
             direction: 'out',
             id: group.key,
@@ -192,13 +213,13 @@ export async function findOutgoingLinks(noteId: string, options: FindOutgoingLin
  *
  * Drives the indicator badge, which needs only the tally. Each destination still costs one note
  * lookup, because a link whose target no longer exists is broken and {@link findOutgoingLinks}
- * drops it — so counting it would put the badge out of step with the panel. That lookup omits the
- * target's `body`, which is what makes this cheap: no bodies are transferred and no target note is
+ * drops it — so counting it would put the badge out of step with the panel. The same lookup carries
+ * the `parent_id` that the ignored-notebook filter needs. It omits the target's `body`, which is what makes this cheap: no bodies are transferred and no target note is
  * parsed for headings or HTML anchors.
  *
  * @returns The number of resolvable destinations. Returns 0 on failure.
  */
-export async function countOutgoingLinks(noteId: string, options: FindOutgoingLinksOptions = {}): Promise<number> {
+export async function countOutgoingLinks(noteId: string, filters: LinkFilters = {}): Promise<number> {
     if (!noteId) {
         return 0;
     }
@@ -208,16 +229,14 @@ export async function countOutgoingLinks(noteId: string, options: FindOutgoingLi
         return 0;
     }
 
-    const destinations = collectDestinations(
-        parseMarkdownBody(body),
-        noteId,
-        options.ignoredNoteIds ?? new Set<string>()
-    );
+    const ignoredFolderIds = filters.ignoredFolderIds ?? new Set<string>();
+    const destinations = collectDestinations(parseMarkdownBody(body), noteId, filters.ignoredNoteIds ?? new Set());
     const noteMetaCache = new Map<string, NoteMeta | null>();
     let count = 0;
 
     for (const destination of destinations) {
-        if (await resolveNoteMeta(destination.targetId, noteMetaCache)) {
+        const meta = await resolveNoteMeta(destination.targetId, noteMetaCache);
+        if (meta && !isInIgnoredNotebook(meta, ignoredFolderIds)) {
             count += 1;
         }
     }

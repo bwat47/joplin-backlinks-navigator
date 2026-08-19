@@ -172,6 +172,42 @@ describe('findBacklinks', () => {
         expect(mockDataGet).not.toHaveBeenCalledWith(['folders', 'folder-2'], expect.anything());
     });
 
+    it('omits backlinks from notes in ignored notebooks', async () => {
+        mockDataGet.mockImplementation(async (path: string[]) => {
+            if (path[0] === 'search') {
+                return {
+                    items: [
+                        {
+                            id: 'note-a',
+                            title: 'Alpha',
+                            body: `[Target](:/${TARGET_NOTE_ID})`,
+                            parent_id: 'folder-1',
+                        },
+                        {
+                            id: 'note-z',
+                            title: 'Zulu',
+                            body: `[Target](:/${TARGET_NOTE_ID})`,
+                            parent_id: 'folder-2',
+                        },
+                    ],
+                    has_more: false,
+                };
+            }
+
+            if (path[0] === 'folders' && path[1] === 'folder-1') {
+                return { id: 'folder-1', title: 'Projects' };
+            }
+
+            throw new Error(`Unexpected Data API request: ${path.join('/')}`);
+        });
+
+        // 'folder-2' stands in for an already-expanded set: the caller resolves sub-notebooks.
+        const rows = await findBacklinks(TARGET_NOTE_ID, { ignoredFolderIds: new Set(['folder-2']) });
+
+        expect(rows.map((row) => row.noteId)).toEqual(['note-a']);
+        expect(mockDataGet).not.toHaveBeenCalledWith(['folders', 'folder-2'], expect.anything());
+    });
+
     it('returns one backlink per rendered reference use and ignores non-link matches', async () => {
         const first = '[First][current]';
         const second = '[Second][current]';
@@ -286,6 +322,16 @@ describe('countBacklinks', () => {
         mockSearchResults(false);
 
         await expect(countBacklinks(TARGET_NOTE_ID, { ignoredNoteIds: new Set(['note-z']) })).resolves.toEqual({
+            occurrences: 1,
+            notes: 1,
+        });
+    });
+
+    it('omits source notes in ignored notebooks', async () => {
+        mockSearchResults(false);
+
+        // note-z lives in folder-1 and links twice; note-a is the only remaining source.
+        await expect(countBacklinks(TARGET_NOTE_ID, { ignoredFolderIds: new Set(['folder-1']) })).resolves.toEqual({
             occurrences: 1,
             notes: 1,
         });
