@@ -22,7 +22,9 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 
 - `src/index.ts` boots the plugin, registers commands, settings, toolbar/menu integration, the
   content script, and the message handler.
-- `src/host/settings.ts` defines user-facing settings.
+- `src/host/settings.ts` defines user-facing settings. Notebook ids have no copy affordance in
+  Joplin's UI, so the ignored-notebook list is built from a folder context-menu toggle registered in
+  `src/index.ts` rather than by typing ids.
 - `src/messages.ts` defines the request and response shapes shared across the host/content-script
   boundary.
 - `src/types.ts` defines shared domain types, including `LinkItem`.
@@ -41,8 +43,16 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
   `++insert++` inline nodes Lezer lacks, so their delimiters strip like any other Markdown mark.
 - `src/markdown/markdownText.ts` centralizes logical-label extraction, CommonMark unescaping, and the
   consumer-specific visible-text policies used by headings and snippets.
-- `src/host/noteMetadata.ts` resolves note and notebook metadata with per-call caching.
+- `src/host/noteMetadata.ts` resolves note and notebook metadata with per-call caching, and expands
+  the ignored-notebook setting to the notebooks nested under it (`expandIgnoredFolderIds`).
 - `src/linkSort.ts` centralizes row ordering.
+- Both services accept the same `LinkFilters` (see `src/types.ts`): notes and notebooks the user
+  excluded. Backlinks filter on the `parent_id` the search already returns; outgoing links filter
+  after `resolveNoteMeta`, since a destination is only a target id until then. The counting entry
+  points apply the same filters, so the badge can't drift from the panel. Filtering applies to
+  results only — a note inside an ignored notebook still shows its own links.
+- `src/index.ts` loads the filters once per request and expands the ignored notebooks before
+  handing them to a service, so the indicator's two counters share one folder listing.
 
 ### Editor Integration
 
