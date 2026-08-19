@@ -18,6 +18,7 @@ import { ContentScriptType, MenuItemLocation, ToastType, ToolbarButtonLocation }
 import {
     CODEMIRROR_CONTENT_SCRIPT_ID,
     COMMAND_SHOW_BACKLINKS,
+    COMMAND_TOGGLE_IGNORE_NOTEBOOK,
     EDITOR_COMMAND_TOGGLE_PANEL,
     EDITOR_COMMAND_UPDATE_SETTINGS,
 } from './constants';
@@ -30,8 +31,10 @@ import {
     loadCtrlEnterBehaviorSetting,
     loadDebugSetting,
     loadIgnoredBacklinkNoteIdsSetting,
+    loadIgnoredNotebookIdsSetting,
     loadShowIndicatorSetting,
     registerSettings,
+    setIgnoredNotebookIdsSetting,
 } from './host/settings';
 import type {
     ContentScriptToPluginMessage,
@@ -42,13 +45,14 @@ import type {
 } from './messages';
 import { countBacklinks, findBacklinks } from './host/backlinksService';
 import { countOutgoingLinks, findOutgoingLinks } from './host/outgoingLinksService';
-import type { BacklinkOpenBehavior } from './types';
+import { expandIgnoredFolderIds, resolveNotebookName } from './host/noteMetadata';
+import type { BacklinkOpenBehavior, LinkFilters } from './types';
 
 type ResolvedOpenNoteMode = 'current' | BacklinkOpenBehavior;
 
-async function showErrorToast(message: string): Promise<void> {
+async function showToast(message: string, type: ToastType = ToastType.Error): Promise<void> {
     try {
-        await joplin.views.dialogs.showToast({ message, type: ToastType.Error });
+        await joplin.views.dialogs.showToast({ message, type });
     } catch (error) {
         logger.warn('Failed to show toast notification', error);
     }
@@ -82,7 +86,7 @@ async function openNote(noteId: string, mode: ResolvedOpenNoteMode, anchor = '')
                 logger.debug('Opened backlink in new window', { noteId });
             } catch (error) {
                 logger.error('Failed to open backlink in new window', { noteId, error });
-                await showErrorToast('Failed to open backlink in new window');
+                await showToast('Failed to open backlink in new window');
             }
             return;
         case 'newTab':
@@ -91,7 +95,7 @@ async function openNote(noteId: string, mode: ResolvedOpenNoteMode, anchor = '')
                 logger.debug('Opened backlink in Note Tabs tab', { noteId });
             } catch (error) {
                 logger.error('Failed to open backlink in Note Tabs tab', { noteId, error });
-                await showErrorToast('Opening backlinks in new tabs requires the Note Tabs plugin.');
+                await showToast('Opening backlinks in new tabs requires the Note Tabs plugin.');
             }
             return;
         default:
@@ -99,14 +103,26 @@ async function openNote(noteId: string, mode: ResolvedOpenNoteMode, anchor = '')
     }
 }
 
+/**
+ * Reads the configured exclusions and resolves the ignored notebooks against the notebook tree.
+ *
+ * Loaded once per request and shared by every discovery call it feeds, so the indicator's two
+ * counters don't each pay for the folder listing.
+ */
+async function loadLinkFilters(): Promise<LinkFilters> {
+    const [ignoredNoteIds, configuredFolderIds] = await Promise.all([
+        loadIgnoredBacklinkNoteIdsSetting(),
+        loadIgnoredNotebookIdsSetting(),
+    ]);
+    return { ignoredNoteIds, ignoredFolderIds: await expandIgnoredFolderIds(configuredFolderIds) };
+}
+
 async function findBacklinksWithSettings(noteId: string): Promise<GetBacklinksResponse> {
-    const ignoredNoteIds = await loadIgnoredBacklinkNoteIdsSetting();
-    return findBacklinks(noteId, { ignoredNoteIds });
+    return findBacklinks(noteId, await loadLinkFilters());
 }
 
 async function findOutgoingLinksWithSettings(noteId: string): Promise<GetOutgoingLinksResponse> {
-    const ignoredNoteIds = await loadIgnoredBacklinkNoteIdsSetting();
-    return findOutgoingLinks(noteId, { ignoredNoteIds });
+    return findOutgoingLinks(noteId, await loadLinkFilters());
 }
 
 async function handleMessage(
@@ -131,10 +147,10 @@ async function handleMessage(
             // The badge only renders counts, so count links instead of resolving rows: this skips
             // the snippet, notebook, and anchor work — including a body fetch and markdown parse
             // per outgoing target — on every note open.
-            const ignoredNoteIds = await loadIgnoredBacklinkNoteIdsSetting();
+            const filters = await loadLinkFilters();
             const [backlinks, outgoing] = await Promise.all([
-                countBacklinks(message.noteId, { ignoredNoteIds }),
-                countOutgoingLinks(message.noteId, { ignoredNoteIds }),
+                countBacklinks(message.noteId, filters),
+                countOutgoingLinks(message.noteId, filters),
             ]);
             return {
                 enabled: true,
@@ -166,7 +182,46 @@ async function registerContentScripts(): Promise<void> {
     await joplin.contentScripts.onMessage(CODEMIRROR_CONTENT_SCRIPT_ID, handleMessage);
 }
 
+/**
+ * Adds or removes the right-clicked notebook from the ignore list.
+ *
+ * Joplin's menu items carry no per-item checked state and their labels are fixed at registration,
+ * so one toggle plus a toast is the only way to show which way the switch flipped.
+ *
+ * @param folderId - Supplied by the folder context menu. Empty when the command is run from the
+ *   command palette, where there is no notebook in context.
+ */
+async function toggleIgnoredNotebook(folderId: string): Promise<void> {
+    if (!folderId) {
+        logger.debug('Ignore-notebook command invoked without a notebook');
+        return;
+    }
+
+    // The setting stores lowercased ids, so match that before adding or removing.
+    const notebookId = folderId.toLowerCase();
+    const ignored = await loadIgnoredNotebookIdsSetting();
+    const nowIgnored = !ignored.delete(notebookId);
+    if (nowIgnored) {
+        ignored.add(notebookId);
+    }
+    // Writing the setting fires onChange, which refreshes the indicator.
+    await setIgnoredNotebookIdsSetting(ignored);
+
+    const notebookName = (await resolveNotebookName(folderId, new Map())) || 'this notebook';
+    logger.info('Toggled ignored notebook', { folderId, nowIgnored });
+    await showToast(
+        nowIgnored ? `Ignoring links in "${notebookName}"` : `No longer ignoring links in "${notebookName}"`,
+        ToastType.Info
+    );
+}
+
 async function registerCommands(): Promise<void> {
+    await joplin.commands.register({
+        name: COMMAND_TOGGLE_IGNORE_NOTEBOOK,
+        label: 'Toggle Backlinks Navigator ignore',
+        execute: toggleIgnoredNotebook,
+    });
+
     await joplin.commands.register({
         name: COMMAND_SHOW_BACKLINKS,
         label: 'Show Links',
@@ -198,6 +253,12 @@ async function pushContentScriptSettings(): Promise<void> {
 
 async function registerMenuItems(): Promise<void> {
     await joplin.views.menuItems.create('backlinksNavigatorMenuItem', COMMAND_SHOW_BACKLINKS, MenuItemLocation.Edit);
+    // Notebook ids have no copy affordance in Joplin's UI, so this is how the ignore list is built.
+    await joplin.views.menuItems.create(
+        'backlinksNavigatorIgnoreNotebookMenuItem',
+        COMMAND_TOGGLE_IGNORE_NOTEBOOK,
+        MenuItemLocation.FolderContextMenu
+    );
 }
 
 async function registerToolbarButton(): Promise<void> {

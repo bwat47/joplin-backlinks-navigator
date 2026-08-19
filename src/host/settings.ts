@@ -29,6 +29,7 @@ const SETTING_PANEL_WIDTH = 'backlinksNavigator.panelWidth';
 const SETTING_PANEL_MAX_HEIGHT = 'backlinksNavigator.panelMaxHeightPercentage';
 const SETTING_SHOW_INDICATOR = 'backlinksNavigator.showIndicator';
 const SETTING_IGNORED_BACKLINK_NOTE_IDS = 'backlinksNavigator.ignoredBacklinkNoteIds';
+const SETTING_IGNORED_NOTEBOOK_IDS = 'backlinksNavigator.ignoredNotebookIds';
 const SETTING_CTRL_CLICK_BEHAVIOR = 'backlinksNavigator.ctrlClickBehavior';
 const SETTING_CTRL_ENTER_BEHAVIOR = 'backlinksNavigator.ctrlEnterBehavior';
 const SETTING_BACKLINK_PREVIEW_MODE = 'backlinksNavigator.backlinkPreviewMode';
@@ -51,9 +52,10 @@ const OUTGOING_LINK_PREVIEW_MODE_OPTIONS: Record<'title' | 'titleSnippet', strin
 };
 
 /**
- * Matches one raw Joplin note id token, e.g. `bb12adaa3c704ff3bf09c0d7f7ad0c38`.
+ * Matches one raw Joplin item id token, e.g. `bb12adaa3c704ff3bf09c0d7f7ad0c38`. Note and notebook
+ * ids share this format, so both ignore settings validate their tokens with it.
  */
-const NOTE_ID_RE = /^[0-9a-f]{32}$/i;
+const ITEM_ID_RE = /^[0-9a-f]{32}$/i;
 
 function normalizeBooleanSetting(value: unknown, defaultValue: boolean): { value: boolean; changed: boolean } {
     if (typeof value === 'boolean') {
@@ -83,7 +85,14 @@ export function normalizeLinkPreviewMode(
     return { value: defaultValue, changed: true };
 }
 
-export function normalizeIgnoredBacklinkNoteIds(value: unknown): { value: string[]; changed: boolean } {
+/**
+ * Parses a comma-separated list of Joplin item ids, dropping blank, malformed, and duplicate
+ * tokens. Shared by the ignored-note and ignored-notebook settings, whose ids have the same format.
+ *
+ * @returns The accepted ids, lowercased, and whether anything was corrected. A `changed` result is
+ *   written back by {@link normalizeStoredSetting} so a malformed value self-heals.
+ */
+export function normalizeIgnoredIdList(value: unknown): { value: string[]; changed: boolean } {
     if (typeof value !== 'string') {
         return { value: [], changed: true };
     }
@@ -93,7 +102,7 @@ export function normalizeIgnoredBacklinkNoteIds(value: unknown): { value: string
     }
 
     const seen = new Set<string>();
-    const ignoredNoteIds: string[] = [];
+    const ignoredIds: string[] = [];
     let changed = false;
 
     for (const rawToken of value.split(',')) {
@@ -103,23 +112,28 @@ export function normalizeIgnoredBacklinkNoteIds(value: unknown): { value: string
             continue;
         }
 
-        if (!NOTE_ID_RE.test(token)) {
+        if (!ITEM_ID_RE.test(token)) {
             changed = true;
             continue;
         }
 
-        const noteId = token.toLowerCase();
-        if (seen.has(noteId)) {
+        const id = token.toLowerCase();
+        if (seen.has(id)) {
             changed = true;
             continue;
         }
 
-        seen.add(noteId);
-        ignoredNoteIds.push(noteId);
-        changed = changed || noteId !== token;
+        seen.add(id);
+        ignoredIds.push(id);
+        changed = changed || id !== token;
     }
 
-    return { value: ignoredNoteIds, changed };
+    return { value: ignoredIds, changed };
+}
+
+/** Stored form of an ignored-id setting: the comma-separated string the user sees in preferences. */
+function serializeIgnoredIdList(ids: readonly string[]): string {
+    return ids.join(', ');
 }
 
 export async function registerSettings(): Promise<void> {
@@ -172,6 +186,16 @@ export async function registerSettings(): Promise<void> {
             description:
                 'Comma-separated note IDs to exclude from link results and counts. Example: ' +
                 'bb12adaa3c704ff3bf09c0d7f7ad0c38, 14270a1ea65546319c1ed3db0e362c37',
+        },
+        [SETTING_IGNORED_NOTEBOOK_IDS]: {
+            value: '',
+            type: SettingItemType.String,
+            public: true,
+            section: SECTION_ID,
+            label: 'Ignored notebook IDs',
+            description:
+                'Comma-separated notebook IDs to exclude from link results and counts, including ' +
+                'their sub-notebooks. Right-click a notebook to add or remove it.',
         },
         [SETTING_CTRL_CLICK_BEHAVIOR]: {
             value: DEFAULT_BACKLINK_OPEN_BEHAVIOR,
@@ -339,12 +363,37 @@ export async function loadShowIndicatorSetting(): Promise<boolean> {
 export async function loadIgnoredBacklinkNoteIdsSetting(): Promise<Set<string>> {
     const noteIds = await loadNormalizedSetting(
         SETTING_IGNORED_BACKLINK_NOTE_IDS,
-        normalizeIgnoredBacklinkNoteIds,
+        normalizeIgnoredIdList,
         'ignored note IDs',
         // Stored as the comma-separated string the user typed, parsed into a list of ids.
-        { serialize: (value) => value.join(', ') }
+        { serialize: serializeIgnoredIdList }
     );
     return new Set(noteIds);
+}
+
+/**
+ * Reads the notebooks to exclude from link results.
+ *
+ * @returns The ids the user configured, without their sub-notebooks. Callers that filter results
+ *   must expand them first; see `expandIgnoredFolderIds` in `noteMetadata.ts`.
+ */
+export async function loadIgnoredNotebookIdsSetting(): Promise<Set<string>> {
+    const notebookIds = await loadNormalizedSetting(
+        SETTING_IGNORED_NOTEBOOK_IDS,
+        normalizeIgnoredIdList,
+        'ignored notebook IDs',
+        // Stored as the comma-separated string shown in preferences, parsed into a list of ids.
+        { serialize: serializeIgnoredIdList }
+    );
+    return new Set(notebookIds);
+}
+
+/**
+ * Replaces the ignored notebooks, so the folder context-menu toggle doesn't have to know how the
+ * setting is stored. Writing it fires `onChange`, which refreshes the indicator.
+ */
+export async function setIgnoredNotebookIdsSetting(ids: Iterable<string>): Promise<void> {
+    await joplin.settings.setValue(SETTING_IGNORED_NOTEBOOK_IDS, serializeIgnoredIdList([...ids]));
 }
 
 export async function loadCtrlClickBehaviorSetting(): Promise<BacklinkOpenBehavior> {
@@ -367,6 +416,7 @@ const EDITOR_AFFECTING_SETTING_KEYS = new Set([
     SETTING_PANEL_MAX_HEIGHT,
     SETTING_SHOW_INDICATOR,
     SETTING_IGNORED_BACKLINK_NOTE_IDS,
+    SETTING_IGNORED_NOTEBOOK_IDS,
     SETTING_BACKLINK_PREVIEW_MODE,
     SETTING_OUTGOING_PREVIEW_MODE,
 ]);

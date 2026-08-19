@@ -15,9 +15,11 @@ import joplin from 'api';
 import {
     loadContentScriptSettings,
     loadIgnoredBacklinkNoteIdsSetting,
+    loadIgnoredNotebookIdsSetting,
     normalizeBacklinkOpenBehavior,
-    normalizeIgnoredBacklinkNoteIds,
+    normalizeIgnoredIdList,
     normalizeLinkPreviewMode,
+    setIgnoredNotebookIdsSetting,
 } from './settings';
 
 const mockValue = joplin.settings.value as Mock;
@@ -29,6 +31,7 @@ const KEY_PANEL_MAX_HEIGHT = 'backlinksNavigator.panelMaxHeightPercentage';
 const KEY_BACKLINK_PREVIEW = 'backlinksNavigator.backlinkPreviewMode';
 const KEY_OUTGOING_PREVIEW = 'backlinksNavigator.outgoingPreviewMode';
 const KEY_IGNORED_NOTE_IDS = 'backlinksNavigator.ignoredBacklinkNoteIds';
+const KEY_IGNORED_NOTEBOOK_IDS = 'backlinksNavigator.ignoredNotebookIds';
 
 describe('settings normalization', () => {
     it('accepts supported backlink open behaviors', () => {
@@ -72,28 +75,24 @@ describe('settings normalization', () => {
         expect(normalizeLinkPreviewMode(undefined, 'title')).toEqual({ value: 'title', changed: true });
     });
 
-    it('parses comma-separated ignored backlink note ids', () => {
-        expect(
-            normalizeIgnoredBacklinkNoteIds('bb12adaa3c704ff3bf09c0d7f7ad0c38, 14270a1ea65546319c1ed3db0e362c37')
-        ).toEqual({
+    it('parses comma-separated ignored ids', () => {
+        expect(normalizeIgnoredIdList('bb12adaa3c704ff3bf09c0d7f7ad0c38, 14270a1ea65546319c1ed3db0e362c37')).toEqual({
             value: ['bb12adaa3c704ff3bf09c0d7f7ad0c38', '14270a1ea65546319c1ed3db0e362c37'],
             changed: false,
         });
     });
 
-    it('drops invalid and duplicate ignored backlink note ids', () => {
+    it('drops invalid and duplicate ignored ids', () => {
         expect(
-            normalizeIgnoredBacklinkNoteIds(
-                'BB12ADAA3C704FF3BF09C0D7F7AD0C38, invalid, bb12adaa3c704ff3bf09c0d7f7ad0c38,'
-            )
+            normalizeIgnoredIdList('BB12ADAA3C704FF3BF09C0D7F7AD0C38, invalid, bb12adaa3c704ff3bf09c0d7f7ad0c38,')
         ).toEqual({
             value: ['bb12adaa3c704ff3bf09c0d7f7ad0c38'],
             changed: true,
         });
     });
 
-    it('treats an empty ignored backlink note id setting as valid', () => {
-        expect(normalizeIgnoredBacklinkNoteIds('  ')).toEqual({ value: [], changed: false });
+    it('treats an empty ignored id setting as valid', () => {
+        expect(normalizeIgnoredIdList('  ')).toEqual({ value: [], changed: false });
     });
 });
 
@@ -180,5 +179,38 @@ describe('settings loading', () => {
             new Set(['bb12adaa3c704ff3bf09c0d7f7ad0c38', '14270a1ea65546319c1ed3db0e362c37'])
         );
         expect(mockSetValue).not.toHaveBeenCalled();
+    });
+
+    it('parses ignored notebook ids into a set, self-healing them back to a comma-separated string', async () => {
+        mockValue.mockResolvedValue('F0LDER, 8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b, 8D0E3B4A1C2F4D5E6A7B8C9D0E1F2A3B');
+
+        await expect(loadIgnoredNotebookIdsSetting()).resolves.toEqual(new Set(['8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b']));
+        expect(mockSetValue).toHaveBeenCalledWith(KEY_IGNORED_NOTEBOOK_IDS, '8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b');
+    });
+
+    it('leaves a valid ignored notebook id setting untouched', async () => {
+        mockValue.mockResolvedValue('8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b, 4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d');
+
+        await expect(loadIgnoredNotebookIdsSetting()).resolves.toEqual(
+            new Set(['8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b', '4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d'])
+        );
+        expect(mockSetValue).not.toHaveBeenCalled();
+    });
+
+    it('stores ignored notebook ids as a comma-separated string', async () => {
+        await setIgnoredNotebookIdsSetting(
+            new Set(['8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b', '4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d'])
+        );
+
+        expect(mockSetValue).toHaveBeenCalledWith(
+            KEY_IGNORED_NOTEBOOK_IDS,
+            '8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b, 4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d'
+        );
+    });
+
+    it('stores an empty string when the last ignored notebook is removed', async () => {
+        await setIgnoredNotebookIdsSetting(new Set<string>());
+
+        expect(mockSetValue).toHaveBeenCalledWith(KEY_IGNORED_NOTEBOOK_IDS, '');
     });
 });

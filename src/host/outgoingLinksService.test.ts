@@ -117,6 +117,33 @@ describe('findOutgoingLinks', () => {
         expect(mockDataGet).not.toHaveBeenCalledWith(['notes', NOTE_B], expect.anything());
     });
 
+    it('skips targets in ignored notebooks', async () => {
+        const body = `[Alpha](:/${NOTE_A}) and [Beta](:/${NOTE_B}).`;
+
+        mockDataGet.mockImplementation(async (path: string[]) => {
+            if (path[0] === 'notes' && path[1] === SOURCE_NOTE_ID) {
+                return { id: SOURCE_NOTE_ID, body };
+            }
+            if (path[0] === 'notes' && path[1] === NOTE_A) {
+                return { id: NOTE_A, title: 'Alpha', parent_id: 'folder-1', body: 'Alpha opening line.' };
+            }
+            if (path[0] === 'notes' && path[1] === NOTE_B) {
+                return { id: NOTE_B, title: 'Beta', parent_id: 'folder-2', body: 'Beta opening line.' };
+            }
+            if (path[0] === 'folders' && path[1] === 'folder-1') {
+                return { id: 'folder-1', title: 'Projects' };
+            }
+            throw new Error(`Unexpected Data API request: ${path.join('/')}`);
+        });
+
+        // 'folder-2' stands in for an already-expanded set: the caller resolves sub-notebooks.
+        const rows = await findOutgoingLinks(SOURCE_NOTE_ID, { ignoredFolderIds: new Set(['folder-2']) });
+
+        expect(rows.map((row) => row.noteId)).toEqual([NOTE_A]);
+        // The filtered target's notebook is never resolved.
+        expect(mockDataGet).not.toHaveBeenCalledWith(['folders', 'folder-2'], expect.anything());
+    });
+
     it('splits heading-anchor links into their own rows, deduping repeats of each', async () => {
         const body =
             `Whole note: [Alpha](:/${NOTE_A}) and again [Alpha](:/${NOTE_A}).\n` +
@@ -461,6 +488,13 @@ describe('countOutgoingLinks', () => {
         mockNotes();
 
         await expect(countOutgoingLinks(SOURCE_NOTE_ID, { ignoredNoteIds: new Set([NOTE_A]) })).resolves.toBe(1);
+    });
+
+    it('omits targets in ignored notebooks', async () => {
+        mockNotes();
+
+        // Alpha (and its anchored destination) live in folder-1, leaving Beta as the only count.
+        await expect(countOutgoingLinks(SOURCE_NOTE_ID, { ignoredFolderIds: new Set(['folder-1']) })).resolves.toBe(1);
     });
 
     it('returns 0 without fetching when note id is missing', async () => {

@@ -20,7 +20,7 @@
 
 import joplin from 'api';
 import logger from '../logger';
-import type { LinkItem } from '../types';
+import type { LinkFilters, LinkItem } from '../types';
 import { extractNoteLinks, linkNeedle, type NoteLinkOccurrence } from '../markdown/linkExtraction';
 import { parseMarkdownBody, type ParsedMarkdownBody } from '../markdown/markdownParser';
 import { resolveNotebookName } from './noteMetadata';
@@ -41,10 +41,6 @@ interface SearchResponse {
     has_more: boolean;
 }
 
-interface FindBacklinksOptions {
-    ignoredNoteIds?: ReadonlySet<string>;
-}
-
 /** A search hit confirmed to contain one or more rendered links to the target note. */
 interface BacklinkCandidate {
     note: SearchNote;
@@ -58,11 +54,10 @@ interface BacklinkCandidate {
  *
  * @returns One entry per linking note, in search order. Returns `[]` if the search fails.
  */
-async function collectBacklinkCandidates(
-    noteId: string,
-    ignoredNoteIds: ReadonlySet<string>
-): Promise<BacklinkCandidate[]> {
+async function collectBacklinkCandidates(noteId: string, filters: LinkFilters): Promise<BacklinkCandidate[]> {
     const normalizedNoteId = noteId.toLowerCase();
+    const ignoredNoteIds = filters.ignoredNoteIds ?? new Set<string>();
+    const ignoredFolderIds = filters.ignoredFolderIds ?? new Set<string>();
     const needle = linkNeedle(normalizedNoteId);
     const searchHits: SearchNote[] = [];
 
@@ -92,8 +87,13 @@ async function collectBacklinkCandidates(
 
     const candidates: BacklinkCandidate[] = [];
     for (const note of searchHits) {
-        // Drop the note itself and any candidate that doesn't actually contain the link.
+        // Drop the note itself, ignored notes and notebooks, and any candidate that doesn't
+        // actually contain the link. The search already returns `parent_id`, so the notebook check
+        // costs no extra lookup.
         if (note.id.toLowerCase() === normalizedNoteId || ignoredNoteIds.has(note.id.toLowerCase())) {
+            continue;
+        }
+        if (note.parent_id && ignoredFolderIds.has(note.parent_id)) {
             continue;
         }
         if (typeof note.body !== 'string' || !note.body.toLowerCase().includes(needle)) {
@@ -116,15 +116,15 @@ async function collectBacklinkCandidates(
  * Finds all notes that link to the given note.
  *
  * @param noteId - ID of the note to find backlinks for.
- * @param options - Optional search filters, including note ids to omit from results.
+ * @param filters - Optional exclusions; see {@link LinkFilters}.
  * @returns Backlink entries sorted by note title. Returns `[]` on failure.
  */
-export async function findBacklinks(noteId: string, options: FindBacklinksOptions = {}): Promise<LinkItem[]> {
+export async function findBacklinks(noteId: string, filters: LinkFilters = {}): Promise<LinkItem[]> {
     if (!noteId) {
         return [];
     }
 
-    const candidates = await collectBacklinkCandidates(noteId, options.ignoredNoteIds ?? new Set<string>());
+    const candidates = await collectBacklinkCandidates(noteId, filters);
     const notebookCache = new Map<string, string>();
     const backlinks: LinkItem[] = [];
 
@@ -176,12 +176,12 @@ export interface BacklinkCounts {
  *
  * @returns Backlink tallies. Returns zeros on failure.
  */
-export async function countBacklinks(noteId: string, options: FindBacklinksOptions = {}): Promise<BacklinkCounts> {
+export async function countBacklinks(noteId: string, filters: LinkFilters = {}): Promise<BacklinkCounts> {
     if (!noteId) {
         return { occurrences: 0, notes: 0 };
     }
 
-    const candidates = await collectBacklinkCandidates(noteId, options.ignoredNoteIds ?? new Set<string>());
+    const candidates = await collectBacklinkCandidates(noteId, filters);
     const counts: BacklinkCounts = {
         occurrences: candidates.reduce((total, candidate) => total + candidate.occurrences.length, 0),
         notes: candidates.length,
