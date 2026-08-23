@@ -46,6 +46,7 @@ import type {
     IndicatorState,
 } from './messages';
 import { countBacklinks, findBacklinks } from './host/backlinksService';
+import { JoplinRepository, type LinkRepository } from './host/joplinRepository';
 import { countOutgoingLinks, findOutgoingLinks } from './host/outgoingLinksService';
 import { expandIgnoredFolderIds, resolveNotebookName } from './host/noteMetadata';
 import type { BacklinkOpenBehavior, LinkFilters } from './types';
@@ -112,23 +113,27 @@ async function openNote(noteId: string, mode: ResolvedOpenNoteMode, anchor = '')
  * Loaded once per request and shared by every discovery call it feeds, so the indicator's two
  * counters don't each pay for the folder listing.
  */
-async function loadLinkFilters(): Promise<LinkFilters> {
+async function loadLinkFilters(repository: LinkRepository): Promise<LinkFilters> {
     const [ignoredNoteIds, configuredFolderIds] = await Promise.all([
         loadIgnoredBacklinkNoteIdsSetting(),
         loadIgnoredNotebookIdsSetting(),
     ]);
-    return { ignoredNoteIds, ignoredFolderIds: await expandIgnoredFolderIds(configuredFolderIds) };
+    return { ignoredNoteIds, ignoredFolderIds: await expandIgnoredFolderIds(repository, configuredFolderIds) };
 }
 
-async function findBacklinksWithSettings(noteId: string): Promise<GetBacklinksResponse> {
-    return findBacklinks(noteId, await loadLinkFilters());
+async function findBacklinksWithSettings(repository: LinkRepository, noteId: string): Promise<GetBacklinksResponse> {
+    return findBacklinks(repository, noteId, await loadLinkFilters(repository));
 }
 
-async function findOutgoingLinksWithSettings(noteId: string): Promise<GetOutgoingLinksResponse> {
-    return findOutgoingLinks(noteId, await loadLinkFilters());
+async function findOutgoingLinksWithSettings(
+    repository: LinkRepository,
+    noteId: string
+): Promise<GetOutgoingLinksResponse> {
+    return findOutgoingLinks(repository, noteId, await loadLinkFilters(repository));
 }
 
 async function handleMessage(
+    repository: LinkRepository,
     message: ContentScriptToPluginMessage
 ): Promise<GetBacklinksResponse | GetOutgoingLinksResponse | GetContentScriptSettingsResponse | IndicatorState | void> {
     if (!message || typeof message !== 'object') {
@@ -137,9 +142,9 @@ async function handleMessage(
 
     switch (message.type) {
         case 'getBacklinks':
-            return findBacklinksWithSettings(message.noteId);
+            return findBacklinksWithSettings(repository, message.noteId);
         case 'getOutgoingLinks':
-            return findOutgoingLinksWithSettings(message.noteId);
+            return findOutgoingLinksWithSettings(repository, message.noteId);
         case 'getContentScriptSettings':
             return loadContentScriptSettings();
         case 'getIndicatorState': {
@@ -150,10 +155,10 @@ async function handleMessage(
             // The badge only renders counts, so count links instead of resolving rows: this skips
             // the snippet, notebook, and anchor work — including a body fetch and markdown parse
             // per outgoing target — on every note open.
-            const filters = await loadLinkFilters();
+            const filters = await loadLinkFilters(repository);
             const [backlinks, outgoing] = await Promise.all([
-                countBacklinks(message.noteId, filters),
-                countOutgoingLinks(message.noteId, filters),
+                countBacklinks(repository, message.noteId, filters),
+                countOutgoingLinks(repository, message.noteId, filters),
             ]);
             return {
                 enabled: true,
@@ -175,14 +180,16 @@ async function handleMessage(
     }
 }
 
-async function registerContentScripts(): Promise<void> {
+async function registerContentScripts(repository: LinkRepository): Promise<void> {
     await joplin.contentScripts.register(
         ContentScriptType.CodeMirrorPlugin,
         CODEMIRROR_CONTENT_SCRIPT_ID,
         './contentScripts/backlinksNavigator.js'
     );
 
-    await joplin.contentScripts.onMessage(CODEMIRROR_CONTENT_SCRIPT_ID, handleMessage);
+    await joplin.contentScripts.onMessage(CODEMIRROR_CONTENT_SCRIPT_ID, (message: ContentScriptToPluginMessage) =>
+        handleMessage(repository, message)
+    );
 }
 
 /**
@@ -194,7 +201,7 @@ async function registerContentScripts(): Promise<void> {
  * @param folderId - Supplied by the folder context menu. Empty when the command is run from the
  *   command palette, where there is no notebook in context.
  */
-async function toggleIgnoredNotebook(folderId: string): Promise<void> {
+async function toggleIgnoredNotebook(repository: LinkRepository, folderId: string): Promise<void> {
     if (!folderId) {
         logger.debug('Ignore-notebook command invoked without a notebook');
         return;
@@ -210,7 +217,7 @@ async function toggleIgnoredNotebook(folderId: string): Promise<void> {
     // Writing the setting fires onChange, which refreshes the indicator.
     await setIgnoredNotebookIdsSetting(ignored);
 
-    const notebookName = (await resolveNotebookName(folderId, new Map())) || 'this notebook';
+    const notebookName = (await resolveNotebookName(repository, folderId, new Map())) || 'this notebook';
     logger.info('Toggled ignored notebook', { folderId, nowIgnored });
     await showToast(
         nowIgnored ? `Ignoring links in "${notebookName}"` : `No longer ignoring links in "${notebookName}"`,
@@ -218,11 +225,11 @@ async function toggleIgnoredNotebook(folderId: string): Promise<void> {
     );
 }
 
-async function registerCommands(): Promise<void> {
+async function registerCommands(repository: LinkRepository): Promise<void> {
     await joplin.commands.register({
         name: COMMAND_TOGGLE_IGNORE_NOTEBOOK,
         label: 'Toggle Backlinks Navigator ignore',
-        execute: toggleIgnoredNotebook,
+        execute: (folderId: string) => toggleIgnoredNotebook(repository, folderId),
     });
 
     await joplin.commands.register({
@@ -279,6 +286,7 @@ async function applyDebugSetting(): Promise<void> {
 joplin.plugins.register({
     onStart: async () => {
         logger.info('Backlinks Navigator plugin starting');
+        const repository = new JoplinRepository(joplin.data);
         await registerSettings();
         await applyDebugSetting();
         await joplin.settings.onChange(async ({ keys }) => {
@@ -289,8 +297,8 @@ joplin.plugins.register({
                 await pushContentScriptSettings();
             }
         });
-        await registerContentScripts();
-        await registerCommands();
+        await registerContentScripts(repository);
+        await registerCommands(repository);
         await registerMenuItems();
         await registerToolbarButton();
     },

@@ -1,17 +1,9 @@
-import { vi, type Mock } from 'vitest';
-import joplin from 'api';
+import { vi } from 'vitest';
 import { countBacklinks, findBacklinks } from './backlinksService';
+import { JoplinRepository } from './joplinRepository';
 
-vi.mock('api', () => ({
-    __esModule: true,
-    default: {
-        data: {
-            get: vi.fn(),
-        },
-    },
-}));
-
-const mockDataGet = joplin.data.get as Mock;
+const mockDataGet = vi.fn();
+const repository = new JoplinRepository({ get: mockDataGet });
 const TARGET_NOTE_ID = '0123456789abcdef0123456789abcdef';
 
 describe('findBacklinks', () => {
@@ -70,7 +62,7 @@ describe('findBacklinks', () => {
             throw new Error(`Unexpected Data API request: ${path.join('/')}`);
         });
 
-        await expect(findBacklinks(TARGET_NOTE_ID)).resolves.toEqual([
+        await expect(findBacklinks(repository, TARGET_NOTE_ID)).resolves.toEqual([
             {
                 direction: 'in',
                 anchor: '',
@@ -121,7 +113,7 @@ describe('findBacklinks', () => {
     });
 
     it('returns an empty list without searching when note id is missing', async () => {
-        await expect(findBacklinks('')).resolves.toEqual([]);
+        await expect(findBacklinks(repository, '')).resolves.toEqual([]);
         expect(mockDataGet).not.toHaveBeenCalled();
     });
 
@@ -154,7 +146,9 @@ describe('findBacklinks', () => {
             throw new Error(`Unexpected Data API request: ${path.join('/')}`);
         });
 
-        await expect(findBacklinks(TARGET_NOTE_ID, { ignoredNoteIds: new Set(['note-z']) })).resolves.toEqual([
+        await expect(
+            findBacklinks(repository, TARGET_NOTE_ID, { ignoredNoteIds: new Set(['note-z']) })
+        ).resolves.toEqual([
             {
                 direction: 'in',
                 anchor: '',
@@ -202,7 +196,9 @@ describe('findBacklinks', () => {
         });
 
         // 'folder-2' stands in for an already-expanded set: the caller resolves sub-notebooks.
-        const rows = await findBacklinks(TARGET_NOTE_ID, { ignoredFolderIds: new Set(['folder-2']) });
+        const rows = await findBacklinks(repository, TARGET_NOTE_ID, {
+            ignoredFolderIds: new Set(['folder-2']),
+        });
 
         expect(rows.map((row) => row.noteId)).toEqual(['note-a']);
         expect(mockDataGet).not.toHaveBeenCalledWith(['folders', 'folder-2'], expect.anything());
@@ -239,7 +235,7 @@ describe('findBacklinks', () => {
             throw new Error(`Unexpected Data API request: ${path.join('/')}`);
         });
 
-        const result = await findBacklinks(TARGET_NOTE_ID);
+        const result = await findBacklinks(repository, TARGET_NOTE_ID);
 
         expect(result).toHaveLength(2);
         expect(result.map((row) => row.snippet)).toEqual(['First', 'Second']);
@@ -304,15 +300,15 @@ describe('countBacklinks', () => {
         // The mock throws on any non-search request, so a notebook lookup here would fail the test.
         mockSearchResults(false);
 
-        await expect(countBacklinks(TARGET_NOTE_ID)).resolves.toEqual({ occurrences: 3, notes: 2 });
+        await expect(countBacklinks(repository, TARGET_NOTE_ID)).resolves.toEqual({ occurrences: 3, notes: 2 });
         expect(mockDataGet).toHaveBeenCalledTimes(1);
     });
 
     it('agrees with the rows findBacklinks resolves for the same note', async () => {
         mockSearchResults(true);
 
-        const rows = await findBacklinks(TARGET_NOTE_ID);
-        const counts = await countBacklinks(TARGET_NOTE_ID);
+        const rows = await findBacklinks(repository, TARGET_NOTE_ID);
+        const counts = await countBacklinks(repository, TARGET_NOTE_ID);
 
         expect(counts.occurrences).toBe(rows.length);
         expect(counts.notes).toBe(new Set(rows.map((row) => row.noteId)).size);
@@ -321,7 +317,9 @@ describe('countBacklinks', () => {
     it('omits ignored source notes', async () => {
         mockSearchResults(false);
 
-        await expect(countBacklinks(TARGET_NOTE_ID, { ignoredNoteIds: new Set(['note-z']) })).resolves.toEqual({
+        await expect(
+            countBacklinks(repository, TARGET_NOTE_ID, { ignoredNoteIds: new Set(['note-z']) })
+        ).resolves.toEqual({
             occurrences: 1,
             notes: 1,
         });
@@ -331,20 +329,22 @@ describe('countBacklinks', () => {
         mockSearchResults(false);
 
         // note-z lives in folder-1 and links twice; note-a is the only remaining source.
-        await expect(countBacklinks(TARGET_NOTE_ID, { ignoredFolderIds: new Set(['folder-1']) })).resolves.toEqual({
+        await expect(
+            countBacklinks(repository, TARGET_NOTE_ID, { ignoredFolderIds: new Set(['folder-1']) })
+        ).resolves.toEqual({
             occurrences: 1,
             notes: 1,
         });
     });
 
     it('returns zeros without searching when note id is missing', async () => {
-        await expect(countBacklinks('')).resolves.toEqual({ occurrences: 0, notes: 0 });
+        await expect(countBacklinks(repository, '')).resolves.toEqual({ occurrences: 0, notes: 0 });
         expect(mockDataGet).not.toHaveBeenCalled();
     });
 
     it('returns zeros when the search fails', async () => {
         mockDataGet.mockRejectedValue(new Error('search unavailable'));
 
-        await expect(countBacklinks(TARGET_NOTE_ID)).resolves.toEqual({ occurrences: 0, notes: 0 });
+        await expect(countBacklinks(repository, TARGET_NOTE_ID)).resolves.toEqual({ occurrences: 0, notes: 0 });
     });
 });

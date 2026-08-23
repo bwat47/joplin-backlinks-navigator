@@ -34,6 +34,10 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 - `src/host/backlinksService.ts` finds notes that mention the current note id, verifies their rendered
   Markdown links, and returns one backlink row per valid link use.
 - `src/host/outgoingLinksService.ts` reads the current note and returns one outgoing-link row per distinct target-note-and-anchor destination. Repeated links to the same destination are collapsed into that row.
+- `src/host/joplinRepository.ts` is the host's narrow read-only Data API boundary. It owns endpoint
+  paths, field selection, bounded pagination, and response normalization — including the `Untitled`
+  fallback for empty note titles, so every row-building caller agrees on it; the link services own
+  parsing, error policy, and request-scoped caches.
 - Each service also exposes a counting entry point (`countBacklinks`, `countOutgoingLinks`) that
   shares the discovery work but stops before row enrichment. See [Indicator Counts](#indicator-counts).
 - `src/markdown/markdownParser.ts` creates one standalone Lezer tree and line index per body. The
@@ -176,6 +180,7 @@ The content script entry is listed in `plugin.config.json` as an `extraScripts` 
 The project keeps a few boundaries clear:
 
 - Joplin API work stays in the plugin host.
+- Data API reads go through one injected repository created by the plugin entry point.
 - Editor and DOM work stays in the content script.
 - Link parsing stays in shared, Joplin-free helpers.
 - Display rules stay in one place so the panel and indicator agree.

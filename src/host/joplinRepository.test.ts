@@ -1,0 +1,138 @@
+import { vi } from 'vitest';
+import { JoplinRepository } from './joplinRepository';
+
+describe('JoplinRepository', () => {
+    it('paginates searches and owns their query shape', async () => {
+        const get = vi.fn().mockImplementation(async (_path: string[], query?: { page?: number }) => {
+            if (query?.page === 1) {
+                return {
+                    items: [{ id: 'first', title: 'First', body: 'one', parent_id: 'folder' }],
+                    has_more: true,
+                };
+            }
+            return {
+                items: [{ id: 'second', title: 'Second', body: 'two', parent_id: 'folder' }],
+                has_more: false,
+            };
+        });
+
+        await expect(new JoplinRepository({ get }).searchNotes('needle')).resolves.toEqual([
+            { id: 'first', title: 'First', body: 'one', parent_id: 'folder' },
+            { id: 'second', title: 'Second', body: 'two', parent_id: 'folder' },
+        ]);
+        expect(get).toHaveBeenNthCalledWith(1, ['search'], {
+            query: 'needle',
+            fields: ['id', 'title', 'body', 'parent_id'],
+            limit: 100,
+            page: 1,
+        });
+        expect(get).toHaveBeenNthCalledWith(2, ['search'], {
+            query: 'needle',
+            fields: ['id', 'title', 'body', 'parent_id'],
+            limit: 100,
+            page: 2,
+        });
+    });
+
+    it('rejects malformed paginated responses', async () => {
+        const repository = new JoplinRepository({ get: vi.fn().mockResolvedValue({ has_more: false }) });
+
+        await expect(repository.listFolders()).rejects.toThrow('Joplin returned an invalid folder list.');
+    });
+
+    it('stops immediately when a page promises more items but returns none', async () => {
+        const get = vi.fn().mockResolvedValue({ items: [], has_more: true });
+        const repository = new JoplinRepository({ get });
+
+        await expect(repository.listFolders()).rejects.toThrow('Joplin reported more folders but returned none.');
+        // Caught on the spot, not after walking the whole page bound.
+        expect(get).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives up once a never-clearing has_more passes the item cap', async () => {
+        const page = Array.from({ length: 100 }, (_, index) => ({ id: `folder-${index}`, parent_id: 'root' }));
+        const get = vi.fn().mockResolvedValue({ items: page, has_more: true });
+        const repository = new JoplinRepository({ get });
+
+        await expect(repository.listFolders()).rejects.toThrow('Joplin returned more than 50000 folders.');
+    });
+
+    it('requests note bodies separately from lightweight metadata', async () => {
+        const get = vi
+            .fn()
+            .mockResolvedValueOnce({ id: 'note', body: 'Markdown' })
+            .mockResolvedValueOnce({ id: 'note', title: 'Title', parent_id: 'folder' });
+        const repository = new JoplinRepository({ get });
+
+        await expect(repository.getNoteBody('note')).resolves.toBe('Markdown');
+        await expect(repository.getNoteMeta('note')).resolves.toEqual({
+            title: 'Title',
+            parent_id: 'folder',
+            body: '',
+        });
+        expect(get).toHaveBeenNthCalledWith(1, ['notes', 'note'], { fields: ['id', 'body'] });
+        expect(get).toHaveBeenNthCalledWith(2, ['notes', 'note'], {
+            fields: ['id', 'title', 'parent_id'],
+        });
+    });
+
+    it('asks for the body only when the caller opts in', async () => {
+        const get = vi.fn().mockResolvedValue({ id: 'note', title: 'Title', parent_id: 'folder', body: 'Markdown' });
+        const repository = new JoplinRepository({ get });
+
+        await expect(repository.getNoteMeta('note', true)).resolves.toEqual({
+            title: 'Title',
+            parent_id: 'folder',
+            body: 'Markdown',
+        });
+        expect(get).toHaveBeenCalledWith(['notes', 'note'], {
+            fields: ['id', 'title', 'parent_id', 'body'],
+        });
+    });
+
+    it('falls back to "Untitled" for a note with no usable title', async () => {
+        const repository = new JoplinRepository({
+            get: vi.fn().mockResolvedValue({ id: 'note', title: '', parent_id: 'folder' }),
+        });
+
+        await expect(repository.getNoteMeta('note')).resolves.toEqual({
+            title: 'Untitled',
+            parent_id: 'folder',
+            body: '',
+        });
+    });
+
+    it('applies the same title fallback to search hits', async () => {
+        const repository = new JoplinRepository({
+            get: vi.fn().mockResolvedValue({
+                items: [{ id: 'note', title: '', body: 'one', parent_id: 'folder' }],
+                has_more: false,
+            }),
+        });
+
+        await expect(repository.searchNotes('needle')).resolves.toEqual([
+            { id: 'note', title: 'Untitled', body: 'one', parent_id: 'folder' },
+        ]);
+    });
+
+    it('coerces an odd item to empty fields rather than failing the whole listing', async () => {
+        const repository = new JoplinRepository({
+            get: vi.fn().mockResolvedValue({
+                items: [null, { id: 'note', title: 7, body: 'one', parent_id: 'folder' }],
+                has_more: false,
+            }),
+        });
+
+        await expect(repository.searchNotes('needle')).resolves.toEqual([
+            { id: '', title: 'Untitled', body: '', parent_id: '' },
+            { id: 'note', title: 'Untitled', body: 'one', parent_id: 'folder' },
+        ]);
+    });
+
+    // Unlike a note title, an empty notebook name is meaningful: the caller renders nothing.
+    it('leaves a missing notebook title empty', async () => {
+        const repository = new JoplinRepository({ get: vi.fn().mockResolvedValue({ id: 'folder' }) });
+
+        await expect(repository.getNotebookTitle('folder')).resolves.toBe('');
+    });
+});

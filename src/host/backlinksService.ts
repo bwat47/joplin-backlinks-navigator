@@ -18,7 +18,6 @@
  * the content script.
  */
 
-import joplin from 'api';
 import logger from '../logger';
 import type { LinkFilters, LinkItem } from '../types';
 import { extractNoteLinks, linkNeedle, type NoteLinkOccurrence } from '../markdown/linkExtraction';
@@ -26,20 +25,7 @@ import { parseMarkdownBody, type ParsedMarkdownBody } from '../markdown/markdown
 import { resolveNotebookName } from './noteMetadata';
 import { compareLinkItems } from '../linkSort';
 import { extractOccurrenceContexts } from '../markdown/snippetExtraction';
-
-const SEARCH_PAGE_LIMIT = 100;
-
-interface SearchNote {
-    id: string;
-    title: string;
-    body: string;
-    parent_id: string;
-}
-
-interface SearchResponse {
-    items: SearchNote[];
-    has_more: boolean;
-}
+import type { LinkRepository, SearchNote } from './joplinRepository';
 
 /** A search hit confirmed to contain one or more rendered links to the target note. */
 interface BacklinkCandidate {
@@ -54,32 +40,19 @@ interface BacklinkCandidate {
  *
  * @returns One entry per linking note, in search order. Returns `[]` if the search fails.
  */
-async function collectBacklinkCandidates(noteId: string, filters: LinkFilters): Promise<BacklinkCandidate[]> {
+async function collectBacklinkCandidates(
+    repository: LinkRepository,
+    noteId: string,
+    filters: LinkFilters
+): Promise<BacklinkCandidate[]> {
     const normalizedNoteId = noteId.toLowerCase();
     const ignoredNoteIds = filters.ignoredNoteIds ?? new Set<string>();
     const ignoredFolderIds = filters.ignoredFolderIds ?? new Set<string>();
     const needle = linkNeedle(normalizedNoteId);
-    const searchHits: SearchNote[] = [];
+    let searchHits: SearchNote[];
 
     try {
-        // Paginate through the full search result set.
-        let page = 1;
-        let hasMore = true;
-        while (hasMore) {
-            const response: SearchResponse = await joplin.data.get(['search'], {
-                query: noteId,
-                fields: ['id', 'title', 'body', 'parent_id'],
-                limit: SEARCH_PAGE_LIMIT,
-                page,
-            });
-
-            if (response?.items?.length) {
-                searchHits.push(...response.items);
-            }
-
-            hasMore = Boolean(response?.has_more);
-            page += 1;
-        }
+        searchHits = await repository.searchNotes(noteId);
     } catch (error) {
         logger.error('Backlink search failed', { noteId, error });
         return [];
@@ -96,7 +69,7 @@ async function collectBacklinkCandidates(noteId: string, filters: LinkFilters): 
         if (note.parent_id && ignoredFolderIds.has(note.parent_id)) {
             continue;
         }
-        if (typeof note.body !== 'string' || !note.body.toLowerCase().includes(needle)) {
+        if (!note.body.toLowerCase().includes(needle)) {
             continue;
         }
 
@@ -119,12 +92,16 @@ async function collectBacklinkCandidates(noteId: string, filters: LinkFilters): 
  * @param filters - Optional exclusions; see {@link LinkFilters}.
  * @returns Backlink entries sorted by note title. Returns `[]` on failure.
  */
-export async function findBacklinks(noteId: string, filters: LinkFilters = {}): Promise<LinkItem[]> {
+export async function findBacklinks(
+    repository: LinkRepository,
+    noteId: string,
+    filters: LinkFilters = {}
+): Promise<LinkItem[]> {
     if (!noteId) {
         return [];
     }
 
-    const candidates = await collectBacklinkCandidates(noteId, filters);
+    const candidates = await collectBacklinkCandidates(repository, noteId, filters);
     const notebookCache = new Map<string, string>();
     const backlinks: LinkItem[] = [];
 
@@ -133,8 +110,7 @@ export async function findBacklinks(noteId: string, filters: LinkFilters = {}): 
             parsed,
             occurrences.map((occurrence) => occurrence.from)
         );
-        const notebookName = await resolveNotebookName(note.parent_id, notebookCache);
-        const title = typeof note.title === 'string' && note.title ? note.title : 'Untitled';
+        const notebookName = await resolveNotebookName(repository, note.parent_id, notebookCache);
         const occurrenceCount = contexts.length;
 
         contexts.forEach(({ snippet, section }, occurrenceIndex) => {
@@ -146,7 +122,7 @@ export async function findBacklinks(noteId: string, filters: LinkFilters = {}): 
                 anchor: '',
                 occurrenceIndex,
                 occurrenceCount,
-                title,
+                title: note.title,
                 notebookName,
                 section,
                 snippet,
@@ -176,12 +152,16 @@ export interface BacklinkCounts {
  *
  * @returns Backlink tallies. Returns zeros on failure.
  */
-export async function countBacklinks(noteId: string, filters: LinkFilters = {}): Promise<BacklinkCounts> {
+export async function countBacklinks(
+    repository: LinkRepository,
+    noteId: string,
+    filters: LinkFilters = {}
+): Promise<BacklinkCounts> {
     if (!noteId) {
         return { occurrences: 0, notes: 0 };
     }
 
-    const candidates = await collectBacklinkCandidates(noteId, filters);
+    const candidates = await collectBacklinkCandidates(repository, noteId, filters);
     const counts: BacklinkCounts = {
         occurrences: candidates.reduce((total, candidate) => total + candidate.occurrences.length, 0),
         notes: candidates.length,
