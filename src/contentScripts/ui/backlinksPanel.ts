@@ -487,8 +487,8 @@ export class BacklinksPanel {
     /**
      * Chromium starts middle-click autoscroll on `mousedown` over a scrollable element, and the list
      * scrolls — cancelling it there is the only chance, as the `auxclick` that drives the actual
-     * navigation fires too late. On Linux, cancelling `mousedown` also leaves the filter focused, so
-     * blur it to prevent primary-selection paste on mouseup; navigation restores focus afterward.
+     * navigation fires too late. `preventDefault` keeps focus on the filter, so Chromium's Linux
+     * primary-selection paste on mouseup lands there — blur it and let navigation restore focus.
      */
     private handleListMouseDown(event: MouseEvent): void {
         if (event.button === 1) {
