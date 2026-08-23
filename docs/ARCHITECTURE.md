@@ -168,9 +168,7 @@ highlights it briefly.
 
 `npm run dist` runs the webpack build and creates the plugin archive in `publish/*.jpl`.
 
-The content script entry is listed in `plugin.config.json` as an `extraScripts` entry and registered
-in `src/manifest.json`. CodeMirror and Lezer packages are externalized because Joplin provides them
-at runtime.
+The content script entry is listed in `plugin.config.json` as an `extraScripts` entry. CodeMirror and Lezer packages are externalized because Joplin provides them at runtime.
 
 ## Design Intent
 
