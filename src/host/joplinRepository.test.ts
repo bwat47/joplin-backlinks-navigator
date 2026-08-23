@@ -58,4 +58,50 @@ describe('JoplinRepository', () => {
             fields: ['id', 'title', 'parent_id'],
         });
     });
+
+    it('falls back to "Untitled" for a note with no usable title', async () => {
+        const repository = new JoplinRepository({
+            get: vi.fn().mockResolvedValue({ id: 'note', title: '', parent_id: 'folder' }),
+        });
+
+        await expect(repository.getNoteMeta('note')).resolves.toEqual({
+            title: 'Untitled',
+            parent_id: 'folder',
+            body: '',
+        });
+    });
+
+    it('applies the same title fallback to search hits', async () => {
+        const repository = new JoplinRepository({
+            get: vi.fn().mockResolvedValue({
+                items: [{ id: 'note', title: '', body: 'one', parent_id: 'folder' }],
+                has_more: false,
+            }),
+        });
+
+        await expect(repository.searchNotes('needle')).resolves.toEqual([
+            { id: 'note', title: 'Untitled', body: 'one', parent_id: 'folder' },
+        ]);
+    });
+
+    it('coerces an odd item to empty fields rather than failing the whole listing', async () => {
+        const repository = new JoplinRepository({
+            get: vi.fn().mockResolvedValue({
+                items: [null, { id: 'note', title: 7, body: 'one', parent_id: 'folder' }],
+                has_more: false,
+            }),
+        });
+
+        await expect(repository.searchNotes('needle')).resolves.toEqual([
+            { id: '', title: 'Untitled', body: '', parent_id: '' },
+            { id: 'note', title: 'Untitled', body: 'one', parent_id: 'folder' },
+        ]);
+    });
+
+    // Unlike a note title, an empty notebook name is meaningful: the caller renders nothing.
+    it('leaves a missing notebook title empty', async () => {
+        const repository = new JoplinRepository({ get: vi.fn().mockResolvedValue({ id: 'folder' }) });
+
+        await expect(repository.getNotebookTitle('folder')).resolves.toBe('');
+    });
 });

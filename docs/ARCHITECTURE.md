@@ -35,7 +35,8 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
   Markdown links, and returns one backlink row per valid link use.
 - `src/host/outgoingLinksService.ts` reads the current note and returns one outgoing-link row per distinct target-note-and-anchor destination. Repeated links to the same destination are collapsed into that row.
 - `src/host/joplinRepository.ts` is the host's narrow read-only Data API boundary. It owns endpoint
-  paths, field selection, bounded pagination, and basic response validation; the link services own
+  paths, field selection, bounded pagination, and response normalization — including the `Untitled`
+  fallback for empty note titles, so every row-building caller agrees on it; the link services own
   parsing, error policy, and request-scoped caches.
 - Each service also exposes a counting entry point (`countBacklinks`, `countOutgoingLinks`) that
   shares the discovery work but stops before row enrichment. See [Indicator Counts](#indicator-counts).

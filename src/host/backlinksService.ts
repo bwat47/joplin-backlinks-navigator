@@ -69,7 +69,7 @@ async function collectBacklinkCandidates(
         if (note.parent_id && ignoredFolderIds.has(note.parent_id)) {
             continue;
         }
-        if (typeof note.body !== 'string' || !note.body.toLowerCase().includes(needle)) {
+        if (!note.body.toLowerCase().includes(needle)) {
             continue;
         }
 
@@ -111,7 +111,6 @@ export async function findBacklinks(
             occurrences.map((occurrence) => occurrence.from)
         );
         const notebookName = await resolveNotebookName(repository, note.parent_id, notebookCache);
-        const title = typeof note.title === 'string' && note.title ? note.title : 'Untitled';
         const occurrenceCount = contexts.length;
 
         contexts.forEach(({ snippet, section }, occurrenceIndex) => {
@@ -123,7 +122,7 @@ export async function findBacklinks(
                 anchor: '',
                 occurrenceIndex,
                 occurrenceCount,
-                title,
+                title: note.title,
                 notebookName,
                 section,
                 snippet,

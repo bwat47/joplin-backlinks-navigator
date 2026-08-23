@@ -29,8 +29,8 @@ export interface FolderNode {
     parent_id: string;
 }
 
-interface Page<T> {
-    items: T[];
+interface Page {
+    items: unknown[];
     has_more?: boolean;
 }
 
@@ -43,6 +43,8 @@ export interface LinkRepository {
     listFolders(): Promise<FolderNode[]>;
 }
 
+// Asserting coercions: a violation means the response envelope itself is wrong, so they throw.
+
 function asRecord(value: unknown, description: string): Record<string, unknown> {
     if (!value || typeof value !== 'object') {
         throw new Error(`Joplin returned an invalid ${description}.`);
@@ -50,46 +52,79 @@ function asRecord(value: unknown, description: string): Record<string, unknown> 
     return value as Record<string, unknown>;
 }
 
-function asPage<T>(value: unknown, itemDescription: string): Page<T> {
+function asPage(value: unknown, itemDescription: string): Page {
     const record = asRecord(value, `${itemDescription} list`);
     if (!Array.isArray(record.items) || (record.has_more !== undefined && typeof record.has_more !== 'boolean')) {
         throw new Error(`Joplin returned an invalid ${itemDescription} list.`);
     }
-    return record as unknown as Page<T>;
+    return { items: record.items, has_more: record.has_more as boolean | undefined };
+}
+
+// Total coercions: one odd item shouldn't fail a whole listing, so these never throw. A field
+// Joplin didn't return becomes '', which the callers already treat as "not a usable row".
+
+function fieldsOf(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function text(value: unknown): string {
+    return typeof value === 'string' ? value : '';
+}
+
+/** Joplin permits empty note titles; every surface renders those as "Untitled". */
+function noteTitle(value: unknown): string {
+    return text(value) || 'Untitled';
+}
+
+function toSearchNote(value: unknown): SearchNote {
+    const note = fieldsOf(value);
+    return {
+        id: text(note.id),
+        title: noteTitle(note.title),
+        body: text(note.body),
+        parent_id: text(note.parent_id),
+    };
+}
+
+function toFolderNode(value: unknown): FolderNode {
+    const folder = fieldsOf(value);
+    return { id: text(folder.id), parent_id: text(folder.parent_id) };
 }
 
 /**
  * Narrow read-only adapter around the Joplin Data API.
  *
- * It owns endpoint paths, requested fields, pagination, and basic response validation. Link
+ * It owns endpoint paths, requested fields, pagination, and response normalization — including the
+ * "Untitled" fallback for empty note titles, so every row-building caller agrees on it. Link
  * discovery, error policy, and caching remain with the calling services.
  */
 export class JoplinRepository implements LinkRepository {
     public constructor(private readonly data: JoplinDataApi) {}
 
     public async searchNotes(query: string): Promise<SearchNote[]> {
-        return this.listAll<SearchNote>(
+        return this.listAll(
             ['search'],
             {
                 query,
                 fields: ['id', 'title', 'body', 'parent_id'],
             },
-            'search result'
+            'search result',
+            toSearchNote
         );
     }
 
     public async getNoteBody(noteId: string): Promise<string> {
         const note = asRecord(await this.data.get(['notes', noteId], { fields: ['id', 'body'] }), `note ${noteId}`);
-        return typeof note.body === 'string' ? note.body : '';
+        return text(note.body);
     }
 
     public async getNoteMeta(noteId: string, includeBody = false): Promise<NoteMeta> {
         const fields = includeBody ? ['id', 'title', 'parent_id', 'body'] : ['id', 'title', 'parent_id'];
         const note = asRecord(await this.data.get(['notes', noteId], { fields }), `note ${noteId}`);
         return {
-            title: typeof note.title === 'string' && note.title ? note.title : 'Untitled',
-            parent_id: typeof note.parent_id === 'string' ? note.parent_id : '',
-            body: typeof note.body === 'string' ? note.body : '',
+            title: noteTitle(note.title),
+            parent_id: text(note.parent_id),
+            body: text(note.body),
         };
     }
 
@@ -98,24 +133,31 @@ export class JoplinRepository implements LinkRepository {
             await this.data.get(['folders', folderId], { fields: ['id', 'title'] }),
             `notebook ${folderId}`
         );
-        return typeof folder.title === 'string' ? folder.title : '';
+        // Unlike a note title, an empty notebook name means "don't render it" — see resolveNotebookName.
+        return text(folder.title);
     }
 
     public async listFolders(): Promise<FolderNode[]> {
-        return this.listAll<FolderNode>(
+        return this.listAll(
             ['folders'],
             {
                 fields: ['id', 'parent_id'],
             },
-            'folder'
+            'folder',
+            toFolderNode
         );
     }
 
-    private async listAll<T>(path: string[], query: Record<string, unknown>, itemDescription: string): Promise<T[]> {
+    private async listAll<T>(
+        path: string[],
+        query: Record<string, unknown>,
+        itemDescription: string,
+        toItem: (value: unknown) => T
+    ): Promise<T[]> {
         const items: T[] = [];
 
         for (let page = 1; page <= MAX_PAGES; page += 1) {
-            const response = asPage<T>(
+            const response = asPage(
                 await this.data.get(path, {
                     ...query,
                     limit: PAGE_SIZE,
@@ -123,7 +165,7 @@ export class JoplinRepository implements LinkRepository {
                 }),
                 itemDescription
             );
-            items.push(...response.items);
+            items.push(...response.items.map(toItem));
             if (!response.has_more) return items;
         }
 
