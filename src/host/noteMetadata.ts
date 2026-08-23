@@ -12,8 +12,6 @@
 import logger from '../logger';
 import type { FolderNode, LinkRepository, NoteMeta } from './joplinRepository';
 
-export type { NoteMeta } from './joplinRepository';
-
 interface ResolveNoteMetaOptions {
     /** Also fetch the note `body` (used to derive an outgoing link's opening snippet). */
     includeBody?: boolean;

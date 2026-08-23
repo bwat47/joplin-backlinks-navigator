@@ -28,10 +28,10 @@ import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from '../markdo
 import { extractNoteLinks } from '../markdown/linkExtraction';
 import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from '../markdown/markdownHeadings';
 import { parseMarkdownBody, type ParsedMarkdownBody } from '../markdown/markdownParser';
-import { resolveNoteMeta, resolveNotebookName, type NoteMeta } from './noteMetadata';
+import { resolveNoteMeta, resolveNotebookName } from './noteMetadata';
 import { compareLinkItems } from '../linkSort';
 import { extractNoteOpening, extractSectionOpening } from '../markdown/snippetExtraction';
-import type { LinkRepository } from './joplinRepository';
+import type { LinkRepository, NoteMeta } from './joplinRepository';
 
 interface ParsedTargetBody {
     parsed: ParsedMarkdownBody;
