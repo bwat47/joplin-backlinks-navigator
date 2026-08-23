@@ -1,17 +1,9 @@
-import { vi, type Mock } from 'vitest';
-import joplin from 'api';
+import { vi } from 'vitest';
+import { JoplinRepository } from './joplinRepository';
 import { countOutgoingLinks, findOutgoingLinks } from './outgoingLinksService';
 
-vi.mock('api', () => ({
-    __esModule: true,
-    default: {
-        data: {
-            get: vi.fn(),
-        },
-    },
-}));
-
-const mockDataGet = joplin.data.get as Mock;
+const mockDataGet = vi.fn();
+const repository = new JoplinRepository({ get: mockDataGet });
 
 const SOURCE_NOTE_ID = '0123456789abcdef0123456789abcdef';
 const NOTE_A = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -49,7 +41,7 @@ describe('findOutgoingLinks', () => {
             throw new Error(`Unexpected Data API request: ${path.join('/')}`);
         });
 
-        await expect(findOutgoingLinks(SOURCE_NOTE_ID)).resolves.toEqual([
+        await expect(findOutgoingLinks(repository, SOURCE_NOTE_ID)).resolves.toEqual([
             {
                 direction: 'out',
                 id: NOTE_A,
@@ -98,7 +90,9 @@ describe('findOutgoingLinks', () => {
             throw new Error(`Unexpected Data API request: ${path.join('/')}`);
         });
 
-        await expect(findOutgoingLinks(SOURCE_NOTE_ID, { ignoredNoteIds: new Set([NOTE_B]) })).resolves.toEqual([
+        await expect(
+            findOutgoingLinks(repository, SOURCE_NOTE_ID, { ignoredNoteIds: new Set([NOTE_B]) })
+        ).resolves.toEqual([
             {
                 direction: 'out',
                 id: NOTE_A,
@@ -137,7 +131,9 @@ describe('findOutgoingLinks', () => {
         });
 
         // 'folder-2' stands in for an already-expanded set: the caller resolves sub-notebooks.
-        const rows = await findOutgoingLinks(SOURCE_NOTE_ID, { ignoredFolderIds: new Set(['folder-2']) });
+        const rows = await findOutgoingLinks(repository, SOURCE_NOTE_ID, {
+            ignoredFolderIds: new Set(['folder-2']),
+        });
 
         expect(rows.map((row) => row.noteId)).toEqual([NOTE_A]);
         // The filtered target's notebook is never resolved.
@@ -168,7 +164,7 @@ describe('findOutgoingLinks', () => {
             throw new Error(`Unexpected Data API request: ${path.join('/')}`);
         });
 
-        await expect(findOutgoingLinks(SOURCE_NOTE_ID)).resolves.toEqual([
+        await expect(findOutgoingLinks(repository, SOURCE_NOTE_ID)).resolves.toEqual([
             {
                 direction: 'out',
                 id: NOTE_A,
@@ -233,7 +229,7 @@ describe('findOutgoingLinks', () => {
             throw new Error(`Unexpected Data API request: ${path.join('/')}`);
         });
 
-        await expect(findOutgoingLinks(SOURCE_NOTE_ID)).resolves.toEqual([
+        await expect(findOutgoingLinks(repository, SOURCE_NOTE_ID)).resolves.toEqual([
             {
                 direction: 'out',
                 id: NOTE_A,
@@ -296,7 +292,7 @@ describe('findOutgoingLinks', () => {
             throw new Error(`Unexpected Data API request: ${path.join('/')}`);
         });
 
-        await expect(findOutgoingLinks(SOURCE_NOTE_ID)).resolves.toEqual([
+        await expect(findOutgoingLinks(repository, SOURCE_NOTE_ID)).resolves.toEqual([
             {
                 direction: 'out',
                 id: `${NOTE_A}#日本語`,
@@ -333,7 +329,7 @@ describe('findOutgoingLinks', () => {
             throw new Error(`Unexpected Data API request: ${path.join('/')}`);
         });
 
-        const result = await findOutgoingLinks(SOURCE_NOTE_ID);
+        const result = await findOutgoingLinks(repository, SOURCE_NOTE_ID);
 
         expect(result).toHaveLength(1);
         expect(result[0]).toMatchObject({
@@ -369,7 +365,7 @@ describe('findOutgoingLinks', () => {
             throw new Error(`Unexpected Data API request: ${path.join('/')}`);
         });
 
-        const result = await findOutgoingLinks(SOURCE_NOTE_ID);
+        const result = await findOutgoingLinks(repository, SOURCE_NOTE_ID);
 
         expect(result).toHaveLength(1);
         expect(result[0]).toMatchObject({
@@ -403,14 +399,14 @@ describe('findOutgoingLinks', () => {
             throw new Error(`Unexpected Data API request: ${path.join('/')}`);
         });
 
-        const result = await findOutgoingLinks(SOURCE_NOTE_ID);
+        const result = await findOutgoingLinks(repository, SOURCE_NOTE_ID);
 
         expect(result).toHaveLength(1);
         expect(result[0]).toMatchObject({ noteId: NOTE_A, occurrenceCount: 3 });
     });
 
     it('returns an empty list without fetching when note id is missing', async () => {
-        await expect(findOutgoingLinks('')).resolves.toEqual([]);
+        await expect(findOutgoingLinks(repository, '')).resolves.toEqual([]);
         expect(mockDataGet).not.toHaveBeenCalled();
     });
 
@@ -422,7 +418,7 @@ describe('findOutgoingLinks', () => {
             throw new Error(`Unexpected Data API request: ${path.join('/')}`);
         });
 
-        await expect(findOutgoingLinks(SOURCE_NOTE_ID)).resolves.toEqual([]);
+        await expect(findOutgoingLinks(repository, SOURCE_NOTE_ID)).resolves.toEqual([]);
     });
 });
 
@@ -462,7 +458,7 @@ describe('countOutgoingLinks', () => {
     it('counts distinct destinations without fetching target bodies or notebooks', async () => {
         mockNotes();
 
-        await expect(countOutgoingLinks(SOURCE_NOTE_ID)).resolves.toBe(3);
+        await expect(countOutgoingLinks(repository, SOURCE_NOTE_ID)).resolves.toBe(3);
 
         const targetRequests = mockDataGet.mock.calls.filter(
             (call) => call[0][0] === 'notes' && call[0][1] !== SOURCE_NOTE_ID
@@ -478,8 +474,8 @@ describe('countOutgoingLinks', () => {
     it('agrees with the rows findOutgoingLinks resolves for the same note', async () => {
         mockNotes();
 
-        const rows = await findOutgoingLinks(SOURCE_NOTE_ID);
-        const count = await countOutgoingLinks(SOURCE_NOTE_ID);
+        const rows = await findOutgoingLinks(repository, SOURCE_NOTE_ID);
+        const count = await countOutgoingLinks(repository, SOURCE_NOTE_ID);
 
         expect(count).toBe(rows.length);
     });
@@ -487,18 +483,22 @@ describe('countOutgoingLinks', () => {
     it('omits ignored target notes', async () => {
         mockNotes();
 
-        await expect(countOutgoingLinks(SOURCE_NOTE_ID, { ignoredNoteIds: new Set([NOTE_A]) })).resolves.toBe(1);
+        await expect(
+            countOutgoingLinks(repository, SOURCE_NOTE_ID, { ignoredNoteIds: new Set([NOTE_A]) })
+        ).resolves.toBe(1);
     });
 
     it('omits targets in ignored notebooks', async () => {
         mockNotes();
 
         // Alpha (and its anchored destination) live in folder-1, leaving Beta as the only count.
-        await expect(countOutgoingLinks(SOURCE_NOTE_ID, { ignoredFolderIds: new Set(['folder-1']) })).resolves.toBe(1);
+        await expect(
+            countOutgoingLinks(repository, SOURCE_NOTE_ID, { ignoredFolderIds: new Set(['folder-1']) })
+        ).resolves.toBe(1);
     });
 
     it('returns 0 without fetching when note id is missing', async () => {
-        await expect(countOutgoingLinks('')).resolves.toBe(0);
+        await expect(countOutgoingLinks(repository, '')).resolves.toBe(0);
         expect(mockDataGet).not.toHaveBeenCalled();
     });
 
@@ -510,12 +510,12 @@ describe('countOutgoingLinks', () => {
             throw new Error(`Unexpected Data API request: ${path.join('/')}`);
         });
 
-        await expect(countOutgoingLinks(SOURCE_NOTE_ID)).resolves.toBe(0);
+        await expect(countOutgoingLinks(repository, SOURCE_NOTE_ID)).resolves.toBe(0);
     });
 
     it('returns 0 when the source note cannot be read', async () => {
         mockDataGet.mockRejectedValue(new Error('note unavailable'));
 
-        await expect(countOutgoingLinks(SOURCE_NOTE_ID)).resolves.toBe(0);
+        await expect(countOutgoingLinks(repository, SOURCE_NOTE_ID)).resolves.toBe(0);
     });
 });

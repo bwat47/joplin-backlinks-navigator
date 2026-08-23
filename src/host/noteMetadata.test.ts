@@ -1,17 +1,9 @@
-import { vi, type Mock } from 'vitest';
-import joplin from 'api';
+import { vi } from 'vitest';
+import { JoplinRepository } from './joplinRepository';
 import { expandIgnoredFolderIds } from './noteMetadata';
 
-vi.mock('api', () => ({
-    __esModule: true,
-    default: {
-        data: {
-            get: vi.fn(),
-        },
-    },
-}));
-
-const mockDataGet = joplin.data.get as Mock;
+const mockDataGet = vi.fn();
+const repository = new JoplinRepository({ get: mockDataGet });
 
 const ROOT = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const CHILD = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
@@ -26,7 +18,7 @@ describe('expandIgnoredFolderIds', () => {
     it('returns the configured set without listing notebooks when nothing is ignored', async () => {
         const configured = new Set<string>();
 
-        await expect(expandIgnoredFolderIds(configured)).resolves.toBe(configured);
+        await expect(expandIgnoredFolderIds(repository, configured)).resolves.toBe(configured);
         expect(mockDataGet).not.toHaveBeenCalled();
     });
 
@@ -53,7 +45,9 @@ describe('expandIgnoredFolderIds', () => {
             };
         });
 
-        await expect(expandIgnoredFolderIds(new Set([ROOT]))).resolves.toEqual(new Set([ROOT, CHILD, GRANDCHILD]));
+        await expect(expandIgnoredFolderIds(repository, new Set([ROOT]))).resolves.toEqual(
+            new Set([ROOT, CHILD, GRANDCHILD])
+        );
         expect(mockDataGet).toHaveBeenCalledTimes(2);
     });
 
@@ -66,12 +60,12 @@ describe('expandIgnoredFolderIds', () => {
             has_more: false,
         });
 
-        await expect(expandIgnoredFolderIds(new Set([ROOT]))).resolves.toEqual(new Set([ROOT, CHILD]));
+        await expect(expandIgnoredFolderIds(repository, new Set([ROOT]))).resolves.toEqual(new Set([ROOT, CHILD]));
     });
 
     it('falls back to the configured notebooks when the folder listing fails', async () => {
         mockDataGet.mockRejectedValue(new Error('offline'));
 
-        await expect(expandIgnoredFolderIds(new Set([ROOT]))).resolves.toEqual(new Set([ROOT]));
+        await expect(expandIgnoredFolderIds(repository, new Set([ROOT]))).resolves.toEqual(new Set([ROOT]));
     });
 });

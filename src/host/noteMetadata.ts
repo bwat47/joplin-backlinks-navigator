@@ -9,28 +9,10 @@
  * against the notebook tree.
  */
 
-import joplin from 'api';
 import logger from '../logger';
+import type { FolderNode, LinkRepository, NoteMeta } from './joplinRepository';
 
-const FOLDER_PAGE_LIMIT = 100;
-
-interface FolderNode {
-    id: string;
-    parent_id: string;
-}
-
-interface FolderListResponse {
-    items: FolderNode[];
-    has_more: boolean;
-}
-
-/** A resolved note's title and parent notebook id. */
-export interface NoteMeta {
-    title: string;
-    parent_id: string;
-    /** The note's body, fetched only when `resolveNoteMeta` is called with `includeBody`; '' otherwise. */
-    body: string;
-}
+export type { NoteMeta } from './joplinRepository';
 
 interface ResolveNoteMetaOptions {
     /** Also fetch the note `body` (used to derive an outgoing link's opening snippet). */
@@ -40,7 +22,11 @@ interface ResolveNoteMetaOptions {
 /**
  * Resolves a notebook title by id, memoizing lookups in `cache`. Returns '' on failure.
  */
-export async function resolveNotebookName(parentId: string, cache: Map<string, string>): Promise<string> {
+export async function resolveNotebookName(
+    repository: LinkRepository,
+    parentId: string,
+    cache: Map<string, string>
+): Promise<string> {
     if (!parentId) {
         return '';
     }
@@ -49,8 +35,7 @@ export async function resolveNotebookName(parentId: string, cache: Map<string, s
         return cached;
     }
     try {
-        const folder = await joplin.data.get(['folders', parentId], { fields: ['id', 'title'] });
-        const title = typeof folder?.title === 'string' ? folder.title : '';
+        const title = await repository.getNotebookTitle(parentId);
         cache.set(parentId, title);
         return title;
     } catch (error) {
@@ -66,6 +51,7 @@ export async function resolveNotebookName(parentId: string, cache: Map<string, s
  * @returns The note metadata, or `null` if the note can't be fetched (e.g. a broken link).
  */
 export async function resolveNoteMeta(
+    repository: LinkRepository,
     noteId: string,
     cache: Map<string, NoteMeta | null>,
     options: ResolveNoteMetaOptions = {}
@@ -74,14 +60,8 @@ export async function resolveNoteMeta(
     if (cached !== undefined) {
         return cached;
     }
-    const fields = options.includeBody ? ['id', 'title', 'parent_id', 'body'] : ['id', 'title', 'parent_id'];
     try {
-        const note = await joplin.data.get(['notes', noteId], { fields });
-        const meta: NoteMeta = {
-            title: typeof note?.title === 'string' && note.title ? note.title : 'Untitled',
-            parent_id: typeof note?.parent_id === 'string' ? note.parent_id : '',
-            body: typeof note?.body === 'string' ? note.body : '',
-        };
+        const meta = await repository.getNoteMeta(noteId, options.includeBody);
         cache.set(noteId, meta);
         return meta;
     } catch (error) {
@@ -92,31 +72,13 @@ export async function resolveNoteMeta(
 }
 
 /** Lists every notebook id and its parent. Returns `null` if the listing fails. */
-async function listFolders(): Promise<FolderNode[] | null> {
-    const folders: FolderNode[] = [];
+async function listFolders(repository: LinkRepository): Promise<FolderNode[] | null> {
     try {
-        let page = 1;
-        let hasMore = true;
-        while (hasMore) {
-            const response: FolderListResponse = await joplin.data.get(['folders'], {
-                fields: ['id', 'parent_id'],
-                limit: FOLDER_PAGE_LIMIT,
-                page,
-            });
-
-            if (response?.items?.length) {
-                folders.push(...response.items);
-            }
-
-            hasMore = Boolean(response?.has_more);
-            page += 1;
-        }
+        return await repository.listFolders();
     } catch (error) {
         logger.warn('Failed to list notebooks for ignored-notebook expansion', { error });
         return null;
     }
-
-    return folders;
 }
 
 /** Indexes notebooks by parent so the tree can be walked downward. Top-level notebooks are skipped. */
@@ -149,12 +111,15 @@ function groupFoldersByParent(folders: readonly FolderNode[]): Map<string, strin
  * @returns Those ids plus all their descendants. Falls back to `configuredIds` alone if the folder
  *   listing fails, so a failed lookup narrows the filter rather than dropping it.
  */
-export async function expandIgnoredFolderIds(configuredIds: ReadonlySet<string>): Promise<ReadonlySet<string>> {
+export async function expandIgnoredFolderIds(
+    repository: LinkRepository,
+    configuredIds: ReadonlySet<string>
+): Promise<ReadonlySet<string>> {
     if (!configuredIds.size) {
         return configuredIds;
     }
 
-    const folders = await listFolders();
+    const folders = await listFolders(repository);
     if (!folders) {
         return configuredIds;
     }

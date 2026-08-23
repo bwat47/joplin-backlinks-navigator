@@ -22,7 +22,6 @@
  * Only the plugin host has Data API access, so this runs here rather than in the content script.
  */
 
-import joplin from 'api';
 import logger from '../logger';
 import type { LinkFilters, LinkItem } from '../types';
 import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from '../markdown/htmlAnchors';
@@ -32,6 +31,7 @@ import { parseMarkdownBody, type ParsedMarkdownBody } from '../markdown/markdown
 import { resolveNoteMeta, resolveNotebookName, type NoteMeta } from './noteMetadata';
 import { compareLinkItems } from '../linkSort';
 import { extractNoteOpening, extractSectionOpening } from '../markdown/snippetExtraction';
+import type { LinkRepository } from './joplinRepository';
 
 interface ParsedTargetBody {
     parsed: ParsedMarkdownBody;
@@ -54,10 +54,9 @@ function destinationKey(targetId: string, anchor: string): string {
 }
 
 /** Reads a note's body. Returns `null` when the note can't be fetched. */
-async function fetchNoteBody(noteId: string): Promise<string | null> {
+async function fetchNoteBody(repository: LinkRepository, noteId: string): Promise<string | null> {
     try {
-        const note = await joplin.data.get(['notes', noteId], { fields: ['id', 'body'] });
-        return typeof note?.body === 'string' ? note.body : '';
+        return await repository.getNoteBody(noteId);
     } catch (error) {
         logger.error('Outgoing link lookup failed', { noteId, error });
         return null;
@@ -147,12 +146,16 @@ function resolveDestinationPreview(targetBody: ParsedTargetBody, anchor: string)
  * @param filters - Optional exclusions; see {@link LinkFilters}.
  * @returns One entry per distinct note + anchor pair, sorted by title. Returns `[]` on failure.
  */
-export async function findOutgoingLinks(noteId: string, filters: LinkFilters = {}): Promise<LinkItem[]> {
+export async function findOutgoingLinks(
+    repository: LinkRepository,
+    noteId: string,
+    filters: LinkFilters = {}
+): Promise<LinkItem[]> {
     if (!noteId) {
         return [];
     }
 
-    const body = await fetchNoteBody(noteId);
+    const body = await fetchNoteBody(repository, noteId);
     if (body === null) {
         return [];
     }
@@ -169,7 +172,7 @@ export async function findOutgoingLinks(noteId: string, filters: LinkFilters = {
     const outgoing: LinkItem[] = [];
 
     for (const group of destinations) {
-        const meta = await resolveNoteMeta(group.targetId, noteMetaCache, { includeBody: true });
+        const meta = await resolveNoteMeta(repository, group.targetId, noteMetaCache, { includeBody: true });
         if (!meta) {
             // Broken link (target note no longer exists) — nothing to navigate to.
             continue;
@@ -177,7 +180,7 @@ export async function findOutgoingLinks(noteId: string, filters: LinkFilters = {
         if (isInIgnoredNotebook(meta, ignoredFolderIds)) {
             continue;
         }
-        const notebookName = await resolveNotebookName(meta.parent_id, notebookCache);
+        const notebookName = await resolveNotebookName(repository, meta.parent_id, notebookCache);
         let targetBody = parsedBodyCache.get(group.targetId);
         if (!targetBody) {
             const parsed = parseMarkdownBody(meta.body);
@@ -219,12 +222,16 @@ export async function findOutgoingLinks(noteId: string, filters: LinkFilters = {
  *
  * @returns The number of resolvable destinations. Returns 0 on failure.
  */
-export async function countOutgoingLinks(noteId: string, filters: LinkFilters = {}): Promise<number> {
+export async function countOutgoingLinks(
+    repository: LinkRepository,
+    noteId: string,
+    filters: LinkFilters = {}
+): Promise<number> {
     if (!noteId) {
         return 0;
     }
 
-    const body = await fetchNoteBody(noteId);
+    const body = await fetchNoteBody(repository, noteId);
     if (body === null) {
         return 0;
     }
@@ -235,7 +242,7 @@ export async function countOutgoingLinks(noteId: string, filters: LinkFilters = 
     let count = 0;
 
     for (const destination of destinations) {
-        const meta = await resolveNoteMeta(destination.targetId, noteMetaCache);
+        const meta = await resolveNoteMeta(repository, destination.targetId, noteMetaCache);
         if (meta && !isInIgnoredNotebook(meta, ignoredFolderIds)) {
             count += 1;
         }
