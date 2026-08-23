@@ -19,7 +19,7 @@ import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScri
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
 import type { LinkCounts, LinkDirection, LinkItem } from '../types';
 import { EMPTY_LINK_COUNTS } from '../types';
-import type { ContentScriptToPluginMessage, IndicatorState } from '../messages';
+import type { AlternateOpenMode, ContentScriptToPluginMessage, IndicatorState } from '../messages';
 import { getDisplayCounts, toBacklinkCounts } from './linkDisplay';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
@@ -160,7 +160,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
 
             const navigateTo = async (
                 link: LinkItem,
-                mode: 'current' | 'ctrlClick' | 'ctrlEnter' | 'middleClick' = 'current'
+                mode: 'current' | AlternateOpenMode = 'current'
             ): Promise<void> => {
                 // Only outgoing rows carry an anchor; a backlink's anchor (if any) points into the
                 // note we're already viewing.
