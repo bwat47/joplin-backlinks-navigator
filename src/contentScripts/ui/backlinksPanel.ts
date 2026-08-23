@@ -97,6 +97,8 @@ export class BacklinksPanel {
 
     private readonly handleListAuxClickListener: (event: MouseEvent) => void;
 
+    private readonly handleListMouseDownListener: (event: MouseEvent) => void;
+
     private readonly handleTabClickListener: (event: MouseEvent) => void;
 
     private readonly handleDocumentMouseDownListener: (event: MouseEvent) => void;
@@ -153,6 +155,7 @@ export class BacklinksPanel {
         };
         this.handleListClickListener = (event: MouseEvent) => this.handleListClick(event);
         this.handleListAuxClickListener = (event: MouseEvent) => this.handleListAuxClick(event);
+        this.handleListMouseDownListener = (event: MouseEvent) => this.handleListMouseDown(event);
         this.handleTabClickListener = (event: MouseEvent) => this.handleTabClick(event);
         this.handleDocumentMouseDownListener = (event: MouseEvent) => {
             const target = event.target as Node | null;
@@ -168,6 +171,7 @@ export class BacklinksPanel {
         }
         this.list.addEventListener('click', this.handleListClickListener);
         this.list.addEventListener('auxclick', this.handleListAuxClickListener);
+        this.list.addEventListener('mousedown', this.handleListMouseDownListener);
         this.tabBar.addEventListener('click', this.handleTabClickListener);
         this.view.dom.ownerDocument!.addEventListener('mousedown', this.handleDocumentMouseDownListener, true);
     }
@@ -218,6 +222,7 @@ export class BacklinksPanel {
         }
         this.list.removeEventListener('click', this.handleListClickListener);
         this.list.removeEventListener('auxclick', this.handleListAuxClickListener);
+        this.list.removeEventListener('mousedown', this.handleListMouseDownListener);
         this.tabBar.removeEventListener('click', this.handleTabClickListener);
         this.view.dom.ownerDocument!.removeEventListener('mousedown', this.handleDocumentMouseDownListener, true);
 
@@ -473,10 +478,20 @@ export class BacklinksPanel {
 
         const link = this.findLinkForMouseEvent(event);
         if (link) {
-            event.preventDefault();
             this.selectedId = link.id;
             this.updateSelection();
             this.refocusInputAfter(this.onMiddleClickSelect(link));
+        }
+    }
+
+    /**
+     * Chromium starts middle-click autoscroll on `mousedown` over a scrollable element, and the list
+     * scrolls — cancelling it there is the only chance, as the `auxclick` that drives the actual
+     * navigation fires too late. Suppressing focus loss is harmless: the filter input keeps focus.
+     */
+    private handleListMouseDown(event: MouseEvent): void {
+        if (event.button === 1) {
+            event.preventDefault();
         }
     }
 

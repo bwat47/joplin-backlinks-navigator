@@ -101,14 +101,26 @@ describe('BacklinksPanel middle-click navigation', () => {
         const { panel, callbacks } = createPanelHarness();
         panel.setLinks('in', [LINK]);
         const item = document.querySelector<HTMLLIElement>('.backlinks-navigator-item')!;
-        const event = new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 });
+        item.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }));
 
-        item.dispatchEvent(event);
-
-        expect(event.defaultPrevented).toBe(true);
         expect(callbacks.onMiddleClickSelect).toHaveBeenCalledWith(LINK);
         expect(callbacks.onSelect).not.toHaveBeenCalled();
         expect(callbacks.onCtrlClickSelect).not.toHaveBeenCalled();
+        panel.destroy();
+    });
+
+    it('suppresses the middle-button mousedown that would start autoscroll', () => {
+        const { panel } = createPanelHarness();
+        panel.setLinks('in', [LINK]);
+        const item = document.querySelector<HTMLLIElement>('.backlinks-navigator-item')!;
+        const middle = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 1 });
+        const primary = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 });
+
+        item.dispatchEvent(middle);
+        item.dispatchEvent(primary);
+
+        expect(middle.defaultPrevented).toBe(true);
+        expect(primary.defaultPrevented).toBe(false);
         panel.destroy();
     });
 
