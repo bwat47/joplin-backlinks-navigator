@@ -76,6 +76,20 @@ describe('JoplinRepository', () => {
         });
     });
 
+    it('asks for the body only when the caller opts in', async () => {
+        const get = vi.fn().mockResolvedValue({ id: 'note', title: 'Title', parent_id: 'folder', body: 'Markdown' });
+        const repository = new JoplinRepository({ get });
+
+        await expect(repository.getNoteMeta('note', true)).resolves.toEqual({
+            title: 'Title',
+            parent_id: 'folder',
+            body: 'Markdown',
+        });
+        expect(get).toHaveBeenCalledWith(['notes', 'note'], {
+            fields: ['id', 'title', 'parent_id', 'body'],
+        });
+    });
+
     it('falls back to "Untitled" for a note with no usable title', async () => {
         const repository = new JoplinRepository({
             get: vi.fn().mockResolvedValue({ id: 'note', title: '', parent_id: 'folder' }),
