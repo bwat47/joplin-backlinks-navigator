@@ -20,6 +20,7 @@ export interface SearchNote {
 export interface NoteMeta {
     title: string;
     parent_id: string;
+    /** Fetched only when the caller asks for it via `includeBody`; '' otherwise. */
     body: string;
 }
 

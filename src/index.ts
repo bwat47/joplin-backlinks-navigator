@@ -46,7 +46,7 @@ import type {
     IndicatorState,
 } from './messages';
 import { countBacklinks, findBacklinks } from './host/backlinksService';
-import { JoplinRepository, type JoplinDataApi } from './host/joplinRepository';
+import { JoplinRepository, type LinkRepository } from './host/joplinRepository';
 import { countOutgoingLinks, findOutgoingLinks } from './host/outgoingLinksService';
 import { expandIgnoredFolderIds, resolveNotebookName } from './host/noteMetadata';
 import type { BacklinkOpenBehavior, LinkFilters } from './types';
@@ -113,7 +113,7 @@ async function openNote(noteId: string, mode: ResolvedOpenNoteMode, anchor = '')
  * Loaded once per request and shared by every discovery call it feeds, so the indicator's two
  * counters don't each pay for the folder listing.
  */
-async function loadLinkFilters(repository: JoplinRepository): Promise<LinkFilters> {
+async function loadLinkFilters(repository: LinkRepository): Promise<LinkFilters> {
     const [ignoredNoteIds, configuredFolderIds] = await Promise.all([
         loadIgnoredBacklinkNoteIdsSetting(),
         loadIgnoredNotebookIdsSetting(),
@@ -121,19 +121,19 @@ async function loadLinkFilters(repository: JoplinRepository): Promise<LinkFilter
     return { ignoredNoteIds, ignoredFolderIds: await expandIgnoredFolderIds(repository, configuredFolderIds) };
 }
 
-async function findBacklinksWithSettings(repository: JoplinRepository, noteId: string): Promise<GetBacklinksResponse> {
+async function findBacklinksWithSettings(repository: LinkRepository, noteId: string): Promise<GetBacklinksResponse> {
     return findBacklinks(repository, noteId, await loadLinkFilters(repository));
 }
 
 async function findOutgoingLinksWithSettings(
-    repository: JoplinRepository,
+    repository: LinkRepository,
     noteId: string
 ): Promise<GetOutgoingLinksResponse> {
     return findOutgoingLinks(repository, noteId, await loadLinkFilters(repository));
 }
 
 async function handleMessage(
-    repository: JoplinRepository,
+    repository: LinkRepository,
     message: ContentScriptToPluginMessage
 ): Promise<GetBacklinksResponse | GetOutgoingLinksResponse | GetContentScriptSettingsResponse | IndicatorState | void> {
     if (!message || typeof message !== 'object') {
@@ -180,7 +180,7 @@ async function handleMessage(
     }
 }
 
-async function registerContentScripts(repository: JoplinRepository): Promise<void> {
+async function registerContentScripts(repository: LinkRepository): Promise<void> {
     await joplin.contentScripts.register(
         ContentScriptType.CodeMirrorPlugin,
         CODEMIRROR_CONTENT_SCRIPT_ID,
@@ -201,7 +201,7 @@ async function registerContentScripts(repository: JoplinRepository): Promise<voi
  * @param folderId - Supplied by the folder context menu. Empty when the command is run from the
  *   command palette, where there is no notebook in context.
  */
-async function toggleIgnoredNotebook(repository: JoplinRepository, folderId: string): Promise<void> {
+async function toggleIgnoredNotebook(repository: LinkRepository, folderId: string): Promise<void> {
     if (!folderId) {
         logger.debug('Ignore-notebook command invoked without a notebook');
         return;
@@ -225,7 +225,7 @@ async function toggleIgnoredNotebook(repository: JoplinRepository, folderId: str
     );
 }
 
-async function registerCommands(repository: JoplinRepository): Promise<void> {
+async function registerCommands(repository: LinkRepository): Promise<void> {
     await joplin.commands.register({
         name: COMMAND_TOGGLE_IGNORE_NOTEBOOK,
         label: 'Toggle Backlinks Navigator ignore',
@@ -286,7 +286,7 @@ async function applyDebugSetting(): Promise<void> {
 joplin.plugins.register({
     onStart: async () => {
         logger.info('Backlinks Navigator plugin starting');
-        const repository = new JoplinRepository(joplin.data as unknown as JoplinDataApi);
+        const repository = new JoplinRepository(joplin.data);
         await registerSettings();
         await applyDebugSetting();
         await joplin.settings.onChange(async ({ keys }) => {
