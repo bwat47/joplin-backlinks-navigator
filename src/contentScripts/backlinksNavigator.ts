@@ -160,7 +160,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
 
             const navigateTo = async (
                 link: LinkItem,
-                mode: 'current' | 'ctrlClick' | 'ctrlEnter' = 'current'
+                mode: 'current' | 'ctrlClick' | 'ctrlEnter' | 'middleClick' = 'current'
             ): Promise<void> => {
                 // Only outgoing rows carry an anchor; a backlink's anchor (if any) points into the
                 // note we're already viewing.
@@ -243,6 +243,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                             },
                             onCtrlEnterSelect: (link) => {
                                 return navigateTo(link, 'ctrlEnter');
+                            },
+                            onMiddleClickSelect: (link) => {
+                                return navigateTo(link, 'middleClick');
                             },
                             onClose: (reason: PanelCloseReason) => {
                                 closePanel(reason === 'escape');

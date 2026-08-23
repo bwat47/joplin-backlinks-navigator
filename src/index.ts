@@ -32,6 +32,7 @@ import {
     loadDebugSetting,
     loadIgnoredBacklinkNoteIdsSetting,
     loadIgnoredNotebookIdsSetting,
+    loadMiddleClickBehaviorSetting,
     loadShowIndicatorSetting,
     registerSettings,
     setIgnoredNotebookIdsSetting,
@@ -67,6 +68,9 @@ async function resolveOpenNoteMode(message: ContentScriptToPluginMessage): Promi
     }
     if (message.mode === 'ctrlEnter') {
         return loadCtrlEnterBehaviorSetting();
+    }
+    if (message.mode === 'middleClick') {
+        return loadMiddleClickBehaviorSetting();
     }
     return 'current';
 }

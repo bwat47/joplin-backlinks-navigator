@@ -32,6 +32,7 @@ const SETTING_IGNORED_BACKLINK_NOTE_IDS = 'backlinksNavigator.ignoredBacklinkNot
 const SETTING_IGNORED_NOTEBOOK_IDS = 'backlinksNavigator.ignoredNotebookIds';
 const SETTING_CTRL_CLICK_BEHAVIOR = 'backlinksNavigator.ctrlClickBehavior';
 const SETTING_CTRL_ENTER_BEHAVIOR = 'backlinksNavigator.ctrlEnterBehavior';
+const SETTING_MIDDLE_CLICK_BEHAVIOR = 'backlinksNavigator.middleClickBehavior';
 const SETTING_BACKLINK_PREVIEW_MODE = 'backlinksNavigator.backlinkPreviewMode';
 const SETTING_OUTGOING_PREVIEW_MODE = 'backlinksNavigator.outgoingPreviewMode';
 const SETTING_DEBUG = 'backlinksNavigator.debug';
@@ -219,6 +220,17 @@ export async function registerSettings(): Promise<void> {
                 '[Desktop Only] Choose where Ctrl-Enter opens the selected link. Opening in a new tab requires the Note Tabs plugin.',
             options: BACKLINK_OPEN_BEHAVIOR_OPTIONS,
         },
+        [SETTING_MIDDLE_CLICK_BEHAVIOR]: {
+            value: DEFAULT_BACKLINK_OPEN_BEHAVIOR,
+            type: SettingItemType.String,
+            isEnum: true,
+            public: true,
+            section: SECTION_ID,
+            label: 'Middle-click link behavior',
+            description:
+                '[Desktop Only] Choose where middle-click opens a link. Opening in a new tab requires the Note Tabs plugin.',
+            options: BACKLINK_OPEN_BEHAVIOR_OPTIONS,
+        },
         [SETTING_BACKLINK_PREVIEW_MODE]: {
             value: DEFAULT_LINK_PREVIEW_SETTINGS.in,
             type: SettingItemType.String,
@@ -402,6 +414,10 @@ export async function loadCtrlClickBehaviorSetting(): Promise<BacklinkOpenBehavi
 
 export async function loadCtrlEnterBehaviorSetting(): Promise<BacklinkOpenBehavior> {
     return loadNormalizedSetting(SETTING_CTRL_ENTER_BEHAVIOR, normalizeBacklinkOpenBehavior, 'Ctrl-Enter behavior');
+}
+
+export async function loadMiddleClickBehaviorSetting(): Promise<BacklinkOpenBehavior> {
+    return loadNormalizedSetting(SETTING_MIDDLE_CLICK_BEHAVIOR, normalizeBacklinkOpenBehavior, 'middle-click behavior');
 }
 
 export async function loadDebugSetting(): Promise<boolean> {

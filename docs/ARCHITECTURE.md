@@ -90,6 +90,7 @@ communicate through `context.postMessage(...)`, which behaves like request/respo
 - `getIndicatorState` returns `LinkCounts` for the badge, unless the indicator is disabled.
 - `getContentScriptSettings` returns editor-side settings.
 - `openNote` opens a target note, using the configured current-window/new-window/Note Tabs behavior.
+  Ctrl-click, Ctrl-Enter, and middle-click each have an independent alternate-navigation setting.
 - `openPanel` runs the host command that opens the popup.
 
 ## Link Model

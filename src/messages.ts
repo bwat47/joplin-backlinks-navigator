@@ -48,7 +48,7 @@ interface OpenNoteMessage {
     type: 'openNote';
     noteId: string;
     anchor?: string;
-    mode?: 'ctrlClick' | 'ctrlEnter';
+    mode?: 'ctrlClick' | 'ctrlEnter' | 'middleClick';
 }
 
 /**

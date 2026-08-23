@@ -17,6 +17,7 @@ export interface PanelCallbacks {
     onSelect: SelectCallback;
     onCtrlClickSelect: SelectCallback;
     onCtrlEnterSelect: SelectCallback;
+    onMiddleClickSelect: SelectCallback;
     onClose: (reason: PanelCloseReason) => void;
 }
 
@@ -82,6 +83,8 @@ export class BacklinksPanel {
 
     private readonly onCtrlEnterSelect: SelectCallback;
 
+    private readonly onMiddleClickSelect: SelectCallback;
+
     private readonly onClose: (reason: PanelCloseReason) => void;
 
     private readonly handleInputListener: () => void;
@@ -91,6 +94,8 @@ export class BacklinksPanel {
     private readonly handleInputContextMenuListener: (event: MouseEvent) => void;
 
     private readonly handleListClickListener: (event: MouseEvent) => void;
+
+    private readonly handleListAuxClickListener: (event: MouseEvent) => void;
 
     private readonly handleTabClickListener: (event: MouseEvent) => void;
 
@@ -108,6 +113,7 @@ export class BacklinksPanel {
         this.onSelect = callbacks.onSelect;
         this.onCtrlClickSelect = callbacks.onCtrlClickSelect;
         this.onCtrlEnterSelect = callbacks.onCtrlEnterSelect;
+        this.onMiddleClickSelect = callbacks.onMiddleClickSelect;
         this.onClose = callbacks.onClose;
         this.settings = settings;
 
@@ -146,6 +152,7 @@ export class BacklinksPanel {
             event.stopPropagation();
         };
         this.handleListClickListener = (event: MouseEvent) => this.handleListClick(event);
+        this.handleListAuxClickListener = (event: MouseEvent) => this.handleListAuxClick(event);
         this.handleTabClickListener = (event: MouseEvent) => this.handleTabClick(event);
         this.handleDocumentMouseDownListener = (event: MouseEvent) => {
             const target = event.target as Node | null;
@@ -160,6 +167,7 @@ export class BacklinksPanel {
             this.input.addEventListener('contextmenu', this.handleInputContextMenuListener);
         }
         this.list.addEventListener('click', this.handleListClickListener);
+        this.list.addEventListener('auxclick', this.handleListAuxClickListener);
         this.tabBar.addEventListener('click', this.handleTabClickListener);
         this.view.dom.ownerDocument!.addEventListener('mousedown', this.handleDocumentMouseDownListener, true);
     }
@@ -209,6 +217,7 @@ export class BacklinksPanel {
             this.input.removeEventListener('contextmenu', this.handleInputContextMenuListener);
         }
         this.list.removeEventListener('click', this.handleListClickListener);
+        this.list.removeEventListener('auxclick', this.handleListAuxClickListener);
         this.tabBar.removeEventListener('click', this.handleTabClickListener);
         this.view.dom.ownerDocument!.removeEventListener('mousedown', this.handleDocumentMouseDownListener, true);
 
@@ -445,18 +454,9 @@ export class BacklinksPanel {
     }
 
     private handleListClick(event: MouseEvent): void {
-        const target = event.target as HTMLElement | null;
-        const itemElement = target?.closest<HTMLLIElement>('.backlinks-navigator-item');
-        if (!itemElement) {
-            return;
-        }
-        const id = itemElement.dataset.linkId;
-        if (!id) {
-            return;
-        }
-        const link = this.filtered.find((b) => b.id === id);
+        const link = this.findLinkForMouseEvent(event);
         if (link) {
-            this.selectedId = id;
+            this.selectedId = link.id;
             this.updateSelection();
             if (event.ctrlKey) {
                 this.refocusInputAfter(this.onCtrlClickSelect(link));
@@ -464,6 +464,26 @@ export class BacklinksPanel {
                 this.onSelect(link);
             }
         }
+    }
+
+    private handleListAuxClick(event: MouseEvent): void {
+        if (event.button !== 1) {
+            return;
+        }
+
+        const link = this.findLinkForMouseEvent(event);
+        if (link) {
+            event.preventDefault();
+            this.selectedId = link.id;
+            this.updateSelection();
+            this.refocusInputAfter(this.onMiddleClickSelect(link));
+        }
+    }
+
+    private findLinkForMouseEvent(event: MouseEvent): LinkItem | undefined {
+        const target = event.target as HTMLElement | null;
+        const id = target?.closest<HTMLLIElement>('.backlinks-navigator-item')?.dataset.linkId;
+        return id ? this.filtered.find((link) => link.id === id) : undefined;
     }
 
     private refocusInputAfter(result: Promise<void> | void): void {
