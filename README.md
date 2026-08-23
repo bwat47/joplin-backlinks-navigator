@@ -46,6 +46,7 @@ Any outgoing links referencing an anchor (pointing to a markdown heading or html
 - Ignored notebook IDs - comma-separated notebook IDs to exclude from link results and counts, including their sub-notebooks. Right-click a notebook and choose `Toggle Backlinks Navigator ignore` to add or remove it.
 - Ctrl-click link behavior - open in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
 - Ctrl-Enter link behavior - open the selected link in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
+- Middle click link behavior - open the selected link in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
 - Backlink context preview
     - Snippet shows preview text from the line containing the backlink. Nearest heading displays the heading nearest to the backlink.
 - Outgoing link context preview
