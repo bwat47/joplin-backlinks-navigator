@@ -88,6 +88,8 @@ export class BacklinksPanel {
 
     private readonly handleKeyDownListener: (event: KeyboardEvent) => void;
 
+    private readonly handleInputContextMenuListener: (event: MouseEvent) => void;
+
     private readonly handleListClickListener: (event: MouseEvent) => void;
 
     private readonly handleTabClickListener: (event: MouseEvent) => void;
@@ -139,6 +141,10 @@ export class BacklinksPanel {
 
         this.handleInputListener = () => this.scheduleFilterUpdate();
         this.handleKeyDownListener = (event: KeyboardEvent) => this.handleKeyDown(event);
+        this.handleInputContextMenuListener = (event: MouseEvent) => {
+            event.preventDefault();
+            event.stopPropagation();
+        };
         this.handleListClickListener = (event: MouseEvent) => this.handleListClick(event);
         this.handleTabClickListener = (event: MouseEvent) => this.handleTabClick(event);
         this.handleDocumentMouseDownListener = (event: MouseEvent) => {
@@ -150,6 +156,9 @@ export class BacklinksPanel {
 
         this.input.addEventListener('input', this.handleInputListener);
         this.input.addEventListener('keydown', this.handleKeyDownListener);
+        if (!this.isMobile) {
+            this.input.addEventListener('contextmenu', this.handleInputContextMenuListener);
+        }
         this.list.addEventListener('click', this.handleListClickListener);
         this.tabBar.addEventListener('click', this.handleTabClickListener);
         this.view.dom.ownerDocument!.addEventListener('mousedown', this.handleDocumentMouseDownListener, true);
@@ -196,6 +205,9 @@ export class BacklinksPanel {
     public destroy(): void {
         this.input.removeEventListener('input', this.handleInputListener);
         this.input.removeEventListener('keydown', this.handleKeyDownListener);
+        if (!this.isMobile) {
+            this.input.removeEventListener('contextmenu', this.handleInputContextMenuListener);
+        }
         this.list.removeEventListener('click', this.handleListClickListener);
         this.tabBar.removeEventListener('click', this.handleTabClickListener);
         this.view.dom.ownerDocument!.removeEventListener('mousedown', this.handleDocumentMouseDownListener, true);
