@@ -41,6 +41,12 @@ interface GetContentScriptSettingsMessage {
 }
 
 /**
+ * Navigation gestures that open a link somewhere other than the current note. Each maps to its own
+ * user-configurable open behavior, resolved host-side (see `resolveOpenNoteMode` in index.ts).
+ */
+export type AlternateOpenMode = 'ctrlClick' | 'ctrlEnter' | 'middleClick';
+
+/**
  * Ask the host to navigate to `noteId`, optionally to the heading named by `anchor` (Joplin's
  * `openItem` accepts the `:/<id>#<anchor>` form). Host responds with `void`.
  */
@@ -48,7 +54,7 @@ interface OpenNoteMessage {
     type: 'openNote';
     noteId: string;
     anchor?: string;
-    mode?: 'ctrlClick' | 'ctrlEnter';
+    mode?: AlternateOpenMode;
 }
 
 /**

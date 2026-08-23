@@ -1,5 +1,5 @@
 import type { EditorView } from '@codemirror/view';
-import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS } from '../../types';
+import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS, type LinkItem } from '../../types';
 import { BacklinksPanel, type PanelCallbacks } from './backlinksPanel';
 
 class FakeResizeObserver {
@@ -21,11 +21,12 @@ function createView(): EditorView {
     return { dom, scrollDOM } as unknown as EditorView;
 }
 
-function createPanel(isMobile = false): BacklinksPanel {
+function createPanelHarness(isMobile = false): { panel: BacklinksPanel; callbacks: PanelCallbacks } {
     const callbacks: PanelCallbacks = {
         onSelect: vi.fn(),
         onCtrlClickSelect: vi.fn(),
         onCtrlEnterSelect: vi.fn(),
+        onMiddleClickSelect: vi.fn(),
         onClose: vi.fn(),
     };
     const panel = new BacklinksPanel(
@@ -38,8 +39,25 @@ function createPanel(isMobile = false): BacklinksPanel {
         isMobile
     );
     panel.open();
-    return panel;
+    return { panel, callbacks };
 }
+
+function createPanel(isMobile = false): BacklinksPanel {
+    return createPanelHarness(isMobile).panel;
+}
+
+const LINK: LinkItem = {
+    direction: 'in',
+    id: 'link-1',
+    noteId: 'note-1',
+    anchor: '',
+    occurrenceIndex: 0,
+    occurrenceCount: 1,
+    title: 'Linked note',
+    notebookName: 'Notebook',
+    section: '',
+    snippet: 'Link context',
+};
 
 function openContextMenu(): MouseEvent {
     const input = document.querySelector<HTMLInputElement>('.backlinks-navigator-input')!;
@@ -69,6 +87,51 @@ describe('BacklinksPanel filter context menu', () => {
         const event = openContextMenu();
 
         expect(event.defaultPrevented).toBe(false);
+        panel.destroy();
+    });
+});
+
+describe('BacklinksPanel middle-click navigation', () => {
+    beforeEach(() => {
+        document.body.replaceChildren();
+        document.head.replaceChildren();
+    });
+
+    it('uses the middle-click callback for a link row', () => {
+        const { panel, callbacks } = createPanelHarness();
+        panel.setLinks('in', [LINK]);
+        const item = document.querySelector<HTMLLIElement>('.backlinks-navigator-item')!;
+        item.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 }));
+
+        expect(callbacks.onMiddleClickSelect).toHaveBeenCalledWith(LINK);
+        expect(callbacks.onSelect).not.toHaveBeenCalled();
+        expect(callbacks.onCtrlClickSelect).not.toHaveBeenCalled();
+        panel.destroy();
+    });
+
+    it('suppresses the middle-button mousedown that would start autoscroll', () => {
+        const { panel } = createPanelHarness();
+        panel.setLinks('in', [LINK]);
+        const item = document.querySelector<HTMLLIElement>('.backlinks-navigator-item')!;
+        const middle = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 1 });
+        const primary = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 });
+
+        item.dispatchEvent(middle);
+        item.dispatchEvent(primary);
+
+        expect(middle.defaultPrevented).toBe(true);
+        expect(primary.defaultPrevented).toBe(false);
+        panel.destroy();
+    });
+
+    it('ignores other auxiliary mouse buttons', () => {
+        const { panel, callbacks } = createPanelHarness();
+        panel.setLinks('in', [LINK]);
+        const item = document.querySelector<HTMLLIElement>('.backlinks-navigator-item')!;
+
+        item.dispatchEvent(new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 2 }));
+
+        expect(callbacks.onMiddleClickSelect).not.toHaveBeenCalled();
         panel.destroy();
     });
 });

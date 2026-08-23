@@ -16,6 +16,7 @@ import {
     loadContentScriptSettings,
     loadIgnoredBacklinkNoteIdsSetting,
     loadIgnoredNotebookIdsSetting,
+    loadMiddleClickBehaviorSetting,
     normalizeBacklinkOpenBehavior,
     normalizeIgnoredIdList,
     normalizeLinkPreviewMode,
@@ -32,6 +33,7 @@ const KEY_BACKLINK_PREVIEW = 'backlinksNavigator.backlinkPreviewMode';
 const KEY_OUTGOING_PREVIEW = 'backlinksNavigator.outgoingPreviewMode';
 const KEY_IGNORED_NOTE_IDS = 'backlinksNavigator.ignoredBacklinkNoteIds';
 const KEY_IGNORED_NOTEBOOK_IDS = 'backlinksNavigator.ignoredNotebookIds';
+const KEY_MIDDLE_CLICK_BEHAVIOR = 'backlinksNavigator.middleClickBehavior';
 
 describe('settings normalization', () => {
     it('accepts supported backlink open behaviors', () => {
@@ -160,6 +162,14 @@ describe('settings loading', () => {
         const settings = await loadContentScriptSettings();
 
         expect(settings.panel.dimensions.width).toBe(240);
+    });
+
+    it('loads the configured middle-click behavior', async () => {
+        mockValue.mockResolvedValue('newTab');
+
+        await expect(loadMiddleClickBehaviorSetting()).resolves.toBe('newTab');
+        expect(mockValue).toHaveBeenCalledWith(KEY_MIDDLE_CLICK_BEHAVIOR);
+        expect(mockSetValue).not.toHaveBeenCalled();
     });
 
     it('parses ignored note ids into a set, self-healing them back to a comma-separated string', async () => {

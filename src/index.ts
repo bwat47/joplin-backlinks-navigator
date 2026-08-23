@@ -32,11 +32,13 @@ import {
     loadDebugSetting,
     loadIgnoredBacklinkNoteIdsSetting,
     loadIgnoredNotebookIdsSetting,
+    loadMiddleClickBehaviorSetting,
     loadShowIndicatorSetting,
     registerSettings,
     setIgnoredNotebookIdsSetting,
 } from './host/settings';
 import type {
+    AlternateOpenMode,
     ContentScriptToPluginMessage,
     GetBacklinksResponse,
     GetContentScriptSettingsResponse,
@@ -50,6 +52,13 @@ import type { BacklinkOpenBehavior, LinkFilters } from './types';
 
 type ResolvedOpenNoteMode = 'current' | BacklinkOpenBehavior;
 
+/** Each alternate gesture reads its own behavior setting. */
+const ALTERNATE_MODE_LOADERS: Record<AlternateOpenMode, () => Promise<BacklinkOpenBehavior>> = {
+    ctrlClick: loadCtrlClickBehaviorSetting,
+    ctrlEnter: loadCtrlEnterBehaviorSetting,
+    middleClick: loadMiddleClickBehaviorSetting,
+};
+
 async function showToast(message: string, type: ToastType = ToastType.Error): Promise<void> {
     try {
         await joplin.views.dialogs.showToast({ message, type });
@@ -59,16 +68,10 @@ async function showToast(message: string, type: ToastType = ToastType.Error): Pr
 }
 
 async function resolveOpenNoteMode(message: ContentScriptToPluginMessage): Promise<ResolvedOpenNoteMode> {
-    if (message.type !== 'openNote') {
+    if (message.type !== 'openNote' || !message.mode) {
         return 'current';
     }
-    if (message.mode === 'ctrlClick') {
-        return loadCtrlClickBehaviorSetting();
-    }
-    if (message.mode === 'ctrlEnter') {
-        return loadCtrlEnterBehaviorSetting();
-    }
-    return 'current';
+    return ALTERNATE_MODE_LOADERS[message.mode]();
 }
 
 /**
