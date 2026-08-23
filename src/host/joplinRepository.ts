@@ -1,7 +1,9 @@
 const PAGE_SIZE = 100;
-// Guards against a malformed response that never clears `has_more`. At 100 items per page this
-// still covers 500k notebooks or search hits.
-const MAX_PAGES = 5000;
+// A malformed `has_more` that never clears would page forever. 50k sits past any plausible vault:
+// every note in a very large collection linking one hub note is still under it, and a notebook count
+// anywhere near it is absurd. Reaching it means the response is wrong, not that the vault is big.
+const MAX_ITEMS = 50_000;
+const MAX_PAGES = MAX_ITEMS / PAGE_SIZE;
 
 /** The read-only portion of Joplin's Data API used by this plugin. */
 export interface JoplinDataApi {
@@ -166,10 +168,15 @@ export class JoplinRepository implements LinkRepository {
                 }),
                 itemDescription
             );
+            // The canonical runaway: more pages promised, none delivered. Fail here rather than
+            // walking to MAX_PAGES for an answer that is already known to be wrong.
+            if (response.has_more && !response.items.length) {
+                throw new Error(`Joplin reported more ${itemDescription}s but returned none.`);
+            }
             items.push(...response.items.map(toItem));
             if (!response.has_more) return items;
         }
 
-        throw new Error(`Joplin returned more than ${MAX_PAGES} pages of ${itemDescription}s.`);
+        throw new Error(`Joplin returned more than ${MAX_ITEMS} ${itemDescription}s.`);
     }
 }

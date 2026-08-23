@@ -40,6 +40,23 @@ describe('JoplinRepository', () => {
         await expect(repository.listFolders()).rejects.toThrow('Joplin returned an invalid folder list.');
     });
 
+    it('stops immediately when a page promises more items but returns none', async () => {
+        const get = vi.fn().mockResolvedValue({ items: [], has_more: true });
+        const repository = new JoplinRepository({ get });
+
+        await expect(repository.listFolders()).rejects.toThrow('Joplin reported more folders but returned none.');
+        // Caught on the spot, not after walking the whole page bound.
+        expect(get).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives up once a never-clearing has_more passes the item cap', async () => {
+        const page = Array.from({ length: 100 }, (_, index) => ({ id: `folder-${index}`, parent_id: 'root' }));
+        const get = vi.fn().mockResolvedValue({ items: page, has_more: true });
+        const repository = new JoplinRepository({ get });
+
+        await expect(repository.listFolders()).rejects.toThrow('Joplin returned more than 50000 folders.');
+    });
+
     it('requests note bodies separately from lightweight metadata', async () => {
         const get = vi
             .fn()
