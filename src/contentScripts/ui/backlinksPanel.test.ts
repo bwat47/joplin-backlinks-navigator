@@ -109,18 +109,35 @@ describe('BacklinksPanel middle-click navigation', () => {
         panel.destroy();
     });
 
-    it('suppresses the middle-button mousedown that would start autoscroll', () => {
+    it('suppresses middle-button mousedown and blurs the filter', () => {
         const { panel } = createPanelHarness();
         panel.setLinks('in', [LINK]);
+        const input = document.querySelector<HTMLInputElement>('.backlinks-navigator-input')!;
         const item = document.querySelector<HTMLLIElement>('.backlinks-navigator-item')!;
         const middle = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 1 });
         const primary = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 });
 
+        input.focus();
         item.dispatchEvent(middle);
         item.dispatchEvent(primary);
 
         expect(middle.defaultPrevented).toBe(true);
         expect(primary.defaultPrevented).toBe(false);
+        expect(document.activeElement).not.toBe(input);
+        panel.destroy();
+    });
+
+    it('keeps the filter focused when middle-button mousedown is outside a link row', () => {
+        const { panel } = createPanelHarness();
+        const input = document.querySelector<HTMLInputElement>('.backlinks-navigator-input')!;
+        const list = document.querySelector<HTMLUListElement>('.backlinks-navigator-list')!;
+        const middle = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 1 });
+
+        input.focus();
+        list.dispatchEvent(middle);
+
+        expect(middle.defaultPrevented).toBe(true);
+        expect(document.activeElement).toBe(input);
         panel.destroy();
     });
 
