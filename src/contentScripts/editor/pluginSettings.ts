@@ -75,7 +75,7 @@ export async function syncInitialContentScriptSettings(context: ContentScriptCon
     try {
         const response = (await context.postMessage({
             type: 'getContentScriptSettings',
-        } as ContentScriptToPluginMessage)) as GetContentScriptSettingsResponse;
+        } satisfies ContentScriptToPluginMessage)) as GetContentScriptSettingsResponse;
         applyContentScriptSettings(view, response);
     } catch (error) {
         logger.warn('Failed to fetch content script settings', error);

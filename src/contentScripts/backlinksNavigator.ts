@@ -100,7 +100,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             let disposed = false;
             const noteIdFacet = editorControl.joplinExtensions?.noteIdFacet;
             const indicator = new BacklinkIndicator(view, () => {
-                void context.postMessage({ type: 'openPanel' } as ContentScriptToPluginMessage);
+                void context.postMessage({ type: 'openPanel' } satisfies ContentScriptToPluginMessage);
             });
 
             const clearIndicatorCache = (): void => {
@@ -321,7 +321,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     state = (await context.postMessage({
                         type: 'getIndicatorState',
                         noteId,
-                    } as ContentScriptToPluginMessage)) as IndicatorState;
+                    } satisfies ContentScriptToPluginMessage)) as IndicatorState;
                 } catch (error) {
                     if (!disposed) {
                         logger.warn('Failed to fetch backlink indicator state', error);

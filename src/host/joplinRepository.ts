@@ -60,7 +60,7 @@ function asPage(value: unknown, itemDescription: string): Page {
     if (!Array.isArray(record.items) || (record.has_more !== undefined && typeof record.has_more !== 'boolean')) {
         throw new Error(`Joplin returned an invalid ${itemDescription} list.`);
     }
-    return { items: record.items, has_more: record.has_more as boolean | undefined };
+    return { items: record.items, has_more: record.has_more };
 }
 
 // Total coercions: one odd item shouldn't fail a whole listing, so these never throw. A field
