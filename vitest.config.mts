@@ -1,15 +1,18 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+
+const apiDir = fileURLToPath(new URL('./api/', import.meta.url));
 
 export default defineConfig({
     resolve: {
         alias: [
             {
                 find: /^api\/(.*)$/,
-                replacement: new URL('./api/$1', import.meta.url).pathname,
+                replacement: `${apiDir}$1`,
             },
             {
-                find: 'api',
-                replacement: new URL('./api/index.ts', import.meta.url).pathname,
+                find: /^api$/,
+                replacement: `${apiDir}index.ts`,
             },
         ],
     },
