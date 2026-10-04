@@ -57,6 +57,8 @@ export default defineConfig(
             // Vitest-aware version that allows passing methods to expect()
             '@typescript-eslint/unbound-method': 'off',
             'vitest/unbound-method': 'error',
+            // Async mock implementations intentionally return promises without awaiting
+            '@typescript-eslint/require-await': 'off',
         },
     },
 
