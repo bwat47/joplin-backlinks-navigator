@@ -32,7 +32,7 @@ export default defineConfig(
             },
         },
         plugins: {
-            import: importPlugin,
+            'import-x': importPlugin,
         },
         settings: {
             // Without these, import-x silently skips TS imports and rules like no-cycle never fire.
@@ -44,7 +44,7 @@ export default defineConfig(
         },
         rules: {
             // report an error if any circular dependency is found
-            'import/no-cycle': ['error', { maxDepth: Infinity }],
+            'import-x/no-cycle': 'error',
             // Redundant with TypeScript's own no-overlap check (TS2367), and misfires on union types
             'sonarjs/different-types-comparison': 'off',
             '@typescript-eslint/no-inferrable-types': 'error',
