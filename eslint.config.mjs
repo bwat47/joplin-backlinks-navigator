@@ -34,11 +34,8 @@ export default defineConfig(
             import: importPlugin,
         },
         rules: {
-            // Turn off rules TypeScript handles (prevents NodeJS / type-only false positives)
-            'no-undef': 'off',
             // report an error if any circular dependency is found
             'import/no-cycle': ['error', { maxDepth: Infinity }],
-            'no-useless-escape': 'off',
             // Redundant with TypeScript's own no-overlap check (TS2367), and misfires on union types
             'sonarjs/different-types-comparison': 'off',
             '@typescript-eslint/no-inferrable-types': 'error',
