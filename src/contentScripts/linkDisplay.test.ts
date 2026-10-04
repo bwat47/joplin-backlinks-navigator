@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { getDisplayCounts, getDisplayLinkCount, getDisplayLinks, toBacklinkCounts } from './linkDisplay';
 import type { LinkCounts, LinkDirection, LinkItem, LinkPreviewMode } from '../types';
 

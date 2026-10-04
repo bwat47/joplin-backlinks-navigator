@@ -56,12 +56,9 @@ export default defineConfig(
     {
         files: ['**/*.test.ts'],
         extends: [vitest.configs.recommended],
-        languageOptions: {
-            globals: {
-                ...vitest.environments.env.globals,
-            },
-        },
         rules: {
+            // Vitest globals are disabled; import test APIs explicitly from 'vitest'
+            'vitest/prefer-importing-vitest-globals': 'error',
             // Vitest-aware version that allows passing methods to expect()
             '@typescript-eslint/unbound-method': 'off',
             'vitest/unbound-method': 'error',

@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { vi, describe, beforeEach, it, expect } from 'vitest';
 import { countBacklinks, findBacklinks } from './backlinksService';
 import { JoplinRepository } from './joplinRepository';
 

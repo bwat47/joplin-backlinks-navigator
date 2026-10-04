@@ -1,3 +1,4 @@
+import { vi, describe, beforeEach, afterEach, it, expect } from 'vitest';
 import { EditorState, Facet, StateEffect, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext } from 'api/types';

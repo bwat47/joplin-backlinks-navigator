@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { parseHtmlAnchors } from './htmlAnchors';
 import { extractNoteLinks } from './linkExtraction';
 import { parseMarkdownHeadings } from './markdownHeadings';

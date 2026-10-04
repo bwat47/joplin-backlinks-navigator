@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { Compartment, EditorState, Facet } from '@codemirror/state';
 import { createNoteIdWatcher } from './noteIdWatcher';
 

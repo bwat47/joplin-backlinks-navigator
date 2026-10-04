@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import type { LinkItem } from '../../types';
 import { fuzzyFilter } from './fuzzyFilter';
 

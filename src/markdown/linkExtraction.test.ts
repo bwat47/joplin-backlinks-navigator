@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { findHtmlAnchorById, parseHtmlAnchors } from './htmlAnchors';
 import { extractNoteLinks, linkNeedle } from './linkExtraction';
 import { findHeadingByAnchor, findSection, parseMarkdownHeadings, slugifyHeading } from './markdownHeadings';
@@ -35,7 +36,7 @@ describe('extractSnippetLine', () => {
         const parsed = parseMarkdownBody('x'.repeat(200));
         const result = extractSnippetLine(parsed, 0);
         expect(result.endsWith('…')).toBe(true);
-        expect(result.length).toBe(120);
+        expect(result).toHaveLength(120);
     });
 
     it('keeps malformed links while unwrapping later valid links', () => {
