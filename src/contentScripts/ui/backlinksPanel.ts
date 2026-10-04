@@ -14,7 +14,7 @@ type TabState = 'loading' | 'ready' | 'error';
 type SelectCallback = (link: LinkItem) => Promise<void> | void;
 
 export interface PanelCallbacks {
-    onSelect: SelectCallback;
+    onSelect: (link: LinkItem) => void;
     onCtrlClickSelect: SelectCallback;
     onCtrlEnterSelect: SelectCallback;
     onMiddleClickSelect: SelectCallback;
@@ -77,7 +77,7 @@ export class BacklinksPanel {
 
     private filterDebounceTimer: number | null = null;
 
-    private readonly onSelect: SelectCallback;
+    private readonly onSelect: PanelCallbacks['onSelect'];
 
     private readonly onCtrlClickSelect: SelectCallback;
 
@@ -173,7 +173,7 @@ export class BacklinksPanel {
         this.list.addEventListener('auxclick', this.handleListAuxClickListener);
         this.list.addEventListener('mousedown', this.handleListMouseDownListener);
         this.tabBar.addEventListener('click', this.handleTabClickListener);
-        this.view.dom.ownerDocument!.addEventListener('mousedown', this.handleDocumentMouseDownListener, true);
+        this.view.dom.ownerDocument.addEventListener('mousedown', this.handleDocumentMouseDownListener, true);
     }
 
     /**
@@ -224,7 +224,7 @@ export class BacklinksPanel {
         this.list.removeEventListener('auxclick', this.handleListAuxClickListener);
         this.list.removeEventListener('mousedown', this.handleListMouseDownListener);
         this.tabBar.removeEventListener('click', this.handleTabClickListener);
-        this.view.dom.ownerDocument!.removeEventListener('mousedown', this.handleDocumentMouseDownListener, true);
+        this.view.dom.ownerDocument.removeEventListener('mousedown', this.handleDocumentMouseDownListener, true);
 
         if (this.filterDebounceTimer !== null) {
             clearTimeout(this.filterDebounceTimer);

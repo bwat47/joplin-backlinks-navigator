@@ -10,7 +10,7 @@
 
 import { EditorState, Extension, Facet, Transaction } from '@codemirror/state';
 
-type NoteIdFacet = Facet<string, string>;
+export type NoteIdFacet = Facet<string, string>;
 
 /**
  * Creates an extension that calls `onNoteChange` whenever the active note id changes.

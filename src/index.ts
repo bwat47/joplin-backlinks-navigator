@@ -283,23 +283,33 @@ async function applyDebugSetting(): Promise<void> {
     logger.setDebug(await loadDebugSetting());
 }
 
-joplin.plugins.register({
-    onStart: async () => {
-        logger.info('Backlinks Navigator plugin starting');
-        const repository = new JoplinRepository(joplin.data);
-        await registerSettings();
-        await applyDebugSetting();
-        await joplin.settings.onChange(async ({ keys }) => {
-            if (keys.includes(DEBUG_SETTING_KEY)) {
-                await applyDebugSetting();
-            }
-            if (isEditorAffectingSettingChanged(keys)) {
-                await pushContentScriptSettings();
-            }
-        });
-        await registerContentScripts(repository);
-        await registerCommands(repository);
-        await registerMenuItems();
-        await registerToolbarButton();
-    },
-});
+async function handleSettingsChange(keys: string[]): Promise<void> {
+    try {
+        if (keys.includes(DEBUG_SETTING_KEY)) {
+            await applyDebugSetting();
+        }
+        if (isEditorAffectingSettingChanged(keys)) {
+            await pushContentScriptSettings();
+        }
+    } catch (error) {
+        logger.error('Failed to apply setting change', error);
+    }
+}
+
+joplin.plugins
+    .register({
+        onStart: async () => {
+            logger.info('Backlinks Navigator plugin starting');
+            const repository = new JoplinRepository(joplin.data);
+            await registerSettings();
+            await applyDebugSetting();
+            await joplin.settings.onChange(({ keys }) => {
+                void handleSettingsChange(keys);
+            });
+            await registerContentScripts(repository);
+            await registerCommands(repository);
+            await registerMenuItems();
+            await registerToolbarButton();
+        },
+    })
+    .catch((error: unknown) => logger.error('Failed to start Backlinks Navigator', error));

@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 import { JoplinRepository } from './joplinRepository';
 import { countOutgoingLinks, findOutgoingLinks } from './outgoingLinksService';
 
-const mockDataGet = vi.fn();
+const mockDataGet = vi.fn<(path: string[], query?: { fields?: string[] }) => Promise<unknown>>();
 const repository = new JoplinRepository({ get: mockDataGet });
 
 const SOURCE_NOTE_ID = '0123456789abcdef0123456789abcdef';
@@ -451,7 +451,7 @@ describe('countOutgoingLinks', () => {
             if (path[0] === 'folders') {
                 return { id: path[1], title: `Notebook ${path[1]}` };
             }
-            throw new Error(`Unexpected Data API request: ${path.join('/')} (fields: ${options?.fields})`);
+            throw new Error(`Unexpected Data API request: ${path.join('/')} (fields: ${options?.fields?.join(',')})`);
         });
     };
 
@@ -466,7 +466,7 @@ describe('countOutgoingLinks', () => {
         // One lookup per distinct target note (Alpha is reused for its anchored destination).
         expect(targetRequests).toHaveLength(3);
         for (const call of targetRequests) {
-            expect(call[1].fields).not.toContain('body');
+            expect(call[1]?.fields).not.toContain('body');
         }
         expect(mockDataGet).not.toHaveBeenCalledWith(['folders', expect.anything()], expect.anything());
     });

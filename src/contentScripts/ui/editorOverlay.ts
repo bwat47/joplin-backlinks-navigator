@@ -99,7 +99,7 @@ export function ensureOverlayStyles(
     createCss: () => string,
     signature = 'static'
 ): void {
-    const doc = view.dom.ownerDocument!;
+    const doc = view.dom.ownerDocument;
 
     let style = doc.getElementById(styleId) as HTMLStyleElement | null;
     if (!style) {
