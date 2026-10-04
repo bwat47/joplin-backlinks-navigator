@@ -23,7 +23,7 @@ import type { AlternateOpenMode, ContentScriptToPluginMessage, IndicatorState } 
 import { getDisplayCounts, toBacklinkCounts } from './linkDisplay';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
-import { createNoteIdWatcher } from './editor/noteIdWatcher';
+import { createNoteIdWatcher, type NoteIdFacet } from './editor/noteIdWatcher';
 import { referenceHighlightExtension } from './editor/referenceHighlight';
 import { scrollToPendingTarget, type PendingScroll } from './editor/pendingScroll';
 import {
@@ -98,7 +98,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             let indicatorSeq = 0;
             let indicatorTimer: number | null = null;
             let disposed = false;
-            const noteIdFacet = editorControl.joplinExtensions?.noteIdFacet;
+            const noteIdFacet = editorControl.joplinExtensions?.noteIdFacet as NoteIdFacet | undefined;
             const indicator = new BacklinkIndicator(view, () => {
                 void context.postMessage({ type: 'openPanel' } satisfies ContentScriptToPluginMessage);
             });
@@ -113,9 +113,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     return null;
                 }
                 try {
-                    const value = view.state.facet(noteIdFacet);
+                    const value: unknown = view.state.facet(noteIdFacet);
                     if (Array.isArray(value)) {
-                        const candidate = value[0];
+                        const candidate: unknown = value[0];
                         return typeof candidate === 'string' && candidate ? candidate : null;
                     }
                     return typeof value === 'string' && value ? value : null;
