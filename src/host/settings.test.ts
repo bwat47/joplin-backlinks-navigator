@@ -1,4 +1,4 @@
-import { vi, type Mock } from 'vitest';
+import { vi } from 'vitest';
 
 vi.mock('api', () => ({
     __esModule: true,
@@ -23,9 +23,7 @@ import {
     setIgnoredNotebookIdsSetting,
 } from './settings';
 
-const mockValue = joplin.settings.value as Mock;
-const mockValues = joplin.settings.values as Mock;
-const mockSetValue = joplin.settings.setValue as Mock;
+const mockSettings = vi.mocked(joplin.settings);
 
 const KEY_PANEL_WIDTH = 'backlinksNavigator.panelWidth';
 const KEY_PANEL_MAX_HEIGHT = 'backlinksNavigator.panelMaxHeightPercentage';
@@ -100,20 +98,20 @@ describe('settings normalization', () => {
 
 describe('settings loading', () => {
     beforeEach(() => {
-        mockValue.mockReset();
-        mockValues.mockReset();
-        mockSetValue.mockReset();
-        mockSetValue.mockResolvedValue(undefined);
+        mockSettings.value.mockReset();
+        mockSettings.values.mockReset();
+        mockSettings.setValue.mockReset();
+        mockSettings.setValue.mockResolvedValue(undefined);
     });
 
     it('returns stored panel settings as-is when they are valid', async () => {
-        mockValues.mockResolvedValue({
+        mockSettings.values.mockResolvedValue({
             [KEY_PANEL_WIDTH]: 400,
             [KEY_PANEL_MAX_HEIGHT]: 60,
             [KEY_BACKLINK_PREVIEW]: 'titleSnippetHeading',
             [KEY_OUTGOING_PREVIEW]: 'title',
         });
-        mockValue.mockResolvedValue(true);
+        mockSettings.value.mockResolvedValue(true);
 
         await expect(loadContentScriptSettings()).resolves.toEqual({
             panel: {
@@ -122,18 +120,18 @@ describe('settings loading', () => {
             },
             showIndicator: true,
         });
-        expect(mockSetValue).not.toHaveBeenCalled();
+        expect(mockSettings.setValue).not.toHaveBeenCalled();
     });
 
     it('falls back to defaults and self-heals every malformed panel setting', async () => {
-        mockValues.mockResolvedValue({
+        mockSettings.values.mockResolvedValue({
             [KEY_PANEL_WIDTH]: 9999,
             [KEY_PANEL_MAX_HEIGHT]: 'tall',
             [KEY_BACKLINK_PREVIEW]: 'nope',
             // Valid for backlinks, but the nearest-heading mode is not offered for outgoing links.
             [KEY_OUTGOING_PREVIEW]: 'titleSnippetHeading',
         });
-        mockValue.mockResolvedValue(false);
+        mockSettings.value.mockResolvedValue(false);
 
         await expect(loadContentScriptSettings()).resolves.toEqual({
             panel: {
@@ -143,21 +141,21 @@ describe('settings loading', () => {
             showIndicator: false,
         });
 
-        expect(mockSetValue).toHaveBeenCalledWith(KEY_PANEL_WIDTH, 640);
-        expect(mockSetValue).toHaveBeenCalledWith(KEY_PANEL_MAX_HEIGHT, 75);
-        expect(mockSetValue).toHaveBeenCalledWith(KEY_BACKLINK_PREVIEW, 'titleSnippet');
-        expect(mockSetValue).toHaveBeenCalledWith(KEY_OUTGOING_PREVIEW, 'titleSnippet');
+        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_PANEL_WIDTH, 640);
+        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_PANEL_MAX_HEIGHT, 75);
+        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_BACKLINK_PREVIEW, 'titleSnippet');
+        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_OUTGOING_PREVIEW, 'titleSnippet');
     });
 
     it('still resolves panel settings when persisting a correction fails', async () => {
-        mockValues.mockResolvedValue({
+        mockSettings.values.mockResolvedValue({
             [KEY_PANEL_WIDTH]: 10,
             [KEY_PANEL_MAX_HEIGHT]: 60,
             [KEY_BACKLINK_PREVIEW]: 'titleSnippet',
             [KEY_OUTGOING_PREVIEW]: 'titleSnippet',
         });
-        mockValue.mockResolvedValue(false);
-        mockSetValue.mockRejectedValue(new Error('settings are read-only'));
+        mockSettings.value.mockResolvedValue(false);
+        mockSettings.setValue.mockRejectedValue(new Error('settings are read-only'));
 
         const settings = await loadContentScriptSettings();
 
@@ -165,46 +163,53 @@ describe('settings loading', () => {
     });
 
     it('loads the configured middle-click behavior', async () => {
-        mockValue.mockResolvedValue('newTab');
+        mockSettings.value.mockResolvedValue('newTab');
 
         await expect(loadMiddleClickBehaviorSetting()).resolves.toBe('newTab');
-        expect(mockValue).toHaveBeenCalledWith(KEY_MIDDLE_CLICK_BEHAVIOR);
-        expect(mockSetValue).not.toHaveBeenCalled();
+        expect(mockSettings.value).toHaveBeenCalledWith(KEY_MIDDLE_CLICK_BEHAVIOR);
+        expect(mockSettings.setValue).not.toHaveBeenCalled();
     });
 
     it('parses ignored note ids into a set, self-healing them back to a comma-separated string', async () => {
-        mockValue.mockResolvedValue('BB12ADAA3C704FF3BF09C0D7F7AD0C38, invalid, bb12adaa3c704ff3bf09c0d7f7ad0c38');
+        mockSettings.value.mockResolvedValue(
+            'BB12ADAA3C704FF3BF09C0D7F7AD0C38, invalid, bb12adaa3c704ff3bf09c0d7f7ad0c38'
+        );
 
         await expect(loadIgnoredBacklinkNoteIdsSetting()).resolves.toEqual(
             new Set(['bb12adaa3c704ff3bf09c0d7f7ad0c38'])
         );
         // Stored form differs from the parsed value: a string, never the parsed array.
-        expect(mockSetValue).toHaveBeenCalledWith(KEY_IGNORED_NOTE_IDS, 'bb12adaa3c704ff3bf09c0d7f7ad0c38');
+        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_IGNORED_NOTE_IDS, 'bb12adaa3c704ff3bf09c0d7f7ad0c38');
     });
 
     it('leaves a valid ignored note id setting untouched', async () => {
-        mockValue.mockResolvedValue('bb12adaa3c704ff3bf09c0d7f7ad0c38, 14270a1ea65546319c1ed3db0e362c37');
+        mockSettings.value.mockResolvedValue('bb12adaa3c704ff3bf09c0d7f7ad0c38, 14270a1ea65546319c1ed3db0e362c37');
 
         await expect(loadIgnoredBacklinkNoteIdsSetting()).resolves.toEqual(
             new Set(['bb12adaa3c704ff3bf09c0d7f7ad0c38', '14270a1ea65546319c1ed3db0e362c37'])
         );
-        expect(mockSetValue).not.toHaveBeenCalled();
+        expect(mockSettings.setValue).not.toHaveBeenCalled();
     });
 
     it('parses ignored notebook ids into a set, self-healing them back to a comma-separated string', async () => {
-        mockValue.mockResolvedValue('F0LDER, 8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b, 8D0E3B4A1C2F4D5E6A7B8C9D0E1F2A3B');
+        mockSettings.value.mockResolvedValue(
+            'F0LDER, 8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b, 8D0E3B4A1C2F4D5E6A7B8C9D0E1F2A3B'
+        );
 
         await expect(loadIgnoredNotebookIdsSetting()).resolves.toEqual(new Set(['8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b']));
-        expect(mockSetValue).toHaveBeenCalledWith(KEY_IGNORED_NOTEBOOK_IDS, '8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b');
+        expect(mockSettings.setValue).toHaveBeenCalledWith(
+            KEY_IGNORED_NOTEBOOK_IDS,
+            '8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b'
+        );
     });
 
     it('leaves a valid ignored notebook id setting untouched', async () => {
-        mockValue.mockResolvedValue('8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b, 4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d');
+        mockSettings.value.mockResolvedValue('8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b, 4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d');
 
         await expect(loadIgnoredNotebookIdsSetting()).resolves.toEqual(
             new Set(['8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b', '4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d'])
         );
-        expect(mockSetValue).not.toHaveBeenCalled();
+        expect(mockSettings.setValue).not.toHaveBeenCalled();
     });
 
     it('stores ignored notebook ids as a comma-separated string', async () => {
@@ -212,7 +217,7 @@ describe('settings loading', () => {
             new Set(['8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b', '4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d'])
         );
 
-        expect(mockSetValue).toHaveBeenCalledWith(
+        expect(mockSettings.setValue).toHaveBeenCalledWith(
             KEY_IGNORED_NOTEBOOK_IDS,
             '8d0e3b4a1c2f4d5e6a7b8c9d0e1f2a3b, 4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d'
         );
@@ -221,6 +226,6 @@ describe('settings loading', () => {
     it('stores an empty string when the last ignored notebook is removed', async () => {
         await setIgnoredNotebookIdsSetting(new Set<string>());
 
-        expect(mockSetValue).toHaveBeenCalledWith(KEY_IGNORED_NOTEBOOK_IDS, '');
+        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_IGNORED_NOTEBOOK_IDS, '');
     });
 });
