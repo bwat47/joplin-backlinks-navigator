@@ -1,4 +1,4 @@
-import { EditorView } from '@codemirror/view';
+import type { EditorView } from '@codemirror/view';
 import { createIndicatorCss } from './panelTheme';
 import { EditorOverlay, ensureOverlayStyles } from './editorOverlay';
 

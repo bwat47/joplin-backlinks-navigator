@@ -11,8 +11,14 @@
 import joplin from 'api';
 import { SettingItemType } from 'api/types';
 import logger from '../logger';
-import type { BacklinkOpenBehavior, ContentScriptSettings, LinkPreviewMode, PanelSettings } from '../types';
-import { DEFAULT_LINK_PREVIEW_SETTINGS, isLinkPreviewMode } from '../types';
+import {
+    type BacklinkOpenBehavior,
+    type ContentScriptSettings,
+    type LinkPreviewMode,
+    type PanelSettings,
+    DEFAULT_LINK_PREVIEW_SETTINGS,
+    isLinkPreviewMode,
+} from '../types';
 import {
     DEFAULT_PANEL_HEIGHT_PERCENTAGE,
     DEFAULT_PANEL_WIDTH,

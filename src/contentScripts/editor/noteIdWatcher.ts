@@ -8,7 +8,7 @@
  * Modified from: https://github.com/personalizedrefrigerator/joplin-plugin-diff-tool (watchForNoteIdChanges.ts)
  */
 
-import { EditorState, Extension, Facet, Transaction } from '@codemirror/state';
+import { EditorState, type Extension, type Facet, type Transaction } from '@codemirror/state';
 
 export type NoteIdFacet = Facet<string, string>;
 

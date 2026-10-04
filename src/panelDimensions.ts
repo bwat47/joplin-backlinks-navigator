@@ -9,8 +9,7 @@
  * before being applied to the UI. Invalid values fall back to defaults.
  */
 
-import type { PanelDimensions } from './types';
-import { DEFAULT_PANEL_DIMENSIONS } from './types';
+import { type PanelDimensions, DEFAULT_PANEL_DIMENSIONS } from './types';
 
 export const MIN_PANEL_WIDTH = 240;
 export const MAX_PANEL_WIDTH = 640;

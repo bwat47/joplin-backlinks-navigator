@@ -14,11 +14,10 @@
  * - ui/backlinksPanel.ts - Floating panel UI
  */
 
-import { EditorView, ViewPlugin } from '@codemirror/view';
+import { type EditorView, ViewPlugin } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
-import type { LinkCounts, LinkDirection, LinkItem } from '../types';
-import { EMPTY_LINK_COUNTS } from '../types';
+import { type LinkCounts, type LinkDirection, type LinkItem, EMPTY_LINK_COUNTS } from '../types';
 import type { AlternateOpenMode, ContentScriptToPluginMessage, IndicatorState } from '../messages';
 import { getDisplayCounts, toBacklinkCounts } from './linkDisplay';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';

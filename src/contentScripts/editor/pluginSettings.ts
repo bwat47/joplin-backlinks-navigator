@@ -1,8 +1,13 @@
 import { Compartment, Facet, type EditorState, type Extension } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
+import type { EditorView } from '@codemirror/view';
 import type { ContentScriptContext } from 'api/types';
-import type { ContentScriptSettings, PanelSettings } from '../../types';
-import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS, isLinkPreviewMode } from '../../types';
+import {
+    type ContentScriptSettings,
+    type PanelSettings,
+    DEFAULT_LINK_PREVIEW_SETTINGS,
+    DEFAULT_PANEL_DIMENSIONS,
+    isLinkPreviewMode,
+} from '../../types';
 import { normalizePanelDimensions } from '../../panelDimensions';
 import type { ContentScriptToPluginMessage, GetContentScriptSettingsResponse } from '../../messages';
 import logger from '../../logger';

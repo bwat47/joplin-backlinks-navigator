@@ -1,4 +1,4 @@
-import { EditorView } from '@codemirror/view';
+import type { EditorView } from '@codemirror/view';
 import type { LinkDirection, LinkItem, PanelSettings } from '../../types';
 import { getDisplayLinkCount, getDisplayLinks } from '../linkDisplay';
 import { createPanelCss } from './panelTheme';

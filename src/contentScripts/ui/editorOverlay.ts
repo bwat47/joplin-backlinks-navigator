@@ -7,7 +7,7 @@
  * contract is `OVERLAY_ANCHOR_CSS` in `panelTheme.ts`.
  */
 
-import { EditorView } from '@codemirror/view';
+import type { EditorView } from '@codemirror/view';
 
 /** Gap between an overlay's right edge and the editor's scrollbar. */
 const OVERLAY_RIGHT_GAP_PX = 8;

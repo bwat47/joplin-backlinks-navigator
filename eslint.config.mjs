@@ -45,6 +45,12 @@ export default defineConfig(
         rules: {
             // report an error if any circular dependency is found
             'import-x/no-cycle': 'error',
+            'import-x/no-self-import': 'error',
+            // Merge duplicate imports using inline `type` specifiers, matching consistent-type-imports below
+            'import-x/no-duplicates': ['error', { 'prefer-inline': true }],
+            '@typescript-eslint/consistent-type-imports': ['error', { fixStyle: 'inline-type-imports' }],
+            // Use `import type { A }` rather than `import { type A }` when every specifier is a type
+            '@typescript-eslint/no-import-type-side-effects': 'error',
             // Redundant with TypeScript's own no-overlap check (TS2367), and misfires on union types
             'sonarjs/different-types-comparison': 'off',
             '@typescript-eslint/no-inferrable-types': 'error',
