@@ -307,21 +307,19 @@ async function handleSettingsChange(keys: string[]): Promise<void> {
     }
 }
 
-joplin.plugins
-    .register({
-        onStart: async () => {
-            logger.info('Backlinks Navigator plugin starting');
-            const repository = new JoplinRepository(joplin.data);
-            const isMobile = await isMobilePlatform();
-            await registerSettings();
-            await applyDebugSetting();
-            await joplin.settings.onChange(({ keys }) => {
-                void handleSettingsChange(keys);
-            });
-            await registerContentScripts(repository);
-            await registerCommands(repository, isMobile);
-            await registerMenuItems();
-            await registerToolbarButton(isMobile);
-        },
-    })
-    .catch((error: unknown) => logger.error('Failed to start Backlinks Navigator', error));
+void joplin.plugins.register({
+    onStart: async () => {
+        logger.info('Backlinks Navigator plugin starting');
+        const repository = new JoplinRepository(joplin.data);
+        const isMobile = await isMobilePlatform();
+        await registerSettings();
+        await applyDebugSetting();
+        await joplin.settings.onChange(({ keys }) => {
+            void handleSettingsChange(keys);
+        });
+        await registerContentScripts(repository);
+        await registerCommands(repository, isMobile);
+        await registerMenuItems();
+        await registerToolbarButton(isMobile);
+    },
+});
