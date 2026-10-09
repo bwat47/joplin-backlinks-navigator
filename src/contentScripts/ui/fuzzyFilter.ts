@@ -4,10 +4,11 @@
  * Uses fuzzysort for Sublime Text-like fuzzy matching against note titles.
  */
 
-import fuzzysort from 'fuzzysort';
+import fuzzysort, { type KeyResult } from 'fuzzysort';
 import type { LinkItem } from '../../types';
 
-const FUZZY_THRESHOLD = -10000;
+/** Minimum match score (0-1); 0 accepts any match. */
+const FUZZY_THRESHOLD = 0;
 const FUZZY_LIMIT = 200;
 
 /**
@@ -35,8 +36,8 @@ export function fuzzyFilter(query: string, links: LinkItem[]): LinkItem[] {
 }
 
 function compareFuzzyResults(
-    a: { result: Fuzzysort.KeyResult<LinkItem>; index: number },
-    b: { result: Fuzzysort.KeyResult<LinkItem>; index: number }
+    a: { result: KeyResult<LinkItem>; index: number },
+    b: { result: KeyResult<LinkItem>; index: number }
 ): number {
     const scoreDifference = b.result.score - a.result.score;
 
