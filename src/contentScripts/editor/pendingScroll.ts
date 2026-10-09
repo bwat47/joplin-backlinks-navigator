@@ -27,8 +27,7 @@ import type { TextRange } from './textRange';
  *   anchor (`<a id="…">`) it points at.
  */
 export type PendingScroll = { targetNoteId: string } & (
-    | { kind: 'reference'; referencedNoteId: string; occurrenceIndex: number }
-    | { kind: 'anchor'; anchor: string }
+    { kind: 'reference'; referencedNoteId: string; occurrenceIndex: number } | { kind: 'anchor'; anchor: string }
 );
 
 const MAX_ATTEMPTS = 15;
