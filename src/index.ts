@@ -60,6 +60,21 @@ const ALTERNATE_MODE_LOADERS: Record<AlternateOpenMode, () => Promise<BacklinkOp
     middleClick: loadMiddleClickBehaviorSetting,
 };
 
+/**
+ * Desktop when-clause: true only when the CodeMirror (markdown) editor pane is shown,
+ * i.e. not in the Rich Text editor and not in viewer-only layout.
+ *
+ * Not used on mobile: the mobile note toolbar menu caches its enabled state and doesn't
+ * refresh it when switching between the viewer and editor, so the button is placed in
+ * the editor toolbar there instead (which only shows in the markdown editor).
+ */
+const DESKTOP_ENABLED_CONDITION = 'markdownEditorPaneVisible';
+
+async function isMobilePlatform(): Promise<boolean> {
+    const versionInfo = await joplin.versionInfo();
+    return versionInfo.platform === 'mobile';
+}
+
 async function showToast(message: string, type: ToastType = ToastType.Error): Promise<void> {
     try {
         await joplin.views.dialogs.showToast({ message, type });
@@ -225,7 +240,7 @@ async function toggleIgnoredNotebook(repository: LinkRepository, folderId: strin
     );
 }
 
-async function registerCommands(repository: LinkRepository): Promise<void> {
+async function registerCommands(repository: LinkRepository, isMobile: boolean): Promise<void> {
     await joplin.commands.register({
         name: COMMAND_TOGGLE_IGNORE_NOTEBOOK,
         label: 'Toggle Backlinks Navigator ignore',
@@ -236,10 +251,9 @@ async function registerCommands(repository: LinkRepository): Promise<void> {
         name: COMMAND_SHOW_BACKLINKS,
         label: 'Show Links',
         iconName: 'fas fa-link',
+        enabledCondition: isMobile ? undefined : DESKTOP_ENABLED_CONDITION,
         execute: async () => {
             logger.info('Show Backlinks command triggered');
-            const versionInfo = await joplin.versionInfo();
-            const isMobile = versionInfo.platform === 'mobile';
 
             await joplin.commands.execute('editor.execCommand', {
                 name: EDITOR_COMMAND_TOGGLE_PANEL,
@@ -271,12 +285,9 @@ async function registerMenuItems(): Promise<void> {
     );
 }
 
-async function registerToolbarButton(): Promise<void> {
-    await joplin.views.toolbarButtons.create(
-        'backlinksNavigatorToolbarButton',
-        COMMAND_SHOW_BACKLINKS,
-        ToolbarButtonLocation.EditorToolbar
-    );
+async function registerToolbarButton(isMobile: boolean): Promise<void> {
+    const location = isMobile ? ToolbarButtonLocation.EditorToolbar : ToolbarButtonLocation.NoteToolbar;
+    await joplin.views.toolbarButtons.create('backlinksNavigatorToolbarButton', COMMAND_SHOW_BACKLINKS, location);
 }
 
 async function applyDebugSetting(): Promise<void> {
@@ -301,15 +312,16 @@ joplin.plugins
         onStart: async () => {
             logger.info('Backlinks Navigator plugin starting');
             const repository = new JoplinRepository(joplin.data);
+            const isMobile = await isMobilePlatform();
             await registerSettings();
             await applyDebugSetting();
             await joplin.settings.onChange(({ keys }) => {
                 void handleSettingsChange(keys);
             });
             await registerContentScripts(repository);
-            await registerCommands(repository);
+            await registerCommands(repository, isMobile);
             await registerMenuItems();
-            await registerToolbarButton();
+            await registerToolbarButton(isMobile);
         },
     })
     .catch((error: unknown) => logger.error('Failed to start Backlinks Navigator', error));

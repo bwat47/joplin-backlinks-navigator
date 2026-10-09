@@ -26,7 +26,7 @@ A Joplin plugin for viewing and navigating backlinks and outgoing links in the M
 
 ## Usage
 
-Open the links panel from the editor toolbar, editor indicator icon (if enabled in settings), the Edit menu, or the `Show Links` command.
+Open the links panel from the note toolbar button (editor toolbar on mobile), editor indicator icon (if enabled in settings), the Edit menu, or the `Show Links` command. On desktop, the toolbar button is grayed out when the markdown editor isn't visible (Rich Text editor or viewer-only layout).
 
 > [!note]
 > There isn't a default keyboard shortcut, you can assign one under Tools | Options | Keyboard Shortcuts | "Show Links" command.
