@@ -53,8 +53,5 @@
         "@lezer/markdown": "1.6.3",
         "fuzzysort": "^3.1.0",
         "html-entities": "^2.6.0"
-    },
-    "overrides": {
-        "js-yaml": "^4.2.0"
     }
 }
