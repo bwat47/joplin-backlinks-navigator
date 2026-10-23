@@ -179,12 +179,12 @@ export class PanelController {
     }
 
     /**
-     * Where to scroll once the selected row's note loads. For a backlink that's the occurrence
-     * linking back to the note we're currently viewing (`:/<currentNoteId>`); in title-only mode
-     * backlinks are collapsed to one row per note (not a specific occurrence), so don't attempt it.
-     * For an outgoing link it's the anchored heading — Joplin also handles the `#anchor` passed to
-     * `openItem`, but doing it here keeps the cursor placement and highlight consistent with
-     * backlink navigation. Outgoing links without an anchor just open the target note.
+     * Where to scroll once the selected row's note loads: the host-resolved navigation target, if
+     * the row has one. For a backlink that's the link occurrence pointing back to the current note;
+     * for an anchored outgoing link it's the heading or HTML anchor the anchor names. Rows without
+     * a target (unanchored or unresolved outgoing links) just open the note. In title-only mode
+     * backlinks are collapsed to one row per note rather than a specific occurrence, so they don't
+     * scroll either.
      */
     private pendingScrollFor(link: LinkItem): PendingScroll | null {
         if (!link.navigationTarget) {
