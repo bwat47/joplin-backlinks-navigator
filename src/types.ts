@@ -1,6 +1,16 @@
 /** Direction of a link relative to the current note. */
 export type LinkDirection = 'in' | 'out';
 
+/** Host-resolved source range, with text to validate or relocate it after edits. */
+export interface NavigationTarget {
+    /** UTF-16 source offsets, with an exclusive end, matching CodeMirror positions. */
+    from: number;
+    to: number;
+    text: string;
+    contextBefore: string;
+    contextAfter: string;
+}
+
 /** The fields every panel row shares, whichever direction it points. */
 interface LinkItemBase {
     /** Unique row ID for this link. */
@@ -15,6 +25,8 @@ interface LinkItemBase {
     section: string;
     /** Cleaned prose preview (no link URLs/markdown). */
     snippet: string;
+    /** Absent for whole-note destinations and unresolved anchors. */
+    navigationTarget?: NavigationTarget;
 }
 
 /**
@@ -23,7 +35,7 @@ interface LinkItemBase {
  */
 export interface Backlink extends LinkItemBase {
     direction: 'in';
-    /** Zero-based index of this occurrence among the linking note's links here (used to scroll to it). */
+    /** Zero-based index of this occurrence among the linking note's links here. */
     occurrenceIndex: number;
     /** Number of links the linking note has to the current note. */
     occurrenceCount: number;

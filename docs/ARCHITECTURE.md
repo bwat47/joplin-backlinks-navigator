@@ -82,7 +82,10 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 - `src/contentScripts/indicatorController.ts` owns badge visibility, cached counts, refresh scheduling,
   and stale-response protection for each editor view.
 - `src/contentScripts/editor/pendingScroll.ts` places the cursor on, scrolls to, and highlights a
-  pending scroll target, retrying briefly while the note's content settles.
+  host-resolved source range, retrying briefly while the note's content settles.
+- `src/host/navigationTarget.ts` captures each target's offsets, exact source text, and nearby
+  context. `src/contentScripts/editor/navigationTarget.ts` validates those offsets against the
+  editor text and relocates shifted matches without parsing Markdown.
 - `src/contentScripts/editor/pluginSettings.ts` stores editor-side settings in a CodeMirror facet so
   UI behavior can update without rebuilding the editor extension.
 - `src/contentScripts/editor/noteIdWatcher.ts` reports note changes inside the reused editor view.
@@ -194,19 +197,28 @@ Both directions can carry a pending scroll, recorded by the content script befor
 applied after the next note id change: it places the cursor, scrolls the target into view, and
 highlights it briefly.
 
-- Backlinks rerun the shared link extractor and scroll to the exact rendered Markdown-link use in the
-  source note. This also highlights reference-style uses instead of their definitions. Title-only
+- Backlinks carry the host-resolved range of the exact rendered Markdown-link use in the source
+  note. This also highlights reference-style uses instead of their definitions. Title-only
   backlink previews collapse occurrences into one row per source note, so those rows don't scroll.
 - Outgoing links to an anchor scroll to the heading that anchor names, or to the explicit HTML
   anchor (`<a id="…">`) it points at. The anchor is also passed to the host, which opens
   `:/<id>#<anchor>` so Joplin's own navigation agrees.
 - Outgoing links without an anchor simply open the destination note.
 
+Each resolved navigation target includes its exact Markdown source and up to 32 characters of
+context on either side. The editor first validates the supplied offsets. If edits shifted the
+target, it accepts a unique exact-text match, or uses the context to distinguish repeated matches.
+Missing or ambiguous matches leave the note open without forcing a cursor position or highlight.
+The delayed scroll reassertion validates the target again in case the text changed after loading.
+All Markdown parsing runs on the host; the content script does not import Lezer.
+
 ## Build
 
 `npm run dist` runs the webpack build and creates the plugin archive in `publish/*.jpl`.
 
-The content script entry is listed in `plugin.config.json` as an `extraScripts` entry. CodeMirror and Lezer packages are externalized because Joplin provides them at runtime.
+The content script entry is listed in `plugin.config.json` as an `extraScripts` entry. CodeMirror
+packages are externalized because Joplin provides them at runtime. The generated configuration
+also lists Lezer as external, but only the host imports it, so Lezer is bundled into `index.js`.
 
 ## Design Intent
 
@@ -215,7 +227,7 @@ The project keeps a few boundaries clear:
 - Joplin API work stays in the plugin host.
 - Data API reads go through one injected repository created by the plugin entry point.
 - Editor and DOM work stays in the content script.
-- Link parsing stays in shared, Joplin-free helpers.
+- Link parsing stays in Joplin-free helpers used by the host.
 - Display rules stay in one place so the panel and indicator agree.
 - Settings are normalized before they reach editor UI code, in the units the user set them in:
   panel dimensions stay in pixels and percent from the settings screen through to the generated CSS,

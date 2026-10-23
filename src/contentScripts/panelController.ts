@@ -187,18 +187,12 @@ export class PanelController {
      * backlink navigation. Outgoing links without an anchor just open the target note.
      */
     private pendingScrollFor(link: LinkItem): PendingScroll | null {
-        if (link.direction === 'out') {
-            return link.anchor ? { targetNoteId: link.noteId, kind: 'anchor', anchor: link.anchor } : null;
-        }
-        const currentNoteId = this.dependencies.resolveNoteId();
-        if (!currentNoteId || getContentScriptSettings(this.view.state).panel.preview.in === 'title') {
+        if (!link.navigationTarget) {
             return null;
         }
-        return {
-            targetNoteId: link.noteId,
-            kind: 'reference',
-            referencedNoteId: currentNoteId.toLowerCase(),
-            occurrenceIndex: link.occurrenceIndex,
-        };
+        if (link.direction === 'in' && getContentScriptSettings(this.view.state).panel.preview.in === 'title') {
+            return null;
+        }
+        return { targetNoteId: link.noteId, navigationTarget: link.navigationTarget };
     }
 }

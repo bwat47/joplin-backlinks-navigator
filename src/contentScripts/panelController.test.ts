@@ -4,6 +4,7 @@ import { EditorView } from '@codemirror/view';
 import type { ContentScriptContext } from 'api/types';
 import type { LinksResponse, MessageOf, Protocol } from '../messages';
 import type { Backlink, LinkItem, OutgoingLink } from '../types';
+import { createNavigationTarget } from '../host/navigationTarget';
 import { PanelController } from './panelController';
 import {
     applyContentScriptSettings,
@@ -32,14 +33,33 @@ function deferred<T>() {
     return { promise, resolve };
 }
 
+const BACKLINK_BODY = `First [a](:/${CURRENT_NOTE})\n\nSecond [b](:/${CURRENT_NOTE})`;
+const HEADING_BODY = 'Intro\n\n# Setup\n\nSteps';
+
 const ROW = { noteId: OTHER_NOTE, title: 'Other', notebookName: '', section: '', snippet: '' };
 
 function backlink(occurrenceIndex: number): Backlink {
-    return { ...ROW, direction: 'in', id: `${OTHER_NOTE}:${occurrenceIndex}`, occurrenceIndex, occurrenceCount: 2 };
+    const from = BACKLINK_BODY.indexOf(occurrenceIndex ? '[b]' : '[a]');
+    const to = BACKLINK_BODY.indexOf(')', from) + 1;
+    return {
+        ...ROW,
+        direction: 'in',
+        id: `${OTHER_NOTE}:${occurrenceIndex}`,
+        occurrenceIndex,
+        occurrenceCount: 2,
+        navigationTarget: createNavigationTarget(BACKLINK_BODY, { from, to }),
+    };
 }
 
 function outgoing(anchor: string): OutgoingLink {
-    return { ...ROW, direction: 'out', id: anchor ? `${OTHER_NOTE}#${anchor}` : OTHER_NOTE, anchor, isTrashed: false };
+    return {
+        ...ROW,
+        direction: 'out',
+        id: anchor ? `${OTHER_NOTE}#${anchor}` : OTHER_NOTE,
+        anchor,
+        isTrashed: false,
+        ...(anchor ? { navigationTarget: createNavigationTarget(HEADING_BODY, { from: 7, to: 14 }) } : {}),
+    };
 }
 
 type LinkResponder = (message: MessageOf<'getBacklinks' | 'getOutgoingLinks'>) => Promise<LinksResponse>;
