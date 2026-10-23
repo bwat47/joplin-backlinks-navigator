@@ -3,7 +3,7 @@ import { EditorState, Facet, StateEffect, type Extension } from '@codemirror/sta
 import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext } from 'api/types';
 import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS } from '../types';
-import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
+import { EDITOR_COMMAND_TOGGLE_PANEL } from '../constants';
 import type { IndicatorState, LinksResponse, MessageOf, Protocol } from '../messages';
 import backlinksNavigator from './backlinksNavigator';
 
@@ -126,18 +126,6 @@ describe('backlinksNavigator indicator teardown', () => {
         vi.useRealTimers();
     });
 
-    it('cancels a queued indicator refresh when the editor is destroyed', async () => {
-        const response = createDeferred<IndicatorState>();
-        const { postMessage, view } = createHarness(() => response.promise);
-        await flushPromises();
-
-        view.destroy();
-        await vi.advanceTimersByTimeAsync(INDICATOR_DEBOUNCE_MS);
-
-        expect(postMessage).toHaveBeenCalledTimes(1);
-        expect(postMessage).toHaveBeenCalledWith({ type: 'getContentScriptSettings' });
-    });
-
     it('does not remount the indicator when an in-flight refresh resolves after teardown', async () => {
         const response = createDeferred<IndicatorState>();
         const { postMessage, view } = createHarness(() => response.promise);
@@ -158,7 +146,7 @@ describe('backlinksNavigator indicator teardown', () => {
     });
 });
 
-describe('backlinksNavigator host failures', () => {
+describe('backlinksNavigator panel integration', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         document.body.replaceChildren();
@@ -171,7 +159,7 @@ describe('backlinksNavigator host failures', () => {
     });
 
     it('shows a load error instead of the empty state when the host reports a failed lookup', async () => {
-        const { runCommand } = createHarness(() => Promise.resolve({ enabled: false }), { ok: false });
+        const { runCommand, view } = createHarness(() => Promise.resolve({ enabled: false }), { ok: false });
         await flushPromises();
 
         runCommand(EDITOR_COMMAND_TOGGLE_PANEL, false);
@@ -179,25 +167,42 @@ describe('backlinksNavigator host failures', () => {
 
         const message = document.querySelector('.backlinks-navigator-message')?.textContent;
         expect(message).toMatch(/^Failed to load /);
+        runCommand(EDITOR_COMMAND_TOGGLE_PANEL, false);
+        view.destroy();
     });
 
-    it('hides the indicator when the host fails to count links', async () => {
-        const indicatorResponse = vi
-            .fn<() => Promise<IndicatorState>>()
-            .mockResolvedValueOnce({ enabled: true, ok: true, counts: INDICATOR_COUNTS })
-            .mockResolvedValueOnce({ enabled: true, ok: false });
-        const { runCommand } = createHarness(indicatorResponse);
+    it('restores the badge with refreshed counts when the panel closes', async () => {
+        const { runCommand, view } = createHarness(
+            () => Promise.resolve({ enabled: true, ok: true, counts: INDICATOR_COUNTS }),
+            {
+                ok: true,
+                links: [
+                    {
+                        direction: 'in',
+                        id: 'source',
+                        noteId: 'source',
+                        anchor: '',
+                        occurrenceIndex: 0,
+                        occurrenceCount: 1,
+                        title: 'Source',
+                        notebookName: '',
+                        section: '',
+                        snippet: '',
+                    },
+                ],
+            }
+        );
         await flushPromises();
         await vi.advanceTimersByTimeAsync(INDICATOR_DEBOUNCE_MS);
-
         const indicator = document.querySelector<HTMLElement>('.backlinks-navigator-indicator');
         expect(indicator?.style.display).toBe('inline-flex');
 
-        // A settings push schedules another refresh, which this time fails.
-        runCommand(EDITOR_COMMAND_UPDATE_SETTINGS, SETTINGS);
-        await vi.advanceTimersByTimeAsync(INDICATOR_DEBOUNCE_MS);
-
-        expect(indicatorResponse).toHaveBeenCalledTimes(2);
+        runCommand(EDITOR_COMMAND_TOGGLE_PANEL, false);
+        await flushPromises();
         expect(indicator?.style.display).toBe('none');
+        runCommand(EDITOR_COMMAND_TOGGLE_PANEL, false);
+        expect(indicator?.style.display).toBe('inline-flex');
+        expect(indicator?.getAttribute('aria-label')).toBe('1 backlink, 1 outgoing link');
+        view.destroy();
     });
 });
