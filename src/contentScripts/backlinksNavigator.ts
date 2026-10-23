@@ -18,7 +18,7 @@ import { type EditorView, ViewPlugin } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
 import { type LinkCounts, type LinkDirection, type LinkItem, EMPTY_LINK_COUNTS } from '../types';
-import type { AlternateOpenMode, ContentScriptToPluginMessage, IndicatorState } from '../messages';
+import type { AlternateOpenMode, ContentScriptToPluginMessage, IndicatorState, LinksResponse } from '../messages';
 import { getDisplayCounts, toBacklinkCounts } from './linkDisplay';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
@@ -260,12 +260,19 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             const loadLinks = async (direction: LinkDirection, noteId: string, seq: number): Promise<void> => {
                 const config = LINK_LOAD_CONFIG[direction];
                 try {
-                    const response = (await context.postMessage(config.createMessage(noteId))) as LinkItem[];
+                    const response = (await context.postMessage(config.createMessage(noteId))) as
+                        LinksResponse | undefined;
                     // Ignore if the panel was closed/re-opened while we awaited.
                     if (seq !== requestSeq || !panel?.isOpen()) {
                         return;
                     }
-                    const links = Array.isArray(response) ? response : [];
+                    // A failed (or malformed) response must not render as "no links". The host
+                    // logs the cause of a reported failure.
+                    if (response?.ok !== true || !Array.isArray(response.links)) {
+                        panel.setError(direction, config.errorMessage);
+                        return;
+                    }
+                    const links = response.links;
                     panel.setLinks(direction, links);
                     // Keep the badge's count fresh, but only when the indicator is enabled.
                     if (indicatorEnabled) {
@@ -334,10 +341,12 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     return;
                 }
 
-                if (state?.enabled) {
+                if (state?.enabled && state.ok) {
                     indicatorEnabled = true;
                     indicatorCounts = normalizeLinkCounts(state.counts);
                 } else {
+                    // Disabled, or the host couldn't count links (it logs why). Hide the badge
+                    // rather than show zeros that would misreport the note.
                     clearIndicatorCache();
                 }
                 syncIndicator();

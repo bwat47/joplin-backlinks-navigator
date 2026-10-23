@@ -40,16 +40,15 @@ import {
 import type {
     AlternateOpenMode,
     ContentScriptToPluginMessage,
-    GetBacklinksResponse,
     GetContentScriptSettingsResponse,
-    GetOutgoingLinksResponse,
     IndicatorState,
+    LinksResponse,
 } from './messages';
 import { countBacklinks, findBacklinks } from './host/backlinksService';
 import { JoplinRepository, type LinkRepository } from './host/joplinRepository';
 import { countOutgoingLinks, findOutgoingLinks } from './host/outgoingLinksService';
 import { expandIgnoredFolderIds, resolveNotebookName } from './host/noteMetadata';
-import type { BacklinkOpenBehavior, LinkFilters } from './types';
+import type { BacklinkOpenBehavior, LinkFilters, LinkItem } from './types';
 
 type ResolvedOpenNoteMode = 'current' | BacklinkOpenBehavior;
 
@@ -136,21 +135,68 @@ async function loadLinkFilters(repository: LinkRepository): Promise<LinkFilters>
     return { ignoredNoteIds, ignoredFolderIds: await expandIgnoredFolderIds(repository, configuredFolderIds) };
 }
 
-async function findBacklinksWithSettings(repository: LinkRepository, noteId: string): Promise<GetBacklinksResponse> {
-    return findBacklinks(repository, noteId, await loadLinkFilters(repository));
+/**
+ * Runs a link lookup and reports a failure in the response instead of as an empty list, so the
+ * panel can show an error rather than "no links".
+ */
+async function toLinksResponse(
+    description: string,
+    noteId: string,
+    load: () => Promise<LinkItem[]>
+): Promise<LinksResponse> {
+    try {
+        return { ok: true, links: await load() };
+    } catch (error) {
+        logger.error(`Failed to load ${description}`, { noteId, error });
+        return { ok: false };
+    }
 }
 
-async function findOutgoingLinksWithSettings(
-    repository: LinkRepository,
-    noteId: string
-): Promise<GetOutgoingLinksResponse> {
-    return findOutgoingLinks(repository, noteId, await loadLinkFilters(repository));
+async function findBacklinksWithSettings(repository: LinkRepository, noteId: string): Promise<LinksResponse> {
+    return toLinksResponse('backlinks', noteId, async () =>
+        findBacklinks(repository, noteId, await loadLinkFilters(repository))
+    );
+}
+
+async function findOutgoingLinksWithSettings(repository: LinkRepository, noteId: string): Promise<LinksResponse> {
+    return toLinksResponse('outgoing links', noteId, async () =>
+        findOutgoingLinks(repository, noteId, await loadLinkFilters(repository))
+    );
+}
+
+async function loadIndicatorState(repository: LinkRepository, noteId: string): Promise<IndicatorState> {
+    // Honor the setting before doing any link discovery.
+    if (!(await loadShowIndicatorSetting())) {
+        return { enabled: false };
+    }
+    // The badge only renders counts, so count links instead of resolving rows: this skips the
+    // snippet, notebook, and anchor work — including a body fetch and markdown parse per outgoing
+    // target — on every note open.
+    try {
+        const filters = await loadLinkFilters(repository);
+        const [backlinks, outgoing] = await Promise.all([
+            countBacklinks(repository, noteId, filters),
+            countOutgoingLinks(repository, noteId, filters),
+        ]);
+        return {
+            enabled: true,
+            ok: true,
+            counts: {
+                backlinkOccurrences: backlinks.occurrences,
+                backlinkNotes: backlinks.notes,
+                outgoing,
+            },
+        };
+    } catch (error) {
+        logger.error('Failed to count links for the indicator', { noteId, error });
+        return { enabled: true, ok: false };
+    }
 }
 
 async function handleMessage(
     repository: LinkRepository,
     message: ContentScriptToPluginMessage
-): Promise<GetBacklinksResponse | GetOutgoingLinksResponse | GetContentScriptSettingsResponse | IndicatorState | void> {
+): Promise<LinksResponse | GetContentScriptSettingsResponse | IndicatorState | void> {
     if (!message || typeof message !== 'object') {
         return;
     }
@@ -162,28 +208,8 @@ async function handleMessage(
             return findOutgoingLinksWithSettings(repository, message.noteId);
         case 'getContentScriptSettings':
             return loadContentScriptSettings();
-        case 'getIndicatorState': {
-            // Honor the setting before doing any link discovery.
-            if (!(await loadShowIndicatorSetting())) {
-                return { enabled: false };
-            }
-            // The badge only renders counts, so count links instead of resolving rows: this skips
-            // the snippet, notebook, and anchor work — including a body fetch and markdown parse
-            // per outgoing target — on every note open.
-            const filters = await loadLinkFilters(repository);
-            const [backlinks, outgoing] = await Promise.all([
-                countBacklinks(repository, message.noteId, filters),
-                countOutgoingLinks(repository, message.noteId, filters),
-            ]);
-            return {
-                enabled: true,
-                counts: {
-                    backlinkOccurrences: backlinks.occurrences,
-                    backlinkNotes: backlinks.notes,
-                    outgoing,
-                },
-            };
-        }
+        case 'getIndicatorState':
+            return loadIndicatorState(repository, message.noteId);
         case 'openNote':
             await openNote(message.noteId, await resolveOpenNoteMode(message), message.anchor);
             return;

@@ -53,16 +53,6 @@ function destinationKey(targetId: string, anchor: string): string {
     return anchor ? `${targetId}#${anchor}` : targetId;
 }
 
-/** Reads a note's body. Returns `null` when the note can't be fetched. */
-async function fetchNoteBody(repository: LinkRepository, noteId: string): Promise<string | null> {
-    try {
-        return await repository.getNoteBody(noteId);
-    } catch (error) {
-        logger.error('Outgoing link lookup failed', { noteId, error });
-        return null;
-    }
-}
-
 /**
  * Groups a note body's internal links into distinct destinations, in document order, skipping
  * self-links and ignored notes. A link to a note and a link to one of its anchors are different
@@ -144,7 +134,8 @@ function resolveDestinationPreview(targetBody: ParsedTargetBody, anchor: string)
  *
  * @param noteId - ID of the note to read outgoing links from.
  * @param filters - Optional exclusions; see {@link LinkFilters}.
- * @returns One entry per distinct note + anchor pair, sorted by title. Returns `[]` on failure.
+ * @returns One entry per distinct note + anchor pair, sorted by title. Rejects if the note's own
+ *   body can't be read; an unresolvable target is a broken link and is dropped instead.
  */
 export async function findOutgoingLinks(
     repository: LinkRepository,
@@ -155,11 +146,7 @@ export async function findOutgoingLinks(
         return [];
     }
 
-    const body = await fetchNoteBody(repository, noteId);
-    if (body === null) {
-        return [];
-    }
-
+    const body = await repository.getNoteBody(noteId);
     const ignoredFolderIds = filters.ignoredFolderIds ?? new Set<string>();
     const destinations = collectDestinations(parseMarkdownBody(body), noteId, filters.ignoredNoteIds ?? new Set());
     if (!destinations.length) {
@@ -220,7 +207,7 @@ export async function findOutgoingLinks(
  * the `parent_id` that the ignored-notebook filter needs. It omits the target's `body`, which is what makes this cheap: no bodies are transferred and no target note is
  * parsed for headings or HTML anchors.
  *
- * @returns The number of resolvable destinations. Returns 0 on failure.
+ * @returns The number of resolvable destinations. Rejects if the note's own body can't be read.
  */
 export async function countOutgoingLinks(
     repository: LinkRepository,
@@ -231,11 +218,7 @@ export async function countOutgoingLinks(
         return 0;
     }
 
-    const body = await fetchNoteBody(repository, noteId);
-    if (body === null) {
-        return 0;
-    }
-
+    const body = await repository.getNoteBody(noteId);
     const ignoredFolderIds = filters.ignoredFolderIds ?? new Set<string>();
     const destinations = collectDestinations(parseMarkdownBody(body), noteId, filters.ignoredNoteIds ?? new Set());
     const noteMetaCache = new Map<string, NoteMeta | null>();

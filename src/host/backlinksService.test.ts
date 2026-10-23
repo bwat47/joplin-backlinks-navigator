@@ -117,6 +117,12 @@ describe('findBacklinks', () => {
         expect(mockDataGet).not.toHaveBeenCalled();
     });
 
+    it('rejects when the search fails', async () => {
+        mockDataGet.mockRejectedValue(new Error('search unavailable'));
+
+        await expect(findBacklinks(repository, TARGET_NOTE_ID)).rejects.toThrow('search unavailable');
+    });
+
     it('omits backlinks from ignored source notes', async () => {
         mockDataGet.mockImplementation(async (path: string[]) => {
             if (path[0] === 'search') {
@@ -342,9 +348,9 @@ describe('countBacklinks', () => {
         expect(mockDataGet).not.toHaveBeenCalled();
     });
 
-    it('returns zeros when the search fails', async () => {
+    it('rejects when the search fails', async () => {
         mockDataGet.mockRejectedValue(new Error('search unavailable'));
 
-        await expect(countBacklinks(repository, TARGET_NOTE_ID)).resolves.toEqual({ occurrences: 0, notes: 0 });
+        await expect(countBacklinks(repository, TARGET_NOTE_ID)).rejects.toThrow('search unavailable');
     });
 });

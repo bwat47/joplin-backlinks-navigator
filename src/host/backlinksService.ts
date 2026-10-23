@@ -38,7 +38,8 @@ interface BacklinkCandidate {
  * Searches for and verifies the notes linking to `noteId` — the discovery work shared by
  * {@link findBacklinks} and {@link countBacklinks}.
  *
- * @returns One entry per linking note, in search order. Returns `[]` if the search fails.
+ * @returns One entry per linking note, in search order. Rejects if the search fails: without it
+ *   there is no answer, and an empty list would read as "no backlinks".
  */
 async function collectBacklinkCandidates(
     repository: LinkRepository,
@@ -49,14 +50,7 @@ async function collectBacklinkCandidates(
     const ignoredNoteIds = filters.ignoredNoteIds ?? new Set<string>();
     const ignoredFolderIds = filters.ignoredFolderIds ?? new Set<string>();
     const needle = linkNeedle(normalizedNoteId);
-    let searchHits: SearchNote[];
-
-    try {
-        searchHits = await repository.searchNotes(noteId);
-    } catch (error) {
-        logger.error('Backlink search failed', { noteId, error });
-        return [];
-    }
+    const searchHits = await repository.searchNotes(noteId);
 
     const candidates: BacklinkCandidate[] = [];
     for (const note of searchHits) {
@@ -90,7 +84,7 @@ async function collectBacklinkCandidates(
  *
  * @param noteId - ID of the note to find backlinks for.
  * @param filters - Optional exclusions; see {@link LinkFilters}.
- * @returns Backlink entries sorted by note title. Returns `[]` on failure.
+ * @returns Backlink entries sorted by note title. Rejects if the search fails.
  */
 export async function findBacklinks(
     repository: LinkRepository,
@@ -150,7 +144,7 @@ export interface BacklinkCounts {
  * Drives the indicator badge, which needs only the tallies: this skips the per-candidate
  * snippet/section parsing and notebook lookups that {@link findBacklinks} performs.
  *
- * @returns Backlink tallies. Returns zeros on failure.
+ * @returns Backlink tallies. Rejects if the search fails.
  */
 export async function countBacklinks(
     repository: LinkRepository,

@@ -13,13 +13,13 @@
 
 import type { ContentScriptSettings, LinkCounts, LinkItem } from './types';
 
-/** Request the list of backlink occurrences that link to `noteId`. Host responds with `LinkItem[]`. */
+/** Request the list of backlink occurrences that link to `noteId`. Host responds with {@link LinksResponse}. */
 interface GetBacklinksMessage {
     type: 'getBacklinks';
     noteId: string;
 }
 
-/** Request the list of distinct notes that `noteId` links to. Host responds with `LinkItem[]`. */
+/** Request the list of distinct notes that `noteId` links to. Host responds with {@link LinksResponse}. */
 interface GetOutgoingLinksMessage {
     type: 'getOutgoingLinks';
     noteId: string;
@@ -74,11 +74,14 @@ export type ContentScriptToPluginMessage =
     | OpenNoteMessage
     | OpenPanelMessage;
 
-/** Response returned by the host for a {@link GetBacklinksMessage}. */
-export type GetBacklinksResponse = LinkItem[];
-
-/** Response returned by the host for a {@link GetOutgoingLinksMessage}. */
-export type GetOutgoingLinksResponse = LinkItem[];
+/**
+ * Response returned by the host for a {@link GetBacklinksMessage} or {@link GetOutgoingLinksMessage}.
+ *
+ * A failed lookup is reported as `ok: false` rather than as an empty list, so the panel can tell
+ * "no links" from "couldn't load links". The host logs the cause; the content script owns the
+ * user-facing message.
+ */
+export type LinksResponse = { ok: true; links: LinkItem[] } | { ok: false };
 
 /** Response returned by the host for a {@link GetContentScriptSettingsMessage}. */
 export type GetContentScriptSettingsResponse = ContentScriptSettings;
@@ -86,9 +89,11 @@ export type GetContentScriptSettingsResponse = ContentScriptSettings;
 /**
  * Response for a {@link GetIndicatorStateMessage}.
  *
- * `enabled` is false when the indicator setting is off (no search was performed); otherwise it
- * carries {@link LinkCounts}. The badge shows numbers, so the host counts links rather than
- * resolving full rows for them. Both backlink tallies are sent because the display policy that
- * chooses between them depends on the content script's current preview settings.
+ * `enabled` is false when the indicator setting is off (no search was performed). Otherwise `ok`
+ * says whether counting succeeded and, if so, the state carries {@link LinkCounts}. The badge shows
+ * numbers, so the host counts links rather than resolving full rows for them. Both backlink tallies
+ * are sent because the display policy that chooses between them depends on the content script's
+ * current preview settings.
  */
-export type IndicatorState = { enabled: false } | { enabled: true; counts: LinkCounts };
+export type IndicatorState =
+    { enabled: false } | { enabled: true; ok: true; counts: LinkCounts } | { enabled: true; ok: false };

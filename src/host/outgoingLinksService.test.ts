@@ -420,6 +420,12 @@ describe('findOutgoingLinks', () => {
 
         await expect(findOutgoingLinks(repository, SOURCE_NOTE_ID)).resolves.toEqual([]);
     });
+
+    it('rejects when the source note cannot be read', async () => {
+        mockDataGet.mockRejectedValue(new Error('note unavailable'));
+
+        await expect(findOutgoingLinks(repository, SOURCE_NOTE_ID)).rejects.toThrow('note unavailable');
+    });
 });
 
 describe('countOutgoingLinks', () => {
@@ -513,9 +519,9 @@ describe('countOutgoingLinks', () => {
         await expect(countOutgoingLinks(repository, SOURCE_NOTE_ID)).resolves.toBe(0);
     });
 
-    it('returns 0 when the source note cannot be read', async () => {
+    it('rejects when the source note cannot be read', async () => {
         mockDataGet.mockRejectedValue(new Error('note unavailable'));
 
-        await expect(countOutgoingLinks(repository, SOURCE_NOTE_ID)).resolves.toBe(0);
+        await expect(countOutgoingLinks(repository, SOURCE_NOTE_ID)).rejects.toThrow('note unavailable');
     });
 });

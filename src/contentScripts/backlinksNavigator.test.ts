@@ -3,7 +3,8 @@ import { EditorState, Facet, StateEffect, type Extension } from '@codemirror/sta
 import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext } from 'api/types';
 import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS } from '../types';
-import type { ContentScriptToPluginMessage, IndicatorState } from '../messages';
+import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
+import type { ContentScriptToPluginMessage, IndicatorState, LinksResponse } from '../messages';
 import backlinksNavigator from './backlinksNavigator';
 
 const INDICATOR_DEBOUNCE_MS = 350;
@@ -41,7 +42,24 @@ function createDeferred<T>(): Deferred<T> {
     return { promise, resolve };
 }
 
-function createHarness(indicatorResponse: Promise<IndicatorState>) {
+const SETTINGS = {
+    panel: {
+        dimensions: DEFAULT_PANEL_DIMENSIONS,
+        preview: DEFAULT_LINK_PREVIEW_SETTINGS,
+    },
+    showIndicator: true,
+};
+
+const INDICATOR_COUNTS = {
+    backlinkOccurrences: 1,
+    backlinkNotes: 1,
+    outgoing: 0,
+};
+
+function createHarness(
+    indicatorResponse: () => Promise<IndicatorState>,
+    linksResponse: LinksResponse = { ok: true, links: [] }
+) {
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const view = new EditorView({
@@ -53,16 +71,13 @@ function createHarness(indicatorResponse: Promise<IndicatorState>) {
 
     const postMessage = vi.fn((message: ContentScriptToPluginMessage): Promise<unknown> => {
         if (message.type === 'getContentScriptSettings') {
-            return Promise.resolve({
-                panel: {
-                    dimensions: DEFAULT_PANEL_DIMENSIONS,
-                    preview: DEFAULT_LINK_PREVIEW_SETTINGS,
-                },
-                showIndicator: true,
-            });
+            return Promise.resolve(SETTINGS);
         }
         if (message.type === 'getIndicatorState') {
-            return indicatorResponse;
+            return indicatorResponse();
+        }
+        if (message.type === 'getBacklinks' || message.type === 'getOutgoingLinks') {
+            return Promise.resolve(linksResponse);
         }
         return Promise.resolve(undefined);
     });
@@ -71,17 +86,27 @@ function createHarness(indicatorResponse: Promise<IndicatorState>) {
         contentScriptId: 'test-content-script',
         postMessage,
     } as ContentScriptContext;
+    const commands = new Map<string, (...args: unknown[]) => void>();
     const editorControl = {
         editor: view,
         addExtension: (extension: Extension) => {
             view.dispatch({ effects: StateEffect.appendConfig.of(extension) });
         },
-        registerCommand: vi.fn(),
+        registerCommand: (name: string, handler: (...args: unknown[]) => void) => {
+            commands.set(name, handler);
+        },
         joplinExtensions: { noteIdFacet },
     } as unknown as CodeMirrorControl;
 
     backlinksNavigator(context).plugin(editorControl);
-    return { postMessage, view };
+    const runCommand = (name: string, ...args: unknown[]): void => {
+        const handler = commands.get(name);
+        if (!handler) {
+            throw new Error(`Command not registered: ${name}`);
+        }
+        handler(...args);
+    };
+    return { postMessage, runCommand, view };
 }
 
 async function flushPromises(): Promise<void> {
@@ -103,7 +128,7 @@ describe('backlinksNavigator indicator teardown', () => {
 
     it('cancels a queued indicator refresh when the editor is destroyed', async () => {
         const response = createDeferred<IndicatorState>();
-        const { postMessage, view } = createHarness(response.promise);
+        const { postMessage, view } = createHarness(() => response.promise);
         await flushPromises();
 
         view.destroy();
@@ -115,7 +140,7 @@ describe('backlinksNavigator indicator teardown', () => {
 
     it('does not remount the indicator when an in-flight refresh resolves after teardown', async () => {
         const response = createDeferred<IndicatorState>();
-        const { postMessage, view } = createHarness(response.promise);
+        const { postMessage, view } = createHarness(() => response.promise);
         await flushPromises();
         await vi.advanceTimersByTimeAsync(INDICATOR_DEBOUNCE_MS);
         expect(postMessage).toHaveBeenLastCalledWith({
@@ -125,17 +150,54 @@ describe('backlinksNavigator indicator teardown', () => {
 
         const observerCountBeforeTeardown = FakeResizeObserver.instances.length;
         view.destroy();
-        response.resolve({
-            enabled: true,
-            counts: {
-                backlinkOccurrences: 1,
-                backlinkNotes: 1,
-                outgoing: 0,
-            },
-        });
+        response.resolve({ enabled: true, ok: true, counts: INDICATOR_COUNTS });
         await flushPromises();
 
         expect(document.querySelector('.backlinks-navigator-indicator')).toBeNull();
         expect(FakeResizeObserver.instances).toHaveLength(observerCountBeforeTeardown);
+    });
+});
+
+describe('backlinksNavigator host failures', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        document.body.replaceChildren();
+        document.head.replaceChildren();
+        FakeResizeObserver.instances.length = 0;
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('shows a load error instead of the empty state when the host reports a failed lookup', async () => {
+        const { runCommand } = createHarness(() => Promise.resolve({ enabled: false }), { ok: false });
+        await flushPromises();
+
+        runCommand(EDITOR_COMMAND_TOGGLE_PANEL, false);
+        await flushPromises();
+
+        const message = document.querySelector('.backlinks-navigator-message')?.textContent;
+        expect(message).toMatch(/^Failed to load /);
+    });
+
+    it('hides the indicator when the host fails to count links', async () => {
+        const indicatorResponse = vi
+            .fn<() => Promise<IndicatorState>>()
+            .mockResolvedValueOnce({ enabled: true, ok: true, counts: INDICATOR_COUNTS })
+            .mockResolvedValueOnce({ enabled: true, ok: false });
+        const { runCommand } = createHarness(indicatorResponse);
+        await flushPromises();
+        await vi.advanceTimersByTimeAsync(INDICATOR_DEBOUNCE_MS);
+
+        const indicator = document.querySelector<HTMLElement>('.backlinks-navigator-indicator');
+        expect(indicator?.style.display).toBe('inline-flex');
+
+        // A settings push schedules another refresh, which this time fails.
+        runCommand(EDITOR_COMMAND_UPDATE_SETTINGS, SETTINGS);
+        await vi.advanceTimersByTimeAsync(INDICATOR_DEBOUNCE_MS);
+
+        expect(indicatorResponse).toHaveBeenCalledTimes(2);
+        expect(indicator?.style.display).toBe('none');
     });
 });
