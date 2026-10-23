@@ -1,6 +1,12 @@
 import { vi, describe, beforeEach, it, expect } from 'vitest';
 import { JoplinRepository } from './joplinRepository';
-import { expandIgnoredFolderIds } from './noteMetadata';
+import {
+    expandIgnoredFolderIds,
+    resolveNoteMeta,
+    resolveNotebookName,
+    type NoteMetaCache,
+    type NotebookNameCache,
+} from './noteMetadata';
 
 const mockDataGet = vi.fn();
 const repository = new JoplinRepository({ get: mockDataGet });
@@ -67,5 +73,37 @@ describe('expandIgnoredFolderIds', () => {
         mockDataGet.mockRejectedValue(new Error('offline'));
 
         await expect(expandIgnoredFolderIds(repository, new Set([ROOT]))).resolves.toEqual(new Set([ROOT]));
+    });
+});
+
+describe('metadata lookup caches', () => {
+    beforeEach(() => {
+        mockDataGet.mockReset();
+    });
+
+    it('shares one notebook lookup between concurrent requests for the same id', async () => {
+        mockDataGet.mockResolvedValue({ id: ROOT, title: 'Projects' });
+        const cache: NotebookNameCache = new Map();
+
+        const names = await Promise.all([
+            resolveNotebookName(repository, ROOT, cache),
+            resolveNotebookName(repository, ROOT, cache),
+        ]);
+
+        expect(names).toEqual(['Projects', 'Projects']);
+        expect(mockDataGet).toHaveBeenCalledTimes(1);
+    });
+
+    it('shares one note lookup between concurrent requests, including a failed one', async () => {
+        mockDataGet.mockRejectedValue(new Error('Note not found'));
+        const cache: NoteMetaCache = new Map();
+
+        const metas = await Promise.all([
+            resolveNoteMeta(repository, CHILD, cache),
+            resolveNoteMeta(repository, CHILD, cache),
+        ]);
+
+        expect(metas).toEqual([null, null]);
+        expect(mockDataGet).toHaveBeenCalledTimes(1);
     });
 });

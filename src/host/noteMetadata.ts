@@ -3,7 +3,8 @@
  *
  * Only the plugin host has Data API access, so these run there. Both the backlink and
  * outgoing-link services share them and pass their own caches so lookups are deduped within a
- * single discovery pass.
+ * single discovery pass. The caches hold the lookup promise rather than its result, so concurrent
+ * requests for the same id share one round trip instead of racing to fill the cache.
  *
  * This also owns {@link expandIgnoredFolderIds}, which resolves the ignored-notebook setting
  * against the notebook tree.
@@ -12,9 +13,47 @@
 import logger from '../logger';
 import type { FolderNode, LinkRepository, NoteMeta } from './joplinRepository';
 
+/** Notebook title lookups for one discovery pass, keyed by notebook id. */
+export type NotebookNameCache = Map<string, Promise<string>>;
+
+/** Note metadata lookups for one discovery pass, keyed by note id. `null` marks an unresolvable note. */
+export type NoteMetaCache = Map<string, Promise<NoteMeta | null>>;
+
 interface ResolveNoteMetaOptions {
     /** Also fetch the note `body` (used to derive an outgoing link's opening snippet). */
     includeBody?: boolean;
+}
+
+/** Returns the cached lookup for `key`, starting it with `load` on first use. */
+function memoize<T>(cache: Map<string, Promise<T>>, key: string, load: () => Promise<T>): Promise<T> {
+    let pending = cache.get(key);
+    if (!pending) {
+        pending = load();
+        cache.set(key, pending);
+    }
+    return pending;
+}
+
+async function fetchNotebookName(repository: LinkRepository, parentId: string): Promise<string> {
+    try {
+        return await repository.getNotebookTitle(parentId);
+    } catch (error) {
+        logger.warn('Failed to resolve notebook name', { parentId, error });
+        return '';
+    }
+}
+
+async function fetchNoteMeta(
+    repository: LinkRepository,
+    noteId: string,
+    options: ResolveNoteMetaOptions
+): Promise<NoteMeta | null> {
+    try {
+        return await repository.getNoteMeta(noteId, options.includeBody);
+    } catch (error) {
+        logger.warn('Failed to resolve note metadata', { noteId, error });
+        return null;
+    }
 }
 
 /**
@@ -23,50 +62,28 @@ interface ResolveNoteMetaOptions {
 export async function resolveNotebookName(
     repository: LinkRepository,
     parentId: string,
-    cache: Map<string, string>
+    cache: NotebookNameCache
 ): Promise<string> {
     if (!parentId) {
         return '';
     }
-    const cached = cache.get(parentId);
-    if (cached !== undefined) {
-        return cached;
-    }
-    try {
-        const title = await repository.getNotebookTitle(parentId);
-        cache.set(parentId, title);
-        return title;
-    } catch (error) {
-        logger.warn('Failed to resolve notebook name', { parentId, error });
-        cache.set(parentId, '');
-        return '';
-    }
+    return memoize(cache, parentId, () => fetchNotebookName(repository, parentId));
 }
 
 /**
  * Resolves a note's title and parent notebook id, memoizing lookups in `cache`.
  *
+ * @param options - Applied by the first lookup of each id; a cache must not mix calls that do and
+ *   don't ask for `includeBody`.
  * @returns The note metadata, or `null` if the note can't be fetched (e.g. a broken link).
  */
 export async function resolveNoteMeta(
     repository: LinkRepository,
     noteId: string,
-    cache: Map<string, NoteMeta | null>,
+    cache: NoteMetaCache,
     options: ResolveNoteMetaOptions = {}
 ): Promise<NoteMeta | null> {
-    const cached = cache.get(noteId);
-    if (cached !== undefined) {
-        return cached;
-    }
-    try {
-        const meta = await repository.getNoteMeta(noteId, options.includeBody);
-        cache.set(noteId, meta);
-        return meta;
-    } catch (error) {
-        logger.warn('Failed to resolve note metadata', { noteId, error });
-        cache.set(noteId, null);
-        return null;
-    }
+    return memoize(cache, noteId, () => fetchNoteMeta(repository, noteId, options));
 }
 
 /** Lists every notebook id and its parent. Returns `null` if the listing fails. */

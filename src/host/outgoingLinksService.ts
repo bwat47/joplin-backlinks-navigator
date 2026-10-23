@@ -28,7 +28,8 @@ import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from '../markdo
 import { extractNoteLinks } from '../markdown/linkExtraction';
 import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from '../markdown/markdownHeadings';
 import { parseMarkdownBody, type ParsedMarkdownBody } from '../markdown/markdownParser';
-import { resolveNoteMeta, resolveNotebookName } from './noteMetadata';
+import { resolveNoteMeta, resolveNotebookName, type NoteMetaCache, type NotebookNameCache } from './noteMetadata';
+import { LOOKUP_CONCURRENCY, mapWithConcurrency } from './concurrency';
 import { compareLinkItems } from '../linkSort';
 import { extractNoteOpening, extractSectionOpening } from '../markdown/snippetExtraction';
 import type { LinkRepository, NoteMeta } from './joplinRepository';
@@ -153,21 +154,21 @@ export async function findOutgoingLinks(
         return [];
     }
 
-    const noteMetaCache = new Map<string, NoteMeta | null>();
-    const notebookCache = new Map<string, string>();
+    const noteMetaCache: NoteMetaCache = new Map();
+    const notebookCache: NotebookNameCache = new Map();
     const parsedBodyCache = new Map<string, ParsedTargetBody>();
-    const outgoing: LinkItem[] = [];
 
-    for (const group of destinations) {
+    const rows = await mapWithConcurrency(destinations, LOOKUP_CONCURRENCY, async (group): Promise<LinkItem | null> => {
         const meta = await resolveNoteMeta(repository, group.targetId, noteMetaCache, { includeBody: true });
         if (!meta) {
             // Broken link (target note no longer exists) — nothing to navigate to.
-            continue;
+            return null;
         }
         if (isInIgnoredNotebook(meta, ignoredFolderIds)) {
-            continue;
+            return null;
         }
         const notebookName = await resolveNotebookName(repository, meta.parent_id, notebookCache);
+        // Parsing is synchronous, so destinations sharing a target can't both miss this cache.
         let targetBody = parsedBodyCache.get(group.targetId);
         if (!targetBody) {
             const parsed = parseMarkdownBody(meta.body);
@@ -178,7 +179,7 @@ export async function findOutgoingLinks(
             parsedBodyCache.set(group.targetId, targetBody);
         }
         const { section, snippet } = resolveDestinationPreview(targetBody, group.anchor);
-        outgoing.push({
+        return {
             direction: 'out',
             id: group.key,
             noteId: group.targetId,
@@ -189,9 +190,10 @@ export async function findOutgoingLinks(
             notebookName,
             section,
             snippet,
-        });
-    }
+        };
+    });
 
+    const outgoing = rows.filter((row): row is LinkItem => row !== null);
     outgoing.sort(compareLinkItems);
 
     logger.debug('Resolved outgoing links', { noteId, count: outgoing.length });
@@ -221,15 +223,12 @@ export async function countOutgoingLinks(
     const body = await repository.getNoteBody(noteId);
     const ignoredFolderIds = filters.ignoredFolderIds ?? new Set<string>();
     const destinations = collectDestinations(parseMarkdownBody(body), noteId, filters.ignoredNoteIds ?? new Set());
-    const noteMetaCache = new Map<string, NoteMeta | null>();
-    let count = 0;
-
-    for (const destination of destinations) {
+    const noteMetaCache: NoteMetaCache = new Map();
+    const resolvable = await mapWithConcurrency(destinations, LOOKUP_CONCURRENCY, async (destination) => {
         const meta = await resolveNoteMeta(repository, destination.targetId, noteMetaCache);
-        if (meta && !isInIgnoredNotebook(meta, ignoredFolderIds)) {
-            count += 1;
-        }
-    }
+        return meta !== null && !isInIgnoredNotebook(meta, ignoredFolderIds);
+    });
+    const count = resolvable.filter(Boolean).length;
 
     logger.debug('Counted outgoing links', { noteId, count });
     return count;
