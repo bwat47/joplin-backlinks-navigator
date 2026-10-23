@@ -50,19 +50,21 @@ describe('scrollToPendingTarget', () => {
         expect(h.dispatch.mock.calls[1][0].selection.head).toBe(11);
     });
 
-    it('does not reassert a removed target or scroll after leaving the note', async () => {
+    it('does not reassert a removed target', async () => {
         const h = harness();
         await vi.advanceTimersByTimeAsync(0);
         h.setBody('Heading removed');
         await vi.advanceTimersByTimeAsync(150);
         expect(h.dispatch).toHaveBeenCalledTimes(1);
+    });
 
-        const loading = harness('');
+    it('does not scroll after leaving the note', async () => {
+        const h = harness('');
         await vi.advanceTimersByTimeAsync(0);
-        loading.setBody(source);
-        loading.setNote('other');
+        h.setBody(source);
+        h.setNote('other');
         await vi.runAllTimersAsync();
-        expect(loading.dispatch).not.toHaveBeenCalled();
+        expect(h.dispatch).not.toHaveBeenCalled();
     });
 
     it('gives up without moving the cursor if the target never arrives', async () => {
