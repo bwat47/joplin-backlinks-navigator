@@ -1,20 +1,19 @@
 /**
- * Backlinks Navigator plugin entry point and host orchestrator.
+ * Backlinks Navigator plugin entry point.
  *
- * Runs in the Joplin plugin host context with full API access. It:
- * - Registers the CodeMirror content script (runs in the editor context)
- * - Answers messages from the content script (backlink lookup, note navigation)
- * - Registers the command, toolbar button, and menu item that open the panel
- * - Manages plugin settings
+ * Runs in the Joplin plugin host context and only wires the plugin together: it registers the
+ * settings, the CodeMirror content script and its message handler, the commands, and the menu and
+ * toolbar entries that open the panel.
  *
  * Architecture:
- * - Plugin host (this file): Joplin API access, handles privileged operations
+ * - Plugin host (this file and host/): Joplin API access, handles privileged operations
  * - Content script (contentScripts/backlinksNavigator.ts): CodeMirror access, renders the panel
- * - Communication: request/response via the postMessage bridge (see messages.ts)
+ * - Communication: request/response via the postMessage bridge (see messages.ts and
+ *   host/messageHandler.ts)
  */
 
 import joplin from 'api';
-import { ContentScriptType, MenuItemLocation, ToastType, ToolbarButtonLocation } from 'api/types';
+import { ContentScriptType, MenuItemLocation, ToolbarButtonLocation } from 'api/types';
 import {
     CODEMIRROR_CONTENT_SCRIPT_ID,
     COMMAND_SHOW_BACKLINKS,
@@ -27,31 +26,12 @@ import {
     DEBUG_SETTING_KEY,
     isEditorAffectingSettingChanged,
     loadContentScriptSettings,
-    loadCtrlClickBehaviorSetting,
-    loadCtrlEnterBehaviorSetting,
     loadDebugSetting,
-    loadIgnoredBacklinkNoteIdsSetting,
-    loadIgnoredNotebookIdsSetting,
-    loadMiddleClickBehaviorSetting,
-    loadShowIndicatorSetting,
     registerSettings,
-    setIgnoredNotebookIdsSetting,
 } from './host/settings';
-import type { AlternateOpenMode, IndicatorState, LinksResponse, MessageOf, Protocol, ResponseFor } from './messages';
-import { countBacklinks, findBacklinks } from './host/backlinksService';
+import { toggleIgnoredNotebook } from './host/ignoredNotebooks';
 import { JoplinRepository, type LinkRepository } from './host/joplinRepository';
-import { countOutgoingLinks, findOutgoingLinks } from './host/outgoingLinksService';
-import { expandIgnoredFolderIds, resolveNotebookName } from './host/noteMetadata';
-import type { BacklinkOpenBehavior, LinkFilters, LinkItem } from './types';
-
-type ResolvedOpenNoteMode = 'current' | BacklinkOpenBehavior;
-
-/** Each alternate gesture reads its own behavior setting. */
-const ALTERNATE_MODE_LOADERS: Record<AlternateOpenMode, () => Promise<BacklinkOpenBehavior>> = {
-    ctrlClick: loadCtrlClickBehaviorSetting,
-    ctrlEnter: loadCtrlEnterBehaviorSetting,
-    middleClick: loadMiddleClickBehaviorSetting,
-};
+import { createMessageHandler } from './host/messageHandler';
 
 /**
  * Desktop when-clause: true only when the CodeMirror (markdown) editor pane is shown,
@@ -68,126 +48,6 @@ async function isMobilePlatform(): Promise<boolean> {
     return versionInfo.platform === 'mobile';
 }
 
-async function showToast(message: string, type: ToastType = ToastType.Error): Promise<void> {
-    try {
-        await joplin.views.dialogs.showToast({ message, type });
-    } catch (error) {
-        logger.warn('Failed to show toast notification', error);
-    }
-}
-
-async function resolveOpenNoteMode(message: MessageOf<'openNote'>): Promise<ResolvedOpenNoteMode> {
-    // Own-property check, as in the message dispatcher, so an unexpected mode can't reach Object.prototype.
-    if (!message.mode || !Object.prototype.hasOwnProperty.call(ALTERNATE_MODE_LOADERS, message.mode)) {
-        return 'current';
-    }
-    return ALTERNATE_MODE_LOADERS[message.mode]();
-}
-
-/**
- * @param anchor - Heading slug to land on. Only honored in the current window: the new-window and
- *   Note Tabs commands take a note id alone, so those just open the note.
- */
-async function openNote(noteId: string, mode: ResolvedOpenNoteMode, anchor = ''): Promise<void> {
-    switch (mode) {
-        case 'current':
-            await joplin.commands.execute('openItem', anchor ? `:/${noteId}#${anchor}` : `:/${noteId}`);
-            return;
-        case 'newWindow':
-            try {
-                await joplin.commands.execute('openNoteInNewWindow', noteId);
-                logger.debug('Opened backlink in new window', { noteId });
-            } catch (error) {
-                logger.error('Failed to open backlink in new window', { noteId, error });
-                await showToast('Failed to open backlink in new window');
-            }
-            return;
-        case 'newTab':
-            try {
-                await joplin.commands.execute('tabsPinNote', [noteId]);
-                logger.debug('Opened backlink in Note Tabs tab', { noteId });
-            } catch (error) {
-                logger.error('Failed to open backlink in Note Tabs tab', { noteId, error });
-                await showToast('Opening backlinks in new tabs requires the Note Tabs plugin.');
-            }
-            return;
-        default:
-            logger.warn('Received unsupported backlink open mode', mode);
-    }
-}
-
-/**
- * Reads the configured exclusions and resolves the ignored notebooks against the notebook tree.
- *
- * Loaded once per request and shared by every discovery call it feeds, so the indicator's two
- * counters don't each pay for the folder listing.
- */
-async function loadLinkFilters(repository: LinkRepository): Promise<LinkFilters> {
-    const [ignoredNoteIds, configuredFolderIds] = await Promise.all([
-        loadIgnoredBacklinkNoteIdsSetting(),
-        loadIgnoredNotebookIdsSetting(),
-    ]);
-    return { ignoredNoteIds, ignoredFolderIds: await expandIgnoredFolderIds(repository, configuredFolderIds) };
-}
-
-/**
- * Runs a link lookup and reports a failure in the response instead of as an empty list, so the
- * panel can show an error rather than "no links".
- */
-async function toLinksResponse(
-    description: string,
-    noteId: string,
-    load: () => Promise<LinkItem[]>
-): Promise<LinksResponse> {
-    try {
-        return { ok: true, links: await load() };
-    } catch (error) {
-        logger.error(`Failed to load ${description}`, { noteId, error });
-        return { ok: false };
-    }
-}
-
-async function findBacklinksWithSettings(repository: LinkRepository, noteId: string): Promise<LinksResponse> {
-    return toLinksResponse('backlinks', noteId, async () =>
-        findBacklinks(repository, noteId, await loadLinkFilters(repository))
-    );
-}
-
-async function findOutgoingLinksWithSettings(repository: LinkRepository, noteId: string): Promise<LinksResponse> {
-    return toLinksResponse('outgoing links', noteId, async () =>
-        findOutgoingLinks(repository, noteId, await loadLinkFilters(repository))
-    );
-}
-
-async function loadIndicatorState(repository: LinkRepository, noteId: string): Promise<IndicatorState> {
-    // Honor the setting before doing any link discovery.
-    if (!(await loadShowIndicatorSetting())) {
-        return { enabled: false };
-    }
-    // The badge only renders counts, so count links instead of resolving rows: this skips the
-    // snippet, notebook, and anchor work — including a body fetch and markdown parse per outgoing
-    // target — on every note open.
-    try {
-        const filters = await loadLinkFilters(repository);
-        const [backlinks, outgoing] = await Promise.all([
-            countBacklinks(repository, noteId, filters),
-            countOutgoingLinks(repository, noteId, filters),
-        ]);
-        return {
-            enabled: true,
-            ok: true,
-            counts: {
-                backlinkOccurrences: backlinks.occurrences,
-                backlinkNotes: backlinks.notes,
-                outgoing,
-            },
-        };
-    } catch (error) {
-        logger.error('Failed to count links for the indicator', { noteId, error });
-        return { enabled: true, ok: false };
-    }
-}
-
 async function registerContentScripts(repository: LinkRepository): Promise<void> {
     await joplin.contentScripts.register(
         ContentScriptType.CodeMirrorPlugin,
@@ -195,72 +55,7 @@ async function registerContentScripts(repository: LinkRepository): Promise<void>
         './contentScripts/backlinksNavigator.js'
     );
 
-    const handlers: { [K in keyof Protocol]: (message: MessageOf<K>) => Promise<ResponseFor<K>> } = {
-        getBacklinks: (message) => findBacklinksWithSettings(repository, message.noteId),
-        getOutgoingLinks: (message) => findOutgoingLinksWithSettings(repository, message.noteId),
-        getContentScriptSettings: () => loadContentScriptSettings(),
-        getIndicatorState: (message) => loadIndicatorState(repository, message.noteId),
-        openNote: async (message) => {
-            await openNote(message.noteId, await resolveOpenNoteMode(message), message.anchor);
-        },
-        openPanel: async () => {
-            await joplin.commands.execute(COMMAND_SHOW_BACKLINKS);
-        },
-    };
-
-    // Indexing `handlers` by `message.type` gives a union of handlers that the message union can't be
-    // passed to directly; expressing the call through `K` lets TypeScript treat it as correlated.
-    const dispatch = <K extends keyof Protocol>(message: MessageOf<K>): Promise<ResponseFor<K>> =>
-        handlers[message.type](message);
-
-    await joplin.contentScripts.onMessage(CODEMIRROR_CONTENT_SCRIPT_ID, async (message: unknown): Promise<unknown> => {
-        // An own-property check rather than `in`, so a type such as 'toString' can't reach
-        // Object.prototype. Only `type` is checked; the handlers trust the remaining fields.
-        if (
-            typeof message !== 'object' ||
-            message === null ||
-            !('type' in message) ||
-            typeof message.type !== 'string' ||
-            !Object.prototype.hasOwnProperty.call(handlers, message.type)
-        ) {
-            logger.warn('Received unsupported message from content script', message);
-            return;
-        }
-        return dispatch(message as MessageOf<keyof Protocol>);
-    });
-}
-
-/**
- * Adds or removes the right-clicked notebook from the ignore list.
- *
- * Joplin's menu items carry no per-item checked state and their labels are fixed at registration,
- * so one toggle plus a toast is the only way to show which way the switch flipped.
- *
- * @param folderId - Supplied by the folder context menu. Empty when the command is run from the
- *   command palette, where there is no notebook in context.
- */
-async function toggleIgnoredNotebook(repository: LinkRepository, folderId: string): Promise<void> {
-    if (!folderId) {
-        logger.debug('Ignore-notebook command invoked without a notebook');
-        return;
-    }
-
-    // The setting stores lowercased ids, so match that before adding or removing.
-    const notebookId = folderId.toLowerCase();
-    const ignored = await loadIgnoredNotebookIdsSetting();
-    const nowIgnored = !ignored.delete(notebookId);
-    if (nowIgnored) {
-        ignored.add(notebookId);
-    }
-    // Writing the setting fires onChange, which refreshes the indicator.
-    await setIgnoredNotebookIdsSetting(ignored);
-
-    const notebookName = (await resolveNotebookName(repository, folderId, new Map())) || 'this notebook';
-    logger.info('Toggled ignored notebook', { folderId, nowIgnored });
-    await showToast(
-        nowIgnored ? `Ignoring links in "${notebookName}"` : `No longer ignoring links in "${notebookName}"`,
-        ToastType.Info
-    );
+    await joplin.contentScripts.onMessage(CODEMIRROR_CONTENT_SCRIPT_ID, createMessageHandler(repository));
 }
 
 async function registerCommands(repository: LinkRepository, isMobile: boolean): Promise<void> {

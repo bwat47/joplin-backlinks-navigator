@@ -9,7 +9,7 @@
  * - Closes the panel when the user switches notes
  *
  * See:
- * - index.ts - Plugin host that resolves backlinks and performs navigation
+ * - host/messageHandler.ts - Plugin host that resolves backlinks and performs navigation
  * - messages.ts - Message protocol
  * - ui/backlinksPanel.ts - Floating panel UI
  */

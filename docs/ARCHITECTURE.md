@@ -20,11 +20,16 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 
 ### Plugin Shell
 
-- `src/index.ts` boots the plugin, registers commands, settings, toolbar/menu integration, the
-  content script, and the message handler.
+- `src/index.ts` boots the plugin and does registration only: settings, the content script and its
+  message handler, commands, and toolbar/menu integration.
+- `src/host/messageHandler.ts` answers content-script requests (see [Message Boundary](#message-boundary)).
+- `src/host/navigation.ts` opens a requested note in the current window, a new window, or a Note
+  Tabs tab, resolving each alternate gesture's configured behavior.
+- `src/host/ignoredNotebooks.ts` implements the folder context-menu toggle for the ignore list.
+- `src/host/toast.ts` shows host-side toast notifications.
 - `src/host/settings.ts` defines user-facing settings. Notebook ids have no copy affordance in
-  Joplin's UI, so the ignored-notebook list is built from a folder context-menu toggle registered in
-  `src/index.ts` rather than by typing ids.
+  Joplin's UI, so the ignored-notebook list is built from a folder context-menu toggle
+  (`src/host/ignoredNotebooks.ts`) rather than by typing ids.
 - `src/messages.ts` defines the request and response shapes shared across the host/content-script
   boundary, as one `Protocol` map from message type to request and response.
 - `src/types.ts` defines shared domain types, including `LinkItem`.
@@ -58,7 +63,7 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
   after `resolveNoteMeta`, since a destination is only a target id until then. The counting entry
   points apply the same filters, so the badge can't drift from the panel. Filtering applies to
   results only — a note inside an ignored notebook still shows its own links.
-- `src/index.ts` loads the filters once per request and expands the ignored notebooks before
+- `src/host/messageHandler.ts` loads the filters once per request and expands the ignored notebooks before
   handing them to a service, so the indicator's two counters share one folder listing.
 
 ### Editor Integration
@@ -94,7 +99,7 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 Joplin gives the plugin host API access and the content script editor access. The two sides
 communicate through `context.postMessage(...)`, which behaves like request/response. The content
 script sends through `request` in `src/contentScripts/bridge.ts`, and the host answers from a
-handlers object in `src/index.ts`; both are typed from `Protocol`, so each message is paired with its
+handlers object in `src/host/messageHandler.ts`; both are typed from `Protocol`, so each message is paired with its
 response at compile time. Responses are still validated at runtime, since the bridge itself is untyped.
 
 - `getBacklinks` returns backlink rows.

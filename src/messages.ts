@@ -8,14 +8,14 @@
  *
  * See:
  * - contentScripts/backlinksNavigator.ts - Content script that sends these messages
- * - index.ts - Plugin host that receives and processes messages
+ * - host/messageHandler.ts - Plugin host handler that receives and processes messages
  */
 
 import type { ContentScriptSettings, LinkCounts, LinkItem } from './types';
 
 /**
  * Navigation gestures that open a link somewhere other than the current note. Each maps to its own
- * user-configurable open behavior, resolved host-side (see `resolveOpenNoteMode` in index.ts).
+ * user-configurable open behavior, resolved host-side (see `resolveOpenNoteMode` in host/navigation.ts).
  */
 export type AlternateOpenMode = 'ctrlClick' | 'ctrlEnter' | 'middleClick';
 
