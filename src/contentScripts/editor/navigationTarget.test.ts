@@ -26,6 +26,24 @@ describe('resolveNavigationTarget', () => {
         expect(resolveNavigationTarget('Prefix' + source, repeated)).toEqual({ from: start + 6, to: start + 12 });
     });
 
+    it('prefers the context match when an identical occurrence shifts onto the old offsets', () => {
+        const source = 'A'.repeat(40) + '[same]' + 'B'.repeat(40) + '[same]' + 'C'.repeat(40);
+        const start = source.lastIndexOf('[same]');
+        const repeated = createNavigationTarget(source, { from: start, to: start + 6 });
+        // 46 inserted characters move the first [same] from 40 onto the target's old offset (86).
+        expect(resolveNavigationTarget('-'.repeat(46) + source, repeated)).toEqual({
+            from: start + 46,
+            to: start + 52,
+        });
+    });
+
+    it('keeps unmoved offsets when an edit beside a repeated target changes its context', () => {
+        const source = 'A'.repeat(40) + '[same]' + 'B'.repeat(40) + '[same]' + 'C'.repeat(40);
+        const start = source.lastIndexOf('[same]');
+        const repeated = createNavigationTarget(source, { from: start, to: start + 6 });
+        expect(resolveNavigationTarget(source.replace(/C/g, 'D'), repeated)).toEqual({ from: start, to: start + 6 });
+    });
+
     it('leaves ambiguous or changed targets unresolved', () => {
         expect(resolveNavigationTarget('[link](:/note) and [link](:/note)', target)).toBeNull();
         expect(resolveNavigationTarget(body.replace('[link]', '[renamed]'), target)).toBeNull();

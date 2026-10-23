@@ -1,18 +1,30 @@
 import type { NavigationTarget } from '../../types';
 import type { TextRange } from './textRange';
 
+function hasContext(body: string, range: TextRange, target: NavigationTarget): boolean {
+    const { contextBefore, contextAfter } = target;
+    return (
+        body.slice(Math.max(0, range.from - contextBefore.length), range.from) === contextBefore &&
+        body.slice(range.to, range.to + contextAfter.length) === contextAfter
+    );
+}
+
 /**
- * Validates a host range against the current editor text. If edits shifted it, accept a unique
- * exact-text match, or use the surrounding context to distinguish repeated matches. Ambiguous
- * matches are left alone rather than guessing which occurrence the user selected.
+ * Validates a host range against the current editor text. The supplied offsets win when both the
+ * text and its context still match. Otherwise accept a unique exact-text match, or use the context
+ * to distinguish repeated matches; an identical occurrence may have shifted onto the old offsets.
+ * If that search is inconclusive, fall back to an exact-text match at the supplied offsets (e.g. an
+ * edit next to an unmoved target). Ambiguous matches are left alone rather than guessing which
+ * occurrence the user selected.
  */
 export function resolveNavigationTarget(body: string, target: NavigationTarget): TextRange | null {
-    const { from, to, text, contextBefore, contextAfter } = target;
+    const { from, to, text } = target;
     if (!text) {
         return null;
     }
-    if (from >= 0 && to - from === text.length && body.slice(from, to) === text) {
-        return { from, to };
+    const atOffsets = from >= 0 && to - from === text.length && body.slice(from, to) === text ? { from, to } : null;
+    if (atOffsets && hasContext(body, atOffsets, target)) {
+        return atOffsets;
     }
 
     let unique: TextRange | null = null;
@@ -23,10 +35,7 @@ export function resolveNavigationTarget(body: string, target: NavigationTarget):
         const range = { from: position, to: position + text.length };
         unique = range;
         matches += 1;
-        if (
-            body.slice(Math.max(0, position - contextBefore.length), position) === contextBefore &&
-            body.slice(range.to, range.to + contextAfter.length) === contextAfter
-        ) {
+        if (hasContext(body, range, target)) {
             contextual = range;
             contextualMatches += 1;
         }
@@ -34,5 +43,8 @@ export function resolveNavigationTarget(body: string, target: NavigationTarget):
     if (matches === 1) {
         return unique;
     }
-    return contextualMatches === 1 ? contextual : null;
+    if (contextualMatches === 1) {
+        return contextual;
+    }
+    return atOffsets;
 }
