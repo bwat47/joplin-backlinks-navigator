@@ -68,7 +68,6 @@ describe('JoplinRepository', () => {
         await expect(repository.getNoteMeta('note')).resolves.toEqual({
             title: 'Title',
             parent_id: 'folder',
-            body: '',
         });
         expect(get).toHaveBeenNthCalledWith(1, ['notes', 'note'], { fields: ['id', 'body'] });
         expect(get).toHaveBeenNthCalledWith(2, ['notes', 'note'], {
@@ -76,11 +75,11 @@ describe('JoplinRepository', () => {
         });
     });
 
-    it('asks for the body only when the caller opts in', async () => {
+    it('asks for the body only from getNoteWithBody', async () => {
         const get = vi.fn().mockResolvedValue({ id: 'note', title: 'Title', parent_id: 'folder', body: 'Markdown' });
         const repository = new JoplinRepository({ get });
 
-        await expect(repository.getNoteMeta('note', true)).resolves.toEqual({
+        await expect(repository.getNoteWithBody('note')).resolves.toEqual({
             title: 'Title',
             parent_id: 'folder',
             body: 'Markdown',
@@ -98,7 +97,6 @@ describe('JoplinRepository', () => {
         await expect(repository.getNoteMeta('note')).resolves.toEqual({
             title: 'Untitled',
             parent_id: 'folder',
-            body: '',
         });
     });
 

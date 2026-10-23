@@ -11,7 +11,7 @@
  */
 
 import logger from '../logger';
-import type { FolderNode, LinkRepository, NoteMeta } from './joplinRepository';
+import type { FolderNode, LinkRepository, NoteMeta, NoteWithBody } from './joplinRepository';
 
 /** Notebook title lookups for one discovery pass, keyed by notebook id. */
 export type NotebookNameCache = Map<string, Promise<string>>;
@@ -19,10 +19,11 @@ export type NotebookNameCache = Map<string, Promise<string>>;
 /** Note metadata lookups for one discovery pass, keyed by note id. `null` marks an unresolvable note. */
 export type NoteMetaCache = Map<string, Promise<NoteMeta | null>>;
 
-interface ResolveNoteMetaOptions {
-    /** Also fetch the note `body` (used to derive an outgoing link's opening snippet). */
-    includeBody?: boolean;
-}
+/**
+ * Note lookups that include the body, keyed by note id. A separate type from {@link NoteMetaCache},
+ * so a cache filled without bodies can't be read by a caller that needs them.
+ */
+export type NoteWithBodyCache = Map<string, Promise<NoteWithBody | null>>;
 
 /** Returns the cached lookup for `key`, starting it with `load` on first use. */
 function memoize<T>(cache: Map<string, Promise<T>>, key: string, load: () => Promise<T>): Promise<T> {
@@ -43,15 +44,12 @@ async function fetchNotebookName(repository: LinkRepository, parentId: string): 
     }
 }
 
-async function fetchNoteMeta(
-    repository: LinkRepository,
-    noteId: string,
-    options: ResolveNoteMetaOptions
-): Promise<NoteMeta | null> {
+/** Runs a note lookup, reporting a note that can't be fetched as `null`. */
+async function fetchNote<T>(noteId: string, load: () => Promise<T>): Promise<T | null> {
     try {
-        return await repository.getNoteMeta(noteId, options.includeBody);
+        return await load();
     } catch (error) {
-        logger.warn('Failed to resolve note metadata', { noteId, error });
+        logger.warn('Failed to resolve note', { noteId, error });
         return null;
     }
 }
@@ -73,17 +71,28 @@ export async function resolveNotebookName(
 /**
  * Resolves a note's title and parent notebook id, memoizing lookups in `cache`.
  *
- * @param options - Applied by the first lookup of each id; a cache must not mix calls that do and
- *   don't ask for `includeBody`.
  * @returns The note metadata, or `null` if the note can't be fetched (e.g. a broken link).
  */
 export async function resolveNoteMeta(
     repository: LinkRepository,
     noteId: string,
-    cache: NoteMetaCache,
-    options: ResolveNoteMetaOptions = {}
+    cache: NoteMetaCache
 ): Promise<NoteMeta | null> {
-    return memoize(cache, noteId, () => fetchNoteMeta(repository, noteId, options));
+    return memoize(cache, noteId, () => fetchNote(noteId, () => repository.getNoteMeta(noteId)));
+}
+
+/**
+ * Resolves a note's metadata and body (used to derive an outgoing link's opening snippet),
+ * memoizing lookups in `cache`.
+ *
+ * @returns The note, or `null` if it can't be fetched (e.g. a broken link).
+ */
+export async function resolveNoteWithBody(
+    repository: LinkRepository,
+    noteId: string,
+    cache: NoteWithBodyCache
+): Promise<NoteWithBody | null> {
+    return memoize(cache, noteId, () => fetchNote(noteId, () => repository.getNoteWithBody(noteId)));
 }
 
 /** Lists every notebook id and its parent. Returns `null` if the listing fails. */

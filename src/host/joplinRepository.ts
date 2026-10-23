@@ -18,11 +18,14 @@ export interface SearchNote {
     parent_id: string;
 }
 
-/** A resolved note's title, parent notebook, and optionally requested body. */
+/** A resolved note's title and parent notebook. */
 export interface NoteMeta {
     title: string;
     parent_id: string;
-    /** Fetched only when the caller asks for it via `includeBody`; '' otherwise. */
+}
+
+/** A resolved note's metadata plus its Markdown body. */
+export interface NoteWithBody extends NoteMeta {
     body: string;
 }
 
@@ -41,7 +44,8 @@ interface Page {
 export interface LinkRepository {
     searchNotes(query: string): Promise<SearchNote[]>;
     getNoteBody(noteId: string): Promise<string>;
-    getNoteMeta(noteId: string, includeBody?: boolean): Promise<NoteMeta>;
+    getNoteMeta(noteId: string): Promise<NoteMeta>;
+    getNoteWithBody(noteId: string): Promise<NoteWithBody>;
     getNotebookTitle(folderId: string): Promise<string>;
     listFolders(): Promise<FolderNode[]>;
 }
@@ -89,6 +93,10 @@ function toSearchNote(value: unknown): SearchNote {
     };
 }
 
+function toNoteMeta(note: Record<string, unknown>): NoteMeta {
+    return { title: noteTitle(note.title), parent_id: text(note.parent_id) };
+}
+
 function toFolderNode(value: unknown): FolderNode {
     const folder = fieldsOf(value);
     return { id: text(folder.id), parent_id: text(folder.parent_id) };
@@ -121,14 +129,20 @@ export class JoplinRepository implements LinkRepository {
         return text(note.body);
     }
 
-    public async getNoteMeta(noteId: string, includeBody = false): Promise<NoteMeta> {
-        const fields = includeBody ? ['id', 'title', 'parent_id', 'body'] : ['id', 'title', 'parent_id'];
-        const note = asRecord(await this.data.get(['notes', noteId], { fields }), `note ${noteId}`);
-        return {
-            title: noteTitle(note.title),
-            parent_id: text(note.parent_id),
-            body: text(note.body),
-        };
+    public async getNoteMeta(noteId: string): Promise<NoteMeta> {
+        const note = asRecord(
+            await this.data.get(['notes', noteId], { fields: ['id', 'title', 'parent_id'] }),
+            `note ${noteId}`
+        );
+        return toNoteMeta(note);
+    }
+
+    public async getNoteWithBody(noteId: string): Promise<NoteWithBody> {
+        const note = asRecord(
+            await this.data.get(['notes', noteId], { fields: ['id', 'title', 'parent_id', 'body'] }),
+            `note ${noteId}`
+        );
+        return { ...toNoteMeta(note), body: text(note.body) };
     }
 
     public async getNotebookTitle(folderId: string): Promise<string> {

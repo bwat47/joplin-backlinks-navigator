@@ -28,7 +28,14 @@ import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from '../markdo
 import { extractNoteLinks } from '../markdown/linkExtraction';
 import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from '../markdown/markdownHeadings';
 import { parseMarkdownBody, type ParsedMarkdownBody } from '../markdown/markdownParser';
-import { resolveNoteMeta, resolveNotebookName, type NoteMetaCache, type NotebookNameCache } from './noteMetadata';
+import {
+    resolveNoteMeta,
+    resolveNoteWithBody,
+    resolveNotebookName,
+    type NoteMetaCache,
+    type NoteWithBodyCache,
+    type NotebookNameCache,
+} from './noteMetadata';
 import { LOOKUP_CONCURRENCY, mapWithConcurrency } from './concurrency';
 import { compareLinkItems } from '../linkSort';
 import { extractNoteOpening, extractSectionOpening } from '../markdown/snippetExtraction';
@@ -150,7 +157,7 @@ export async function findOutgoingLinks(
         return [];
     }
 
-    const noteMetaCache: NoteMetaCache = new Map();
+    const noteCache: NoteWithBodyCache = new Map();
     const notebookCache: NotebookNameCache = new Map();
     const parsedBodyCache = new Map<string, ParsedTargetBody>();
 
@@ -158,7 +165,7 @@ export async function findOutgoingLinks(
         destinations,
         LOOKUP_CONCURRENCY,
         async (group): Promise<OutgoingLink | null> => {
-            const meta = await resolveNoteMeta(repository, group.targetId, noteMetaCache, { includeBody: true });
+            const meta = await resolveNoteWithBody(repository, group.targetId, noteCache);
             if (!meta) {
                 // Broken link (target note no longer exists) — nothing to navigate to.
                 return null;

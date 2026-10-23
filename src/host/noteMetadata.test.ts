@@ -3,8 +3,10 @@ import { JoplinRepository } from './joplinRepository';
 import {
     expandIgnoredFolderIds,
     resolveNoteMeta,
+    resolveNoteWithBody,
     resolveNotebookName,
     type NoteMetaCache,
+    type NoteWithBodyCache,
     type NotebookNameCache,
 } from './noteMetadata';
 
@@ -105,5 +107,23 @@ describe('metadata lookup caches', () => {
 
         expect(metas).toEqual([null, null]);
         expect(mockDataGet).toHaveBeenCalledTimes(1);
+    });
+
+    it('resolves a note with its body through its own cache', async () => {
+        mockDataGet.mockResolvedValue({ id: CHILD, title: 'Child', parent_id: ROOT, body: 'Markdown' });
+        const cache: NoteWithBodyCache = new Map();
+
+        const notes = await Promise.all([
+            resolveNoteWithBody(repository, CHILD, cache),
+            resolveNoteWithBody(repository, CHILD, cache),
+        ]);
+
+        expect(notes).toEqual([
+            { title: 'Child', parent_id: ROOT, body: 'Markdown' },
+            { title: 'Child', parent_id: ROOT, body: 'Markdown' },
+        ]);
+        expect(mockDataGet).toHaveBeenCalledExactlyOnceWith(['notes', CHILD], {
+            fields: ['id', 'title', 'parent_id', 'body'],
+        });
     });
 });
