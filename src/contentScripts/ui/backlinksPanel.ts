@@ -559,6 +559,10 @@ export class BacklinksPanel {
         if (link.id === this.selectedId) {
             item.classList.add('is-selected');
         }
+        const isTrashed = link.direction === 'out' && link.isTrashed;
+        if (isTrashed) {
+            item.classList.add('is-trashed');
+        }
 
         const header = document.createElement('div');
         header.className = 'backlinks-navigator-item-header';
@@ -569,7 +573,8 @@ export class BacklinksPanel {
         header.appendChild(title);
 
         const occurrenceLabel = this.formatOccurrenceLabel(link);
-        const metadata = [link.notebookName, occurrenceLabel].filter(Boolean).join(' - ');
+        const location = isTrashed ? 'Trash' : link.notebookName;
+        const metadata = [location, occurrenceLabel].filter(Boolean).join(' - ');
 
         if (metadata) {
             const notebook = document.createElement('span');

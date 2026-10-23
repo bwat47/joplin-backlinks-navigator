@@ -13,7 +13,7 @@ const makeLink = (direction: LinkDirection, noteId: string, occurrenceIndex: num
     };
     return direction === 'in'
         ? { ...row, direction, occurrenceIndex, occurrenceCount: 3 }
-        : { ...row, direction, anchor: '' };
+        : { ...row, direction, anchor: '', isTrashed: false };
 };
 
 describe('link display policy', () => {

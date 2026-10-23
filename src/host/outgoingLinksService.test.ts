@@ -51,6 +51,7 @@ describe('findOutgoingLinks', () => {
                 notebookName: 'Projects',
                 section: '',
                 snippet: 'Alpha opening line.',
+                isTrashed: false,
             },
             {
                 direction: 'out',
@@ -61,6 +62,7 @@ describe('findOutgoingLinks', () => {
                 notebookName: 'Archive',
                 section: '',
                 snippet: 'Beta opening line.',
+                isTrashed: false,
             },
         ]);
     });
@@ -98,11 +100,48 @@ describe('findOutgoingLinks', () => {
                 notebookName: 'Projects',
                 section: '',
                 snippet: 'Alpha opening line.',
+                isTrashed: false,
             },
         ]);
 
         // The ignored note is never even fetched.
         expect(mockDataGet).not.toHaveBeenCalledWith(['notes', NOTE_B], expect.anything());
+    });
+
+    it('keeps a trashed target, flagged, without naming its original notebook', async () => {
+        const body = `[Alpha](:/${NOTE_A}).`;
+
+        mockDataGet.mockImplementation(async (path: string[]) => {
+            if (path[0] === 'notes' && path[1] === SOURCE_NOTE_ID) {
+                return { id: SOURCE_NOTE_ID, body };
+            }
+            if (path[0] === 'notes' && path[1] === NOTE_A) {
+                return {
+                    id: NOTE_A,
+                    title: 'Alpha',
+                    parent_id: 'folder-1',
+                    deleted_time: 1_700_000_000_000,
+                    body: 'Alpha opening line.',
+                };
+            }
+            throw new Error(`Unexpected Data API request: ${path.join('/')}`);
+        });
+
+        await expect(findOutgoingLinks(repository, SOURCE_NOTE_ID)).resolves.toEqual([
+            {
+                direction: 'out',
+                id: NOTE_A,
+                noteId: NOTE_A,
+                anchor: '',
+                title: 'Alpha',
+                notebookName: '',
+                section: '',
+                snippet: 'Alpha opening line.',
+                isTrashed: true,
+            },
+        ]);
+        // Joplin keeps the original parent on a trashed note, so that folder is never looked up.
+        expect(mockDataGet).not.toHaveBeenCalledWith(['folders', 'folder-1'], expect.anything());
     });
 
     it('skips targets in ignored notebooks', async () => {
@@ -168,6 +207,7 @@ describe('findOutgoingLinks', () => {
                 notebookName: 'Projects',
                 section: '',
                 snippet: 'Alpha opening line.',
+                isTrashed: false,
             },
             {
                 direction: 'out',
@@ -179,6 +219,7 @@ describe('findOutgoingLinks', () => {
                 // Anchor no longer names a heading: show the raw slug and the note's opening.
                 section: 'removed-heading',
                 snippet: 'Alpha opening line.',
+                isTrashed: false,
             },
             {
                 direction: 'out',
@@ -189,6 +230,7 @@ describe('findOutgoingLinks', () => {
                 notebookName: 'Projects',
                 section: 'Setup',
                 snippet: 'Run the installer.',
+                isTrashed: false,
             },
         ]);
     });
@@ -227,6 +269,7 @@ describe('findOutgoingLinks', () => {
                 notebookName: 'Projects',
                 section: '',
                 snippet: 'Alpha opening line.',
+                isTrashed: false,
             },
             {
                 direction: 'out',
@@ -238,6 +281,7 @@ describe('findOutgoingLinks', () => {
                 // The HTML anchor's own text labels the row; the anchor's line is previewed.
                 section: 'The MERN stack',
                 snippet: 'The MERN stack is a full-stack framework.',
+                isTrashed: false,
             },
             {
                 direction: 'out',
@@ -249,6 +293,7 @@ describe('findOutgoingLinks', () => {
                 // Resolves to neither heading nor HTML anchor: raw slug + note opening.
                 section: 'no-such-anchor',
                 snippet: 'Alpha opening line.',
+                isTrashed: false,
             },
         ]);
     });
@@ -284,6 +329,7 @@ describe('findOutgoingLinks', () => {
                 notebookName: 'Projects',
                 section: '日本語',
                 snippet: '日本語の内容。',
+                isTrashed: false,
             },
         ]);
     });

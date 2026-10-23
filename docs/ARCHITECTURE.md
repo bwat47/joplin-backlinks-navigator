@@ -173,8 +173,10 @@ rows. `countBacklinks` and `countOutgoingLinks` reuse each service's discovery s
 enrichment: no snippets, no section headings, no notebook titles, and — the expensive part — no body
 fetch or target-body parse. Discovery still performs the lightweight Lezer parse needed to
 distinguish rendered links from code and examples. Counting outgoing links also costs one body-less
-lookup per destination, because a link to a deleted note is broken and the panel drops it; counting
-it would put the badge out of step with the list.
+lookup per destination, because a link to a permanently deleted note is broken and the panel drops
+it; counting it would put the badge out of step with the list. A link to a *trashed* note is not
+broken: it still opens, so both the panel (which labels it "Trash") and the count keep it. Trashed
+notes never appear as backlinks, because Joplin's search does not return them.
 
 `LinkCounts` carries both `backlinkOccurrences` and `backlinkNotes` because the choice between them
 is display policy: title-only backlink mode collapses occurrences to one row per source note. That

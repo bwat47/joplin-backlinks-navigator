@@ -33,7 +33,7 @@ function link(noteId: string, direction: 'in' | 'out' = 'in'): LinkItem {
     const row = { noteId, id: noteId, title: noteId, notebookName: '', section: '', snippet: '' };
     return direction === 'in'
         ? { ...row, direction, occurrenceIndex: 0, occurrenceCount: 1 }
-        : { ...row, direction, anchor: '' };
+        : { ...row, direction, anchor: '', isTrashed: false };
 }
 
 const cleanups: (() => void)[] = [];

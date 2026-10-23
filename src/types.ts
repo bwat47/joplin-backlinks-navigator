@@ -43,6 +43,13 @@ export interface OutgoingLink extends LinkItemBase {
      * HTML anchor id; empty when the row targets the note as a whole.
      */
     anchor: string;
+    /**
+     * The target note is in the trash. Unlike a trashed backlink source (which Joplin's search
+     * never returns), a link to a trashed note is still a link in the current note's body — one the
+     * user may want to clean up — so the row is kept and marked instead. `notebookName` is empty:
+     * Joplin keeps the original `parent_id` on trashed notes, so that folder would be misleading.
+     */
+    isTrashed: boolean;
 }
 
 /** A single link related to the currently open note, discriminated by `direction`. */

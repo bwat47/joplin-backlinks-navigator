@@ -68,10 +68,11 @@ describe('JoplinRepository', () => {
         await expect(repository.getNoteMeta('note')).resolves.toEqual({
             title: 'Title',
             parent_id: 'folder',
+            isTrashed: false,
         });
         expect(get).toHaveBeenNthCalledWith(1, ['notes', 'note'], { fields: ['id', 'body'] });
         expect(get).toHaveBeenNthCalledWith(2, ['notes', 'note'], {
-            fields: ['id', 'title', 'parent_id'],
+            fields: ['id', 'title', 'parent_id', 'deleted_time'],
         });
     });
 
@@ -82,10 +83,23 @@ describe('JoplinRepository', () => {
         await expect(repository.getNoteWithBody('note')).resolves.toEqual({
             title: 'Title',
             parent_id: 'folder',
+            isTrashed: false,
             body: 'Markdown',
         });
         expect(get).toHaveBeenCalledWith(['notes', 'note'], {
-            fields: ['id', 'title', 'parent_id', 'body'],
+            fields: ['id', 'title', 'parent_id', 'deleted_time', 'body'],
+        });
+    });
+
+    it('flags a note with a deleted_time as trashed', async () => {
+        const repository = new JoplinRepository({
+            get: vi.fn().mockResolvedValue({ id: 'note', title: 'Title', parent_id: 'folder', deleted_time: 1 }),
+        });
+
+        await expect(repository.getNoteMeta('note')).resolves.toEqual({
+            title: 'Title',
+            parent_id: 'folder',
+            isTrashed: true,
         });
     });
 
@@ -97,6 +111,7 @@ describe('JoplinRepository', () => {
         await expect(repository.getNoteMeta('note')).resolves.toEqual({
             title: 'Untitled',
             parent_id: 'folder',
+            isTrashed: false,
         });
     });
 

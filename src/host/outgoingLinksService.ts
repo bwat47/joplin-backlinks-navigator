@@ -12,7 +12,9 @@
  *    link to one of its anchors are different destinations, so they get their own rows; repeats of
  *    either collapse into one row.
  * 4. Resolve each target's title, parent notebook, and body, dropping broken links that can't be
- *    resolved and targets that live in an ignored notebook. The snippet previews the opening of the linked note — or of the anchored section or
+ *    resolved and targets that live in an ignored notebook. Trashed targets are kept and flagged:
+ *    the link is still in the current note's body (backlinks differ — Joplin's search never returns
+ *    trashed notes, and a trashed source is just noise). The snippet previews the opening of the linked note — or of the anchored section or
  *    HTML-anchor line — rather than the context around the link in the current note. An anchor
  *    resolves to a heading slug first, then to an explicit HTML anchor (`<a id="…">`).
  *
@@ -173,7 +175,11 @@ export async function findOutgoingLinks(
             if (isInIgnoredNotebook(meta, ignoredFolderIds)) {
                 return null;
             }
-            const notebookName = await resolveNotebookName(repository, meta.parent_id, notebookCache);
+            // A trashed note still carries its original `parent_id`; naming that notebook would
+            // misplace it, so the panel labels the row as trashed instead.
+            const notebookName = meta.isTrashed
+                ? ''
+                : await resolveNotebookName(repository, meta.parent_id, notebookCache);
             // Parsing is synchronous, so destinations sharing a target can't both miss this cache.
             let targetBody = parsedBodyCache.get(group.targetId);
             if (!targetBody) {
@@ -194,6 +200,7 @@ export async function findOutgoingLinks(
                 notebookName,
                 section,
                 snippet,
+                isTrashed: meta.isTrashed,
             };
         }
     );

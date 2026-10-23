@@ -191,6 +191,16 @@ export function createPanelCss(dimensions: PanelDimensions): string {
     color: var(--joplin-color-bright, inherit);
 }
 
+/* An outgoing link whose target note is in the trash. */
+.backlinks-navigator-item.is-trashed .backlinks-navigator-item-title {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+.backlinks-navigator-item.is-trashed .backlinks-navigator-item-notebook {
+    font-style: italic;
+}
+
 .backlinks-navigator-item-notebook {
     flex: 0 0 auto;
     max-width: 40%;

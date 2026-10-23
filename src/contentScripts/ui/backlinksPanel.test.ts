@@ -152,3 +152,43 @@ describe('BacklinksPanel middle-click navigation', () => {
         panel.destroy();
     });
 });
+
+describe('BacklinksPanel trashed outgoing links', () => {
+    beforeEach(() => {
+        document.body.replaceChildren();
+        document.head.replaceChildren();
+    });
+
+    it('labels a trashed target as Trash and marks the row', () => {
+        const panel = createPanel();
+        panel.setLinks('in', []);
+        panel.setLinks('out', [
+            {
+                direction: 'out',
+                id: 'trashed',
+                noteId: 'note-2',
+                anchor: '',
+                title: 'Trashed note',
+                notebookName: '',
+                section: '',
+                snippet: '',
+                isTrashed: true,
+            },
+        ]);
+
+        const item = document.querySelector<HTMLLIElement>('.backlinks-navigator-item')!;
+        expect(item.classList.contains('is-trashed')).toBe(true);
+        expect(item.querySelector('.backlinks-navigator-item-notebook')?.textContent).toBe('Trash');
+        panel.destroy();
+    });
+
+    it('leaves rows in a notebook unmarked', () => {
+        const panel = createPanel();
+        panel.setLinks('in', [LINK]);
+
+        const item = document.querySelector<HTMLLIElement>('.backlinks-navigator-item')!;
+        expect(item.classList.contains('is-trashed')).toBe(false);
+        expect(item.querySelector('.backlinks-navigator-item-notebook')?.textContent).toBe('Notebook');
+        panel.destroy();
+    });
+});

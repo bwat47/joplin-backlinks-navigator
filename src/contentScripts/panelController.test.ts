@@ -39,7 +39,7 @@ function backlink(occurrenceIndex: number): Backlink {
 }
 
 function outgoing(anchor: string): OutgoingLink {
-    return { ...ROW, direction: 'out', id: anchor ? `${OTHER_NOTE}#${anchor}` : OTHER_NOTE, anchor };
+    return { ...ROW, direction: 'out', id: anchor ? `${OTHER_NOTE}#${anchor}` : OTHER_NOTE, anchor, isTrashed: false };
 }
 
 type LinkResponder = (message: MessageOf<'getBacklinks' | 'getOutgoingLinks'>) => Promise<LinksResponse>;

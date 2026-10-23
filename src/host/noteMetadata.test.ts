@@ -119,11 +119,11 @@ describe('metadata lookup caches', () => {
         ]);
 
         expect(notes).toEqual([
-            { title: 'Child', parent_id: ROOT, body: 'Markdown' },
-            { title: 'Child', parent_id: ROOT, body: 'Markdown' },
+            { title: 'Child', parent_id: ROOT, isTrashed: false, body: 'Markdown' },
+            { title: 'Child', parent_id: ROOT, isTrashed: false, body: 'Markdown' },
         ]);
         expect(mockDataGet).toHaveBeenCalledExactlyOnceWith(['notes', CHILD], {
-            fields: ['id', 'title', 'parent_id', 'body'],
+            fields: ['id', 'title', 'parent_id', 'deleted_time', 'body'],
         });
     });
 });

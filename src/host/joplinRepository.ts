@@ -18,10 +18,12 @@ export interface SearchNote {
     parent_id: string;
 }
 
-/** A resolved note's title and parent notebook. */
+/** A resolved note's title, parent notebook, and trash state. */
 export interface NoteMeta {
     title: string;
+    /** Still the original notebook for a trashed note: Joplin only sets `deleted_time` on trashing. */
     parent_id: string;
+    isTrashed: boolean;
 }
 
 /** A resolved note's metadata plus its Markdown body. */
@@ -94,7 +96,12 @@ function toSearchNote(value: unknown): SearchNote {
 }
 
 function toNoteMeta(note: Record<string, unknown>): NoteMeta {
-    return { title: noteTitle(note.title), parent_id: text(note.parent_id) };
+    return {
+        title: noteTitle(note.title),
+        parent_id: text(note.parent_id),
+        // Joplin stores 0 for a note that isn't in the trash.
+        isTrashed: typeof note.deleted_time === 'number' && note.deleted_time > 0,
+    };
 }
 
 function toFolderNode(value: unknown): FolderNode {
@@ -131,7 +138,7 @@ export class JoplinRepository implements LinkRepository {
 
     public async getNoteMeta(noteId: string): Promise<NoteMeta> {
         const note = asRecord(
-            await this.data.get(['notes', noteId], { fields: ['id', 'title', 'parent_id'] }),
+            await this.data.get(['notes', noteId], { fields: ['id', 'title', 'parent_id', 'deleted_time'] }),
             `note ${noteId}`
         );
         return toNoteMeta(note);
@@ -139,7 +146,7 @@ export class JoplinRepository implements LinkRepository {
 
     public async getNoteWithBody(noteId: string): Promise<NoteWithBody> {
         const note = asRecord(
-            await this.data.get(['notes', noteId], { fields: ['id', 'title', 'parent_id', 'body'] }),
+            await this.data.get(['notes', noteId], { fields: ['id', 'title', 'parent_id', 'deleted_time', 'body'] }),
             `note ${noteId}`
         );
         return { ...toNoteMeta(note), body: text(note.body) };
