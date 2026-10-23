@@ -6,12 +6,17 @@
  * - `resolveNavigationTarget` runs in the content script and finds the range in the editor text.
  */
 
+import type { ParsedMarkdownBody } from './markdown/markdownParser';
 import type { NavigationTarget, TextRange } from './types';
 
 const CONTEXT_LENGTH = 32;
 
-/** Captures exact Markdown source, not the rendered label, for editor navigation. */
-export function createNavigationTarget(body: string, range: TextRange): NavigationTarget {
+/**
+ * Captures exact Markdown source, not the rendered label, for editor navigation. The parsed body's
+ * line breaks are already normalized, so its offsets match the editor document.
+ */
+export function createNavigationTarget(parsed: ParsedMarkdownBody, range: TextRange): NavigationTarget {
+    const { body } = parsed;
     const { from, to } = range;
     return {
         from,

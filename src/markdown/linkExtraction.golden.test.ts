@@ -37,7 +37,7 @@ describe('Markdown extraction golden behavior', () => {
         ]);
     });
 
-    it('keeps formatted heading text, CRLF ranges, and global slug collisions stable', () => {
+    it('keeps formatted heading text, normalized CRLF ranges, and global slug collisions stable', () => {
         const body =
             '## A &amp; *bold* [link](https://example.com) `code` ![image](x) <em>HTML</em> ✅ 日本語\r\n' +
             '\r\nSetext *Heading*\r\n---\r\n\r\n## !!!\r\n\r\n## ???\r\n\r\n## -2\r\n\r\n## !!!';
@@ -58,13 +58,13 @@ describe('Markdown extraction golden behavior', () => {
                 level: 2,
                 startLineIndex: 2,
                 endLineIndex: 4,
-                from: 88,
-                to: 109,
+                from: 86,
+                to: 106,
             },
-            { anchor: '', text: '!!!', level: 2, startLineIndex: 5, endLineIndex: 6, from: 113, to: 119 },
-            { anchor: '-2', text: '???', level: 2, startLineIndex: 7, endLineIndex: 8, from: 123, to: 129 },
-            { anchor: '-2-2', text: '-2', level: 2, startLineIndex: 9, endLineIndex: 10, from: 133, to: 138 },
-            { anchor: '-3', text: '!!!', level: 2, startLineIndex: 11, endLineIndex: 12, from: 142, to: 148 },
+            { anchor: '', text: '!!!', level: 2, startLineIndex: 5, endLineIndex: 6, from: 108, to: 114 },
+            { anchor: '-2', text: '???', level: 2, startLineIndex: 7, endLineIndex: 8, from: 116, to: 122 },
+            { anchor: '-2-2', text: '-2', level: 2, startLineIndex: 9, endLineIndex: 10, from: 124, to: 129 },
+            { anchor: '-3', text: '!!!', level: 2, startLineIndex: 11, endLineIndex: 12, from: 131, to: 137 },
         ]);
     });
 

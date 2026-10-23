@@ -121,7 +121,7 @@ export async function findBacklinks(
                 notebookName,
                 section,
                 snippet,
-                navigationTarget: createNavigationTarget(note.body, occurrences[occurrenceIndex]),
+                navigationTarget: createNavigationTarget(parsed, occurrences[occurrenceIndex]),
             }));
         }
     );

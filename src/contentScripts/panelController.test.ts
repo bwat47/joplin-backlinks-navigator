@@ -5,6 +5,7 @@ import type { ContentScriptContext } from 'api/types';
 import type { LinksResponse, MessageOf, Protocol } from '../messages';
 import type { Backlink, LinkItem, OutgoingLink } from '../types';
 import { createNavigationTarget } from '../navigationTarget';
+import { parseMarkdownBody } from '../markdown/markdownParser';
 import { PanelController } from './panelController';
 import {
     applyContentScriptSettings,
@@ -47,7 +48,7 @@ function backlink(occurrenceIndex: number): Backlink {
         id: `${OTHER_NOTE}:${occurrenceIndex}`,
         occurrenceIndex,
         occurrenceCount: 2,
-        navigationTarget: createNavigationTarget(BACKLINK_BODY, { from, to }),
+        navigationTarget: createNavigationTarget(parseMarkdownBody(BACKLINK_BODY), { from, to }),
     };
 }
 
@@ -58,7 +59,9 @@ function outgoing(anchor: string): OutgoingLink {
         id: anchor ? `${OTHER_NOTE}#${anchor}` : OTHER_NOTE,
         anchor,
         isTrashed: false,
-        ...(anchor ? { navigationTarget: createNavigationTarget(HEADING_BODY, { from: 7, to: 14 }) } : {}),
+        ...(anchor
+            ? { navigationTarget: createNavigationTarget(parseMarkdownBody(HEADING_BODY), { from: 7, to: 14 }) }
+            : {}),
     };
 }
 

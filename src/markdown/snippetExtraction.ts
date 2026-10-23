@@ -41,10 +41,7 @@ export function extractSnippetLine(parsed: ParsedMarkdownBody, lineIndex: number
     }
 
     const lineStart = parsed.lineStarts[lineIndex] ?? parsed.body.length;
-    let lineEnd = lineStart + line.length;
-    if (lineEnd > lineStart && parsed.body[lineEnd - 1] === '\r') {
-        lineEnd -= 1;
-    }
+    const lineEnd = lineStart + line.length;
     const rendered = extractRenderedText(
         parsed,
         lineContainer(parsed, lineIndex),

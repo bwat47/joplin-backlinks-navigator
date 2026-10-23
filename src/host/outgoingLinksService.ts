@@ -127,7 +127,7 @@ function resolveDestinationPreview(targetBody: ParsedTargetBody, anchor: string)
         return {
             section: heading.text,
             snippet: extractSectionOpening(parsed, heading.endLineIndex, sectionEndLineIndex),
-            navigationTarget: createNavigationTarget(parsed.body, heading),
+            navigationTarget: createNavigationTarget(parsed, heading),
         };
     }
 
@@ -137,7 +137,7 @@ function resolveDestinationPreview(targetBody: ParsedTargetBody, anchor: string)
         return {
             section: htmlAnchor?.text || anchor,
             snippet: htmlAnchor?.snippet || extractNoteOpening(parsed, headings),
-            ...(htmlAnchor ? { navigationTarget: createNavigationTarget(parsed.body, htmlAnchor) } : {}),
+            ...(htmlAnchor ? { navigationTarget: createNavigationTarget(parsed, htmlAnchor) } : {}),
         };
     }
 

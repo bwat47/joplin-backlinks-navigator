@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createNavigationTarget, resolveNavigationTarget } from './navigationTarget';
+import { parseMarkdownBody } from './markdown/markdownParser';
 
 describe('navigation targets', () => {
     const body = 'Intro 😀\n\n[link](:/note)\n\nFollowing text';
     const from = body.indexOf('[link]');
-    const target = createNavigationTarget(body, { from, to: body.indexOf(')') + 1 });
+    const target = createNavigationTarget(parseMarkdownBody(body), { from, to: body.indexOf(')') + 1 });
 
     it('uses host offsets in unchanged text, including UTF-16 offsets', () => {
         expect(resolveNavigationTarget(body, target)).toEqual({ from, to: target.to });
@@ -21,14 +22,14 @@ describe('navigation targets', () => {
     it('uses context to distinguish repeated source text after offsets shift', () => {
         const source = 'A'.repeat(40) + '[same]' + 'B'.repeat(40) + '[same]' + 'C'.repeat(40);
         const start = source.lastIndexOf('[same]');
-        const repeated = createNavigationTarget(source, { from: start, to: start + 6 });
+        const repeated = createNavigationTarget(parseMarkdownBody(source), { from: start, to: start + 6 });
         expect(resolveNavigationTarget('Prefix' + source, repeated)).toEqual({ from: start + 6, to: start + 12 });
     });
 
     it('prefers the context match when an identical occurrence shifts onto the old offsets', () => {
         const source = 'A'.repeat(40) + '[same]' + 'B'.repeat(40) + '[same]' + 'C'.repeat(40);
         const start = source.lastIndexOf('[same]');
-        const repeated = createNavigationTarget(source, { from: start, to: start + 6 });
+        const repeated = createNavigationTarget(parseMarkdownBody(source), { from: start, to: start + 6 });
         // 46 inserted characters move the first [same] from 40 onto the target's old offset (86).
         expect(resolveNavigationTarget('-'.repeat(46) + source, repeated)).toEqual({
             from: start + 46,
@@ -39,7 +40,7 @@ describe('navigation targets', () => {
     it('keeps unmoved offsets when an edit beside a repeated target changes its context', () => {
         const source = 'A'.repeat(40) + '[same]' + 'B'.repeat(40) + '[same]' + 'C'.repeat(40);
         const start = source.lastIndexOf('[same]');
-        const repeated = createNavigationTarget(source, { from: start, to: start + 6 });
+        const repeated = createNavigationTarget(parseMarkdownBody(source), { from: start, to: start + 6 });
         expect(resolveNavigationTarget(source.replace(/C/g, 'D'), repeated)).toEqual({ from: start, to: start + 6 });
     });
 

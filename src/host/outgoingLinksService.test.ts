@@ -1,5 +1,6 @@
 import { vi, describe, beforeEach, it, expect } from 'vitest';
 import { createNavigationTarget } from '../navigationTarget';
+import { parseMarkdownBody } from '../markdown/markdownParser';
 import { JoplinRepository } from './joplinRepository';
 import { countOutgoingLinks, findOutgoingLinks } from './outgoingLinksService';
 
@@ -228,7 +229,7 @@ describe('findOutgoingLinks', () => {
                 noteId: NOTE_A,
                 anchor: 'setup',
                 navigationTarget: createNavigationTarget(
-                    '# Alpha\n\nAlpha opening line.\n\n## Setup\n\nRun the installer.',
+                    parseMarkdownBody('# Alpha\n\nAlpha opening line.\n\n## Setup\n\nRun the installer.'),
                     { from: 30, to: 38 }
                 ),
                 title: 'Alpha',
@@ -282,7 +283,9 @@ describe('findOutgoingLinks', () => {
                 noteId: NOTE_A,
                 anchor: 'in3b65',
                 navigationTarget: createNavigationTarget(
-                    '# Alpha\n\nAlpha opening line.\n\n<a id="in3b65">The MERN stack</a> is a full-stack framework.',
+                    parseMarkdownBody(
+                        '# Alpha\n\nAlpha opening line.\n\n<a id="in3b65">The MERN stack</a> is a full-stack framework.'
+                    ),
                     { from: 30, to: 63 }
                 ),
                 title: 'Alpha',
@@ -334,7 +337,10 @@ describe('findOutgoingLinks', () => {
                 id: `${NOTE_A}#日本語`,
                 noteId: NOTE_A,
                 anchor: '日本語',
-                navigationTarget: createNavigationTarget('# Alpha\n\n## 日本語\n\n日本語の内容。', { from: 9, to: 15 }),
+                navigationTarget: createNavigationTarget(parseMarkdownBody('# Alpha\n\n## 日本語\n\n日本語の内容。'), {
+                    from: 9,
+                    to: 15,
+                }),
                 title: 'Alpha',
                 notebookName: 'Projects',
                 section: '日本語',

@@ -48,7 +48,9 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
   parsing, error policy, and request-scoped caches.
 - Each service also exposes a counting entry point (`countBacklinks`, `countOutgoingLinks`) that
   shares the discovery work but stops before row enrichment. See [Indicator Counts](#indicator-counts).
-- `src/markdown/markdownParser.ts` creates one standalone Lezer tree and line index per body. The
+- `src/markdown/markdownParser.ts` normalizes CRLF and lone CR line breaks to `\n`, then creates
+  one standalone Lezer tree and line index per body. Parsed offsets therefore match CodeMirror's
+  document text. The
   focused helpers in `src/markdown/` — `linkExtraction.ts`, `markdownHeadings.ts`, `htmlAnchors.ts`,
   and `snippetExtraction.ts` — share that context for links, headings, HTML anchors, sections, and
   rendered-text previews. `src/markdown/markdownDelimiters.ts` adds the `==highlight==` and
@@ -206,7 +208,8 @@ highlights it briefly.
 - Outgoing links without an anchor simply open the destination note.
 
 Each resolved navigation target includes its exact Markdown source and up to 32 characters of
-context on either side. The editor first validates the supplied offsets. If edits shifted the
+context on either side, taken from the parsed body so the offsets use the editor's `\n` line breaks.
+The editor first validates the supplied offsets. If edits shifted the
 target, it accepts a unique exact-text match, or uses the context to distinguish repeated matches.
 Missing or ambiguous matches leave the note open without forcing a cursor position or highlight.
 The delayed scroll reassertion validates the target again in case the text changed after loading.

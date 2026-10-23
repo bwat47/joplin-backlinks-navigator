@@ -1,6 +1,7 @@
 import { vi, describe, beforeEach, it, expect } from 'vitest';
 import { countBacklinks, findBacklinks } from './backlinksService';
-import { createNavigationTarget } from '../navigationTarget';
+import { createNavigationTarget, resolveNavigationTarget } from '../navigationTarget';
+import { parseMarkdownBody } from '../markdown/markdownParser';
 import { JoplinRepository } from './joplinRepository';
 
 const mockDataGet = vi.fn();
@@ -9,7 +10,7 @@ const TARGET_NOTE_ID = '0123456789abcdef0123456789abcdef';
 
 function expectedTarget(body: string, text: string) {
     const from = body.indexOf(text);
-    return createNavigationTarget(body, { from, to: from + text.length });
+    return createNavigationTarget(parseMarkdownBody(body), { from, to: from + text.length });
 }
 
 describe('findBacklinks', () => {
@@ -255,6 +256,27 @@ describe('findBacklinks', () => {
         expect(result.map((row) => row.occurrenceIndex)).toEqual([0, 1]);
         expect(result.map((row) => row.navigationTarget?.text)).toEqual([first, second]);
         expect(result.every((row) => row.occurrenceCount === 2)).toBe(true);
+    });
+
+    it('resolves navigation targets in the editor text when the stored body uses CRLF', async () => {
+        const link = `[same](:/${TARGET_NOTE_ID})`;
+        const body = `Intro\r\n\r\n${link}\r\nMiddle\r\n${link}\r\nEnd`;
+        const editorText = body.replace(/\r\n/g, '\n');
+        mockDataGet.mockImplementation(async (path: string[]) => {
+            if (path[0] === 'search') {
+                return { items: [{ id: 'note-a', title: 'Alpha', body, parent_id: '' }], has_more: false };
+            }
+            throw new Error(`Unexpected Data API request: ${path.join('/')}`);
+        });
+
+        const rows = await findBacklinks(repository, TARGET_NOTE_ID);
+
+        const second = editorText.lastIndexOf(link);
+        expect(rows[1].navigationTarget).toMatchObject({ from: second, to: second + link.length, text: link });
+        expect(resolveNavigationTarget(editorText, rows[1].navigationTarget!)).toEqual({
+            from: second,
+            to: second + link.length,
+        });
     });
 });
 

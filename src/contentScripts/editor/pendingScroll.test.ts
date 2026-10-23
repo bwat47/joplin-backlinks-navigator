@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SelectionRange } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { createNavigationTarget } from '../../navigationTarget';
+import { parseMarkdownBody } from '../../markdown/markdownParser';
 import { scrollToPendingTarget } from './pendingScroll';
 
 describe('scrollToPendingTarget', () => {
@@ -9,7 +10,7 @@ describe('scrollToPendingTarget', () => {
     afterEach(() => vi.useRealTimers());
 
     const source = 'Intro\n\n# Setup\n\nSteps';
-    const navigationTarget = createNavigationTarget(source, { from: 7, to: 14 });
+    const navigationTarget = createNavigationTarget(parseMarkdownBody(source), { from: 7, to: 14 });
 
     function harness(initialBody = source) {
         let body = initialBody;

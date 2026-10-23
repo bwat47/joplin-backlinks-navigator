@@ -54,11 +54,6 @@ export function parseMarkdownHeadings(parsed: ParsedMarkdownBody): MarkdownHeadi
 
             const startLineIndex = offsetToLineIndex(parsed.lineStarts, cursor.from);
             const endLineIndex = offsetToLineIndex(parsed.lineStarts, Math.max(cursor.from, cursor.to - 1)) + 1;
-            let to = cursor.to;
-            if (to > cursor.from && parsed.body[to - 1] === '\r') {
-                to -= 1;
-            }
-
             headings.push({
                 anchor,
                 text,
@@ -66,7 +61,7 @@ export function parseMarkdownHeadings(parsed: ParsedMarkdownBody): MarkdownHeadi
                 startLineIndex,
                 endLineIndex,
                 from: cursor.from,
-                to,
+                to: cursor.to,
             });
             return false;
         },
