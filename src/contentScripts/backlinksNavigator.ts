@@ -17,7 +17,7 @@
 import { type EditorView, ViewPlugin } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../commandIds';
-import type { LinkDirection, LinkItem } from '../types';
+import type { ContentScriptSettings, LinkDirection, LinkItem } from '../types';
 import type { AlternateOpenMode, MessageOf } from '../messages';
 import { request } from './bridge';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
@@ -198,9 +198,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     if (seq !== requestSeq || !panel?.isOpen()) {
                         return;
                     }
-                    // A failed (or malformed) response must not render as "no links". The host
+                    // A failed (or missing) response must not render as "no links". The host
                     // logs the cause of a reported failure.
-                    if (response?.ok !== true || !Array.isArray(response.links)) {
+                    if (!response?.ok) {
                         panel.setError(direction, config.errorMessage);
                         return;
                     }
@@ -238,10 +238,10 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 void loadLinks('out', noteId, seq);
             };
 
-            const applySettingsUpdate = (settings: unknown): void => {
-                const nextSettings = applyContentScriptSettings(view, settings);
-                panel?.setSettings(nextSettings.panel);
-                if (!nextSettings.showIndicator) {
+            const applySettingsUpdate = (settings: ContentScriptSettings): void => {
+                applyContentScriptSettings(view, settings);
+                panel?.setSettings(settings.panel);
+                if (!settings.showIndicator) {
                     indicator.reset();
                     return;
                 }

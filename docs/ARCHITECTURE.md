@@ -101,7 +101,9 @@ Joplin gives the plugin host API access and the content script editor access. Th
 communicate through `context.postMessage(...)`, which behaves like request/response. The content
 script sends through `request` in `src/contentScripts/bridge.ts`, and the host answers from a
 handlers object in `src/host/messageHandler.ts`; both are typed from `Protocol`, so each message is paired with its
-response at compile time. Responses are still validated at runtime, since the bridge itself is untyped.
+response at compile time. Both sides ship in the same plugin, so responses are trusted to match the
+protocol rather than re-validated; the content script only handles a missing response. Settings are
+normalized once, on the host, when they are loaded.
 
 - `getBacklinks` returns backlink rows.
 - `getOutgoingLinks` returns outgoing-link rows.

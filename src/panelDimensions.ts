@@ -6,10 +6,11 @@
  * - Height: 40-90% of viewport (too short = not enough entries visible, too tall = blocks content)
  *
  * User settings from plugin configuration are untrusted and must be validated
- * before being applied to the UI. Invalid values fall back to defaults.
+ * before being applied to the UI. Invalid values fall back to defaults. The host applies these
+ * when it loads settings (see host/settings.ts); the content script receives the result as is.
  */
 
-import { type PanelDimensions, DEFAULT_PANEL_DIMENSIONS } from './types';
+import { DEFAULT_PANEL_DIMENSIONS } from './types';
 
 export const MIN_PANEL_WIDTH = 240;
 export const MAX_PANEL_WIDTH = 640;
@@ -39,18 +40,4 @@ export function normalizePanelHeightPercentage(raw: unknown): { value: number; c
     }
     const clamped = clamp(Math.round(raw), MIN_PANEL_HEIGHT_PERCENTAGE, MAX_PANEL_HEIGHT_PERCENTAGE);
     return { value: clamped, changed: clamped !== raw };
-}
-
-/**
- * Normalizes and validates panel dimension settings.
- *
- * Clamps values to acceptable ranges, rounds them to integers, and replaces invalid/missing values
- * with defaults. Used when loading user settings and when the content script receives dimension
- * updates from the plugin host — both sides validate the same units with the same functions.
- */
-export function normalizePanelDimensions(dimensions?: Partial<PanelDimensions>): PanelDimensions {
-    return {
-        width: normalizePanelWidth(dimensions?.width).value,
-        maxHeightPercentage: normalizePanelHeightPercentage(dimensions?.maxHeightPercentage).value,
-    };
 }

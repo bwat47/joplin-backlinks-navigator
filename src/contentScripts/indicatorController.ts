@@ -15,21 +15,6 @@ interface IndicatorDependencies {
     isPanelOpen: () => boolean;
 }
 
-/** Coerces one count from a bridge payload to a non-negative integer. */
-function readCount(value: unknown): number {
-    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
-}
-
-/** Validates {@link LinkCounts} arriving over the postMessage bridge. */
-function normalizeLinkCounts(counts: unknown): LinkCounts {
-    const candidate = (counts ?? {}) as Partial<Record<keyof LinkCounts, unknown>>;
-    return {
-        backlinkOccurrences: readCount(candidate.backlinkOccurrences),
-        backlinkNotes: readCount(candidate.backlinkNotes),
-        outgoing: readCount(candidate.outgoing),
-    };
-}
-
 /** Owns the badge, its cached counts, and editor-scoped refresh work. */
 export class IndicatorController {
     private enabled = false;
@@ -151,7 +136,7 @@ export class IndicatorController {
 
         if (state?.enabled && state.ok) {
             this.enabled = true;
-            this.counts = normalizeLinkCounts(state.counts);
+            this.counts = state.counts;
         } else {
             // Disabled, or the host couldn't count links (it logs why). Hide the badge
             // rather than show zeros that would misreport the note.

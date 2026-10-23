@@ -268,19 +268,6 @@ describe('IndicatorController', () => {
         expect(badge()?.style.display ?? 'none').toBe('none');
     });
 
-    it('normalizes malformed counts from the bridge', async () => {
-        const h = harness(() =>
-            Promise.resolve({
-                enabled: true,
-                ok: true,
-                counts: { backlinkOccurrences: 2.9, backlinkNotes: -1, outgoing: Infinity },
-            })
-        );
-        await h.refresh();
-        expect(badge()?.style.display).toBe('inline-flex');
-        expect(badge()?.getAttribute('aria-label')).toBe('2 backlinks');
-    });
-
     it('reset clears counts and hides the badge without invalidating an in-flight refresh', async () => {
         const pending = deferred<IndicatorState>();
         const h = harness(vi.fn().mockResolvedValueOnce(ENABLED).mockReturnValueOnce(pending.promise));

@@ -4,8 +4,8 @@ import type { MessageOf, Protocol, ResponseFor } from '../messages';
 /**
  * Sends a typed message to the plugin host and resolves with its response.
  *
- * The response type is what the protocol promises, not something checked here: the value crosses
- * the postMessage bridge untyped, so callers still validate it before trusting its shape.
+ * Both sides of the bridge ship in this plugin and are typed from the same `Protocol`, so the
+ * response is trusted to match it. It is `undefined` when the host had no handler for the message.
  */
 export function request<K extends keyof Protocol>(
     context: ContentScriptContext,

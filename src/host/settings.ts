@@ -17,7 +17,6 @@ import {
     type LinkPreviewMode,
     type PanelSettings,
     DEFAULT_LINK_PREVIEW_SETTINGS,
-    isLinkPreviewMode,
 } from '../types';
 import {
     DEFAULT_PANEL_HEIGHT_PERCENTAGE,
@@ -78,6 +77,16 @@ export function normalizeBacklinkOpenBehavior(value: unknown): { value: Backlink
     }
 
     return { value: DEFAULT_BACKLINK_OPEN_BEHAVIOR, changed: true };
+}
+
+/**
+ * Type guard for a valid {@link LinkPreviewMode}.
+ *
+ * @param allowHeading - Whether `'titleSnippetHeading'` is accepted (outgoing links have no
+ *   enclosing heading to show, so that mode is rejected for them).
+ */
+function isLinkPreviewMode(value: unknown, allowHeading: boolean): value is LinkPreviewMode {
+    return value === 'title' || value === 'titleSnippet' || (allowHeading && value === 'titleSnippetHeading');
 }
 
 export function normalizeLinkPreviewMode(
