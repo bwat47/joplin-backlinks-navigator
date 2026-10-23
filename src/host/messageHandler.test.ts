@@ -16,7 +16,7 @@ vi.mock('./noteMetadata', () => ({ expandIgnoredFolderIds: vi.fn() }));
 vi.mock('./navigation', () => ({ openNote: vi.fn() }));
 
 import joplin from 'api';
-import { COMMAND_SHOW_BACKLINKS } from '../constants';
+import { COMMAND_SHOW_BACKLINKS } from '../commandIds';
 import type { LinkItem } from '../types';
 import { countBacklinks, findBacklinks } from './backlinksService';
 import type { LinkRepository } from './joplinRepository';

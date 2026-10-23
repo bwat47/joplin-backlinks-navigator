@@ -6,7 +6,7 @@
  */
 
 import joplin from 'api';
-import { COMMAND_SHOW_BACKLINKS } from '../constants';
+import { COMMAND_SHOW_BACKLINKS } from '../commandIds';
 import logger from '../logger';
 import type { IndicatorState, LinksResponse, MessageOf, Protocol, ResponseFor } from '../messages';
 import type { LinkFilters, LinkItem } from '../types';

@@ -16,7 +16,7 @@
 
 import { type EditorView, ViewPlugin } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
-import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
+import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../commandIds';
 import type { LinkDirection, LinkItem } from '../types';
 import type { AlternateOpenMode, MessageOf } from '../messages';
 import { request } from './bridge';

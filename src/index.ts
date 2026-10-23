@@ -20,7 +20,7 @@ import {
     COMMAND_TOGGLE_IGNORE_NOTEBOOK,
     EDITOR_COMMAND_TOGGLE_PANEL,
     EDITOR_COMMAND_UPDATE_SETTINGS,
-} from './constants';
+} from './commandIds';
 import logger from './logger';
 import {
     DEBUG_SETTING_KEY,

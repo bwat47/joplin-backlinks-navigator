@@ -3,7 +3,7 @@ import { EditorState, Facet, StateEffect, type Extension } from '@codemirror/sta
 import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext } from 'api/types';
 import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS } from '../types';
-import { EDITOR_COMMAND_TOGGLE_PANEL } from '../constants';
+import { EDITOR_COMMAND_TOGGLE_PANEL } from '../commandIds';
 import type { IndicatorState, LinksResponse, MessageOf, Protocol } from '../messages';
 import backlinksNavigator from './backlinksNavigator';
 
