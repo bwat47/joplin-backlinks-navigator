@@ -25,7 +25,7 @@
  */
 
 import logger from '../logger';
-import { createNavigationTarget } from './navigationTarget';
+import { createNavigationTarget } from '../navigationTarget';
 import type { LinkFilters, NavigationTarget, OutgoingLink } from '../types';
 import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from '../markdown/htmlAnchors';
 import { extractNoteLinks } from '../markdown/linkExtraction';

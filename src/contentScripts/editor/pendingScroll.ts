@@ -10,11 +10,10 @@
 
 import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import type { NavigationTarget } from '../../types';
-import { resolveNavigationTarget } from './navigationTarget';
+import type { NavigationTarget, TextRange } from '../../types';
+import { resolveNavigationTarget } from '../../navigationTarget';
 import logger from '../../logger';
 import { setReferenceHighlightEffect } from './referenceHighlight';
-import type { TextRange } from './textRange';
 
 /** Host-resolved target to apply after its note loads in the reused editor. */
 export interface PendingScroll {

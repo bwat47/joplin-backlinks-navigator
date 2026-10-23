@@ -1,5 +1,26 @@
-import type { NavigationTarget } from '../../types';
-import type { TextRange } from './textRange';
+/**
+ * Navigation targets carry a source range from the host, where Markdown is parsed, to the editor,
+ * which must find that range again in its own text without parsing Markdown.
+ *
+ * - `createNavigationTarget` runs on the host and captures the range, its exact text, and context.
+ * - `resolveNavigationTarget` runs in the content script and finds the range in the editor text.
+ */
+
+import type { NavigationTarget, TextRange } from './types';
+
+const CONTEXT_LENGTH = 32;
+
+/** Captures exact Markdown source, not the rendered label, for editor navigation. */
+export function createNavigationTarget(body: string, range: TextRange): NavigationTarget {
+    const { from, to } = range;
+    return {
+        from,
+        to,
+        text: body.slice(from, to),
+        contextBefore: body.slice(Math.max(0, from - CONTEXT_LENGTH), from),
+        contextAfter: body.slice(to, to + CONTEXT_LENGTH),
+    };
+}
 
 function hasContext(body: string, range: TextRange, target: NavigationTarget): boolean {
     const { contextBefore, contextAfter } = target;

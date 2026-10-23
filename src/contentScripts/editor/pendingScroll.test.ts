@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SelectionRange } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
-import { createNavigationTarget } from '../../host/navigationTarget';
+import { createNavigationTarget } from '../../navigationTarget';
 import { scrollToPendingTarget } from './pendingScroll';
 
 describe('scrollToPendingTarget', () => {

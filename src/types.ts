@@ -1,11 +1,14 @@
 /** Direction of a link relative to the current note. */
 export type LinkDirection = 'in' | 'out';
 
-/** Host-resolved source range, with text to validate or relocate it after edits. */
-export interface NavigationTarget {
-    /** UTF-16 source offsets, with an exclusive end, matching CodeMirror positions. */
+/** UTF-16 source offsets, with an exclusive end, matching CodeMirror positions. */
+export interface TextRange {
     from: number;
     to: number;
+}
+
+/** Host-resolved source range, with text to validate or relocate it after edits. */
+export interface NavigationTarget extends TextRange {
     text: string;
     contextBefore: string;
     contextAfter: string;

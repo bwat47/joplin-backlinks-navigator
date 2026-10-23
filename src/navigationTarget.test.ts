@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createNavigationTarget } from '../../host/navigationTarget';
-import { resolveNavigationTarget } from './navigationTarget';
+import { createNavigationTarget, resolveNavigationTarget } from './navigationTarget';
 
-describe('resolveNavigationTarget', () => {
+describe('navigation targets', () => {
     const body = 'Intro 😀\n\n[link](:/note)\n\nFollowing text';
     const from = body.indexOf('[link]');
     const target = createNavigationTarget(body, { from, to: body.indexOf(')') + 1 });

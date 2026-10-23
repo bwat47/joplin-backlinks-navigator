@@ -33,6 +33,9 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 - `src/messages.ts` defines the request and response shapes shared across the host/content-script
   boundary, as one `Protocol` map from message type to request and response.
 - `src/types.ts` defines shared domain types, including `LinkItem`.
+- `src/navigationTarget.ts` pairs both sides of a navigation target. The host captures each target's
+  offsets, exact source text, and nearby context; the content script validates those offsets
+  against the editor text and relocates shifted matches without parsing Markdown.
 
 ### Link Discovery
 
@@ -83,9 +86,6 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
   and stale-response protection for each editor view.
 - `src/contentScripts/editor/pendingScroll.ts` places the cursor on, scrolls to, and highlights a
   host-resolved source range, retrying briefly while the note's content settles.
-- `src/host/navigationTarget.ts` captures each target's offsets, exact source text, and nearby
-  context. `src/contentScripts/editor/navigationTarget.ts` validates those offsets against the
-  editor text and relocates shifted matches without parsing Markdown.
 - `src/contentScripts/editor/pluginSettings.ts` stores editor-side settings in a CodeMirror facet so
   UI behavior can update without rebuilding the editor extension.
 - `src/contentScripts/editor/noteIdWatcher.ts` reports note changes inside the reused editor view.
@@ -177,7 +177,7 @@ enrichment: no snippets, no section headings, no notebook titles, and — the ex
 fetch or target-body parse. Discovery still performs the lightweight Lezer parse needed to
 distinguish rendered links from code and examples. Counting outgoing links also costs one body-less
 lookup per destination, because a link to a permanently deleted note is broken and the panel drops
-it; counting it would put the badge out of step with the list. A link to a *trashed* note is not
+it; counting it would put the badge out of step with the list. A link to a _trashed_ note is not
 broken: it still opens, so both the panel (which labels it "Trash") and the count keep it. Trashed
 notes never appear as backlinks, because Joplin's search does not return them.
 

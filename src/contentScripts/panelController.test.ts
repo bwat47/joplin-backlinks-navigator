@@ -4,7 +4,7 @@ import { EditorView } from '@codemirror/view';
 import type { ContentScriptContext } from 'api/types';
 import type { LinksResponse, MessageOf, Protocol } from '../messages';
 import type { Backlink, LinkItem, OutgoingLink } from '../types';
-import { createNavigationTarget } from '../host/navigationTarget';
+import { createNavigationTarget } from '../navigationTarget';
 import { PanelController } from './panelController';
 import {
     applyContentScriptSettings,
