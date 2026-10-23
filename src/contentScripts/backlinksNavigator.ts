@@ -18,7 +18,8 @@ import { type EditorView, ViewPlugin } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
 import { type LinkCounts, type LinkDirection, type LinkItem, EMPTY_LINK_COUNTS } from '../types';
-import type { AlternateOpenMode, ContentScriptToPluginMessage, IndicatorState, LinksResponse } from '../messages';
+import type { AlternateOpenMode, IndicatorState, MessageOf } from '../messages';
+import { request } from './bridge';
 import { getDisplayCounts, toBacklinkCounts } from './linkDisplay';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
@@ -35,7 +36,7 @@ import logger from '../logger';
 
 const INDICATOR_DEBOUNCE_MS = 350;
 
-type LinkLoadMessage = Extract<ContentScriptToPluginMessage, { type: 'getBacklinks' | 'getOutgoingLinks' }>;
+type LinkLoadMessage = MessageOf<'getBacklinks' | 'getOutgoingLinks'>;
 
 interface LinkLoadConfig {
     createMessage: (noteId: string) => LinkLoadMessage;
@@ -99,7 +100,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             let disposed = false;
             const noteIdFacet = editorControl.joplinExtensions?.noteIdFacet as NoteIdFacet | undefined;
             const indicator = new BacklinkIndicator(view, () => {
-                void context.postMessage({ type: 'openPanel' } satisfies ContentScriptToPluginMessage);
+                void request(context, { type: 'openPanel' });
             });
 
             const clearIndicatorCache = (): void => {
@@ -166,14 +167,8 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 const anchor = link.direction === 'out' ? link.anchor : '';
 
                 if (mode !== 'current') {
-                    const message: ContentScriptToPluginMessage = {
-                        type: 'openNote',
-                        noteId: link.noteId,
-                        anchor,
-                        mode,
-                    };
                     try {
-                        await context.postMessage(message);
+                        await request(context, { type: 'openNote', noteId: link.noteId, anchor, mode });
                     } catch (error) {
                         logger.error('Failed to open link with alternate behavior', { mode, error });
                     }
@@ -203,10 +198,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     pendingScroll = null;
                 }
 
-                const message: ContentScriptToPluginMessage = { type: 'openNote', noteId: link.noteId, anchor };
                 closePanel(false);
                 try {
-                    await context.postMessage(message);
+                    await request(context, { type: 'openNote', noteId: link.noteId, anchor });
                 } catch (error) {
                     logger.error('Failed to navigate to link', error);
                     pendingScroll = null;
@@ -260,8 +254,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             const loadLinks = async (direction: LinkDirection, noteId: string, seq: number): Promise<void> => {
                 const config = LINK_LOAD_CONFIG[direction];
                 try {
-                    const response = (await context.postMessage(config.createMessage(noteId))) as
-                        LinksResponse | undefined;
+                    const response = await request(context, config.createMessage(noteId));
                     // Ignore if the panel was closed/re-opened while we awaited.
                     if (seq !== requestSeq || !panel?.isOpen()) {
                         return;
@@ -322,12 +315,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 }
 
                 const seq = ++indicatorSeq;
-                let state: IndicatorState;
+                let state: IndicatorState | undefined;
                 try {
-                    state = (await context.postMessage({
-                        type: 'getIndicatorState',
-                        noteId,
-                    } satisfies ContentScriptToPluginMessage)) as IndicatorState;
+                    state = await request(context, { type: 'getIndicatorState', noteId });
                 } catch (error) {
                     if (!disposed) {
                         logger.warn('Failed to fetch backlink indicator state', error);

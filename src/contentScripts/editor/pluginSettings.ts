@@ -9,7 +9,7 @@ import {
     isLinkPreviewMode,
 } from '../../types';
 import { normalizePanelDimensions } from '../../panelDimensions';
-import type { ContentScriptToPluginMessage, GetContentScriptSettingsResponse } from '../../messages';
+import { request } from '../bridge';
 import logger from '../../logger';
 
 export const DEFAULT_CONTENT_SCRIPT_SETTINGS: ContentScriptSettings = {
@@ -78,9 +78,7 @@ export function applyContentScriptSettings(view: EditorView, settings: unknown):
 
 export async function syncInitialContentScriptSettings(context: ContentScriptContext, view: EditorView): Promise<void> {
     try {
-        const response = (await context.postMessage({
-            type: 'getContentScriptSettings',
-        } satisfies ContentScriptToPluginMessage)) as GetContentScriptSettingsResponse;
+        const response = await request(context, { type: 'getContentScriptSettings' });
         applyContentScriptSettings(view, response);
     } catch (error) {
         logger.warn('Failed to fetch content script settings', error);

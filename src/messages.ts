@@ -13,33 +13,6 @@
 
 import type { ContentScriptSettings, LinkCounts, LinkItem } from './types';
 
-/** Request the list of backlink occurrences that link to `noteId`. Host responds with {@link LinksResponse}. */
-interface GetBacklinksMessage {
-    type: 'getBacklinks';
-    noteId: string;
-}
-
-/** Request the list of distinct notes that `noteId` links to. Host responds with {@link LinksResponse}. */
-interface GetOutgoingLinksMessage {
-    type: 'getOutgoingLinks';
-    noteId: string;
-}
-
-/**
- * Sent when a note loads to drive the top-right indicator. The host checks the
- * "show indicator" setting first and only runs link discovery when it is enabled,
- * so this is cheap when the indicator is turned off. Host responds with {@link IndicatorState}.
- */
-interface GetIndicatorStateMessage {
-    type: 'getIndicatorState';
-    noteId: string;
-}
-
-/** Request settings consumed by the editor content script. Host responds with {@link ContentScriptSettings}. */
-interface GetContentScriptSettingsMessage {
-    type: 'getContentScriptSettings';
-}
-
 /**
  * Navigation gestures that open a link somewhere other than the current note. Each maps to its own
  * user-configurable open behavior, resolved host-side (see `resolveOpenNoteMode` in index.ts).
@@ -47,35 +20,41 @@ interface GetContentScriptSettingsMessage {
 export type AlternateOpenMode = 'ctrlClick' | 'ctrlEnter' | 'middleClick';
 
 /**
- * Ask the host to navigate to `noteId`, optionally to the heading named by `anchor` (Joplin's
- * `openItem` accepts the `:/<id>#<anchor>` form). Host responds with `void`.
+ * Every message the content script can send, keyed by `type`, with the request fields it carries
+ * and the response the host resolves with. The message and response types below derive from this.
  */
-interface OpenNoteMessage {
-    type: 'openNote';
-    noteId: string;
-    anchor?: string;
-    mode?: AlternateOpenMode;
+export interface Protocol {
+    /** Request the list of backlink occurrences that link to `noteId`. */
+    getBacklinks: { request: { noteId: string }; response: LinksResponse };
+    /** Request the list of distinct notes that `noteId` links to. */
+    getOutgoingLinks: { request: { noteId: string }; response: LinksResponse };
+    /**
+     * Sent when a note loads to drive the top-right indicator. The host checks the
+     * "show indicator" setting first and only runs link discovery when it is enabled,
+     * so this is cheap when the indicator is turned off.
+     */
+    getIndicatorState: { request: { noteId: string }; response: IndicatorState };
+    /** Request settings consumed by the editor content script. */
+    getContentScriptSettings: { request: Record<never, never>; response: ContentScriptSettings };
+    /**
+     * Ask the host to navigate to `noteId`, optionally to the heading named by `anchor` (Joplin's
+     * `openItem` accepts the `:/<id>#<anchor>` form).
+     */
+    openNote: { request: { noteId: string; anchor?: string; mode?: AlternateOpenMode }; response: void };
+    /**
+     * Ask the host to open the backlinks panel (used by the indicator click). Routing through the
+     * host runs the normal command, so the panel opens with the user's configured dimensions and
+     * the correct mobile flag.
+     */
+    openPanel: { request: Record<never, never>; response: void };
 }
 
-/**
- * Ask the host to open the backlinks panel (used by the indicator click). Routing through the
- * host runs the normal command, so the panel opens with the user's configured dimensions and
- * the correct mobile flag. Host responds with `void`.
- */
-interface OpenPanelMessage {
-    type: 'openPanel';
-}
+export type MessageOf<K extends keyof Protocol> = { [P in K]: { type: P } & Protocol[P]['request'] }[K];
 
-export type ContentScriptToPluginMessage =
-    | GetBacklinksMessage
-    | GetOutgoingLinksMessage
-    | GetIndicatorStateMessage
-    | GetContentScriptSettingsMessage
-    | OpenNoteMessage
-    | OpenPanelMessage;
+export type ResponseFor<K extends keyof Protocol> = Protocol[K]['response'];
 
 /**
- * Response returned by the host for a {@link GetBacklinksMessage} or {@link GetOutgoingLinksMessage}.
+ * Response returned by the host for `getBacklinks` and `getOutgoingLinks`.
  *
  * A failed lookup is reported as `ok: false` rather than as an empty list, so the panel can tell
  * "no links" from "couldn't load links". The host logs the cause; the content script owns the
@@ -83,11 +62,8 @@ export type ContentScriptToPluginMessage =
  */
 export type LinksResponse = { ok: true; links: LinkItem[] } | { ok: false };
 
-/** Response returned by the host for a {@link GetContentScriptSettingsMessage}. */
-export type GetContentScriptSettingsResponse = ContentScriptSettings;
-
 /**
- * Response for a {@link GetIndicatorStateMessage}.
+ * Response for `getIndicatorState`.
  *
  * `enabled` is false when the indicator setting is off (no search was performed). Otherwise `ok`
  * says whether counting succeeded and, if so, the state carries {@link LinkCounts}. The badge shows

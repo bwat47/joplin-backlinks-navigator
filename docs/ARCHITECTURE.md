@@ -26,7 +26,7 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
   Joplin's UI, so the ignored-notebook list is built from a folder context-menu toggle registered in
   `src/index.ts` rather than by typing ids.
 - `src/messages.ts` defines the request and response shapes shared across the host/content-script
-  boundary.
+  boundary, as one `Protocol` map from message type to request and response.
 - `src/types.ts` defines shared domain types, including `LinkItem`.
 
 ### Link Discovery
@@ -90,7 +90,10 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 ## Message Boundary
 
 Joplin gives the plugin host API access and the content script editor access. The two sides
-communicate through `context.postMessage(...)`, which behaves like request/response:
+communicate through `context.postMessage(...)`, which behaves like request/response. The content
+script sends through `request` in `src/contentScripts/bridge.ts`, and the host answers from a
+handlers object in `src/index.ts`; both are typed from `Protocol`, so each message is paired with its
+response at compile time. Responses are still validated at runtime, since the bridge itself is untyped.
 
 - `getBacklinks` returns backlink rows.
 - `getOutgoingLinks` returns outgoing-link rows.

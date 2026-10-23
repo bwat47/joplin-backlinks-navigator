@@ -37,13 +37,7 @@ import {
     registerSettings,
     setIgnoredNotebookIdsSetting,
 } from './host/settings';
-import type {
-    AlternateOpenMode,
-    ContentScriptToPluginMessage,
-    GetContentScriptSettingsResponse,
-    IndicatorState,
-    LinksResponse,
-} from './messages';
+import type { AlternateOpenMode, IndicatorState, LinksResponse, MessageOf, Protocol, ResponseFor } from './messages';
 import { countBacklinks, findBacklinks } from './host/backlinksService';
 import { JoplinRepository, type LinkRepository } from './host/joplinRepository';
 import { countOutgoingLinks, findOutgoingLinks } from './host/outgoingLinksService';
@@ -82,8 +76,9 @@ async function showToast(message: string, type: ToastType = ToastType.Error): Pr
     }
 }
 
-async function resolveOpenNoteMode(message: ContentScriptToPluginMessage): Promise<ResolvedOpenNoteMode> {
-    if (message.type !== 'openNote' || !message.mode) {
+async function resolveOpenNoteMode(message: MessageOf<'openNote'>): Promise<ResolvedOpenNoteMode> {
+    // Own-property check, as in the message dispatcher, so an unexpected mode can't reach Object.prototype.
+    if (!message.mode || !Object.prototype.hasOwnProperty.call(ALTERNATE_MODE_LOADERS, message.mode)) {
         return 'current';
     }
     return ALTERNATE_MODE_LOADERS[message.mode]();
@@ -193,34 +188,6 @@ async function loadIndicatorState(repository: LinkRepository, noteId: string): P
     }
 }
 
-async function handleMessage(
-    repository: LinkRepository,
-    message: ContentScriptToPluginMessage
-): Promise<LinksResponse | GetContentScriptSettingsResponse | IndicatorState | void> {
-    if (!message || typeof message !== 'object') {
-        return;
-    }
-
-    switch (message.type) {
-        case 'getBacklinks':
-            return findBacklinksWithSettings(repository, message.noteId);
-        case 'getOutgoingLinks':
-            return findOutgoingLinksWithSettings(repository, message.noteId);
-        case 'getContentScriptSettings':
-            return loadContentScriptSettings();
-        case 'getIndicatorState':
-            return loadIndicatorState(repository, message.noteId);
-        case 'openNote':
-            await openNote(message.noteId, await resolveOpenNoteMode(message), message.anchor);
-            return;
-        case 'openPanel':
-            await joplin.commands.execute(COMMAND_SHOW_BACKLINKS);
-            return;
-        default:
-            logger.warn('Received unsupported message from content script', message);
-    }
-}
-
 async function registerContentScripts(repository: LinkRepository): Promise<void> {
     await joplin.contentScripts.register(
         ContentScriptType.CodeMirrorPlugin,
@@ -228,9 +195,39 @@ async function registerContentScripts(repository: LinkRepository): Promise<void>
         './contentScripts/backlinksNavigator.js'
     );
 
-    await joplin.contentScripts.onMessage(CODEMIRROR_CONTENT_SCRIPT_ID, (message: ContentScriptToPluginMessage) =>
-        handleMessage(repository, message)
-    );
+    const handlers: { [K in keyof Protocol]: (message: MessageOf<K>) => Promise<ResponseFor<K>> } = {
+        getBacklinks: (message) => findBacklinksWithSettings(repository, message.noteId),
+        getOutgoingLinks: (message) => findOutgoingLinksWithSettings(repository, message.noteId),
+        getContentScriptSettings: () => loadContentScriptSettings(),
+        getIndicatorState: (message) => loadIndicatorState(repository, message.noteId),
+        openNote: async (message) => {
+            await openNote(message.noteId, await resolveOpenNoteMode(message), message.anchor);
+        },
+        openPanel: async () => {
+            await joplin.commands.execute(COMMAND_SHOW_BACKLINKS);
+        },
+    };
+
+    // Indexing `handlers` by `message.type` gives a union of handlers that the message union can't be
+    // passed to directly; expressing the call through `K` lets TypeScript treat it as correlated.
+    const dispatch = <K extends keyof Protocol>(message: MessageOf<K>): Promise<ResponseFor<K>> =>
+        handlers[message.type](message);
+
+    await joplin.contentScripts.onMessage(CODEMIRROR_CONTENT_SCRIPT_ID, async (message: unknown): Promise<unknown> => {
+        // An own-property check rather than `in`, so a type such as 'toString' can't reach
+        // Object.prototype. Only `type` is checked; the handlers trust the remaining fields.
+        if (
+            typeof message !== 'object' ||
+            message === null ||
+            !('type' in message) ||
+            typeof message.type !== 'string' ||
+            !Object.prototype.hasOwnProperty.call(handlers, message.type)
+        ) {
+            logger.warn('Received unsupported message from content script', message);
+            return;
+        }
+        return dispatch(message as MessageOf<keyof Protocol>);
+    });
 }
 
 /**

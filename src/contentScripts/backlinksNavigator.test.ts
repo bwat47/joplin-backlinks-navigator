@@ -4,7 +4,7 @@ import { EditorView } from '@codemirror/view';
 import type { CodeMirrorControl, ContentScriptContext } from 'api/types';
 import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS } from '../types';
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../constants';
-import type { ContentScriptToPluginMessage, IndicatorState, LinksResponse } from '../messages';
+import type { IndicatorState, LinksResponse, MessageOf, Protocol } from '../messages';
 import backlinksNavigator from './backlinksNavigator';
 
 const INDICATOR_DEBOUNCE_MS = 350;
@@ -69,7 +69,7 @@ function createHarness(
         }),
     });
 
-    const postMessage = vi.fn((message: ContentScriptToPluginMessage): Promise<unknown> => {
+    const postMessage = vi.fn((message: MessageOf<keyof Protocol>): Promise<unknown> => {
         if (message.type === 'getContentScriptSettings') {
             return Promise.resolve(SETTINGS);
         }
