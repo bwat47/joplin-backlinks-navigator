@@ -23,7 +23,7 @@
  */
 
 import logger from '../logger';
-import type { LinkFilters, LinkItem } from '../types';
+import type { LinkFilters, OutgoingLink } from '../types';
 import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from '../markdown/htmlAnchors';
 import { extractNoteLinks } from '../markdown/linkExtraction';
 import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from '../markdown/markdownHeadings';
@@ -40,13 +40,12 @@ interface ParsedTargetBody {
     htmlAnchors?: HtmlAnchor[];
 }
 
-/** A distinct destination (target note + optional anchor) and how many links point at it. */
+/** A distinct destination: a target note plus an optional anchor. */
 interface Destination {
     /** Row id / grouping key, e.g. `<id>` or `<id>#<anchor>`. */
     key: string;
     targetId: string;
     anchor: string;
-    count: number;
 }
 
 /** Builds the row id / grouping key for a destination. */
@@ -71,11 +70,8 @@ function collectDestinations(
             continue;
         }
         const key = destinationKey(targetId, anchor);
-        const existing = groups.get(key);
-        if (existing) {
-            existing.count += 1;
-        } else {
-            groups.set(key, { key, targetId, anchor, count: 1 });
+        if (!groups.has(key)) {
+            groups.set(key, { key, targetId, anchor });
         }
     }
 
@@ -142,7 +138,7 @@ export async function findOutgoingLinks(
     repository: LinkRepository,
     noteId: string,
     filters: LinkFilters = {}
-): Promise<LinkItem[]> {
+): Promise<OutgoingLink[]> {
     if (!noteId) {
         return [];
     }
@@ -158,42 +154,44 @@ export async function findOutgoingLinks(
     const notebookCache: NotebookNameCache = new Map();
     const parsedBodyCache = new Map<string, ParsedTargetBody>();
 
-    const rows = await mapWithConcurrency(destinations, LOOKUP_CONCURRENCY, async (group): Promise<LinkItem | null> => {
-        const meta = await resolveNoteMeta(repository, group.targetId, noteMetaCache, { includeBody: true });
-        if (!meta) {
-            // Broken link (target note no longer exists) — nothing to navigate to.
-            return null;
-        }
-        if (isInIgnoredNotebook(meta, ignoredFolderIds)) {
-            return null;
-        }
-        const notebookName = await resolveNotebookName(repository, meta.parent_id, notebookCache);
-        // Parsing is synchronous, so destinations sharing a target can't both miss this cache.
-        let targetBody = parsedBodyCache.get(group.targetId);
-        if (!targetBody) {
-            const parsed = parseMarkdownBody(meta.body);
-            targetBody = {
-                parsed,
-                headings: parseMarkdownHeadings(parsed),
+    const rows = await mapWithConcurrency(
+        destinations,
+        LOOKUP_CONCURRENCY,
+        async (group): Promise<OutgoingLink | null> => {
+            const meta = await resolveNoteMeta(repository, group.targetId, noteMetaCache, { includeBody: true });
+            if (!meta) {
+                // Broken link (target note no longer exists) — nothing to navigate to.
+                return null;
+            }
+            if (isInIgnoredNotebook(meta, ignoredFolderIds)) {
+                return null;
+            }
+            const notebookName = await resolveNotebookName(repository, meta.parent_id, notebookCache);
+            // Parsing is synchronous, so destinations sharing a target can't both miss this cache.
+            let targetBody = parsedBodyCache.get(group.targetId);
+            if (!targetBody) {
+                const parsed = parseMarkdownBody(meta.body);
+                targetBody = {
+                    parsed,
+                    headings: parseMarkdownHeadings(parsed),
+                };
+                parsedBodyCache.set(group.targetId, targetBody);
+            }
+            const { section, snippet } = resolveDestinationPreview(targetBody, group.anchor);
+            return {
+                direction: 'out',
+                id: group.key,
+                noteId: group.targetId,
+                anchor: group.anchor,
+                title: meta.title,
+                notebookName,
+                section,
+                snippet,
             };
-            parsedBodyCache.set(group.targetId, targetBody);
         }
-        const { section, snippet } = resolveDestinationPreview(targetBody, group.anchor);
-        return {
-            direction: 'out',
-            id: group.key,
-            noteId: group.targetId,
-            anchor: group.anchor,
-            occurrenceIndex: 0,
-            occurrenceCount: group.count,
-            title: meta.title,
-            notebookName,
-            section,
-            snippet,
-        };
-    });
+    );
 
-    const outgoing = rows.filter((row): row is LinkItem => row !== null);
+    const outgoing = rows.filter((row): row is OutgoingLink => row !== null);
     outgoing.sort(compareLinkItems);
 
     logger.debug('Resolved outgoing links', { noteId, count: outgoing.length });

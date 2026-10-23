@@ -2,18 +2,19 @@ import { describe, it, expect } from 'vitest';
 import { getDisplayCounts, getDisplayLinkCount, getDisplayLinks, toBacklinkCounts } from './linkDisplay';
 import type { LinkCounts, LinkDirection, LinkItem, LinkPreviewMode } from '../types';
 
-const makeLink = (direction: LinkDirection, noteId: string, occurrenceIndex: number): LinkItem => ({
-    direction,
-    id: `${direction}:${noteId}:${occurrenceIndex}`,
-    noteId,
-    anchor: '',
-    occurrenceIndex,
-    occurrenceCount: 3,
-    title: `Note ${noteId}`,
-    notebookName: 'Notebook',
-    section: '',
-    snippet: `occurrence ${occurrenceIndex}`,
-});
+const makeLink = (direction: LinkDirection, noteId: string, occurrenceIndex: number): LinkItem => {
+    const row = {
+        id: `${direction}:${noteId}:${occurrenceIndex}`,
+        noteId,
+        title: `Note ${noteId}`,
+        notebookName: 'Notebook',
+        section: '',
+        snippet: `occurrence ${occurrenceIndex}`,
+    };
+    return direction === 'in'
+        ? { ...row, direction, occurrenceIndex, occurrenceCount: 3 }
+        : { ...row, direction, anchor: '' };
+};
 
 describe('link display policy', () => {
     it('collapses inbound backlinks in title-only mode', () => {

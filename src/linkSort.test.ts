@@ -6,7 +6,6 @@ const makeBacklink = (noteId: string, occurrenceIndex: number): LinkItem => ({
     direction: 'in',
     id: `${noteId}:${occurrenceIndex}`,
     noteId,
-    anchor: '',
     occurrenceIndex,
     occurrenceCount: 3,
     title: `Note ${noteId}`,

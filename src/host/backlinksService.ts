@@ -19,7 +19,7 @@
  */
 
 import logger from '../logger';
-import type { LinkFilters, LinkItem } from '../types';
+import type { Backlink, LinkFilters } from '../types';
 import { extractNoteLinks, linkNeedle, type NoteLinkOccurrence } from '../markdown/linkExtraction';
 import { parseMarkdownBody, type ParsedMarkdownBody } from '../markdown/markdownParser';
 import { resolveNotebookName, type NotebookNameCache } from './noteMetadata';
@@ -91,7 +91,7 @@ export async function findBacklinks(
     repository: LinkRepository,
     noteId: string,
     filters: LinkFilters = {}
-): Promise<LinkItem[]> {
+): Promise<Backlink[]> {
     if (!noteId) {
         return [];
     }
@@ -110,12 +110,10 @@ export async function findBacklinks(
             const notebookName = await resolveNotebookName(repository, note.parent_id, notebookCache);
             const occurrenceCount = contexts.length;
 
-            return contexts.map(({ snippet, section }, occurrenceIndex): LinkItem => ({
+            return contexts.map(({ snippet, section }, occurrenceIndex): Backlink => ({
                 direction: 'in',
                 id: `${note.id}:${occurrenceIndex}`,
                 noteId: note.id,
-                // Backlinks navigate to an occurrence in the source note, never to a heading.
-                anchor: '',
                 occurrenceIndex,
                 occurrenceCount,
                 title: note.title,

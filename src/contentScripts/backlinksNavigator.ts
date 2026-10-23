@@ -101,8 +101,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 link: LinkItem,
                 mode: 'current' | AlternateOpenMode = 'current'
             ): Promise<void> => {
-                // Only outgoing rows carry an anchor; a backlink's anchor (if any) points into the
-                // note we're already viewing.
+                // Only outgoing rows carry an anchor; a backlink opens its source note as a whole.
                 const anchor = link.direction === 'out' ? link.anchor : '';
 
                 if (mode !== 'current') {
@@ -122,11 +121,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 // the cursor placement and highlight consistent with backlink navigation. Outgoing
                 // links without an anchor just open the target note.
                 const currentNoteId = resolveNoteId();
-                const scrollToOccurrence =
-                    link.direction === 'in' && getContentScriptSettings(view.state).panel.preview.in !== 'title';
-                if (anchor) {
-                    pendingScroll = { targetNoteId: link.noteId, kind: 'anchor', anchor };
-                } else if (scrollToOccurrence && currentNoteId) {
+                if (link.direction === 'out') {
+                    pendingScroll = anchor ? { targetNoteId: link.noteId, kind: 'anchor', anchor } : null;
+                } else if (getContentScriptSettings(view.state).panel.preview.in !== 'title' && currentNoteId) {
                     pendingScroll = {
                         targetNoteId: link.noteId,
                         kind: 'reference',

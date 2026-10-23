@@ -115,10 +115,16 @@ normalized once, on the host, when they are loaded.
 
 ## Link Model
 
-Both tabs use `LinkItem`. The `direction` field distinguishes rows:
+Both tabs use `LinkItem`, a union discriminated by `direction`. The shared fields (title,
+notebook, section, snippet) are what the panel renders; each variant adds only what its direction
+has:
 
-- `in` means a backlink from another note to the current note.
-- `out` means an outgoing link from the current note to another note.
+- `Backlink` (`in`): a link from another note to the current note, with `occurrenceIndex` and
+  `occurrenceCount` locating the occurrence in its source note.
+- `OutgoingLink` (`out`): a link from the current note to another note, with the `anchor` it
+  targets.
+
+Each service returns its own variant, and `Protocol` types each link response by direction.
 
 Backlinks are occurrence-based because the same source note can link to the current note many times.
 Inline links and valid full, collapsed, or shortcut reference links each count at the rendered use;

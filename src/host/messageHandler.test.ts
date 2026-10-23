@@ -17,7 +17,7 @@ vi.mock('./navigation', () => ({ openNote: vi.fn() }));
 
 import joplin from 'api';
 import { COMMAND_SHOW_BACKLINKS } from '../commandIds';
-import type { LinkItem } from '../types';
+import type { Backlink } from '../types';
 import { countBacklinks, findBacklinks } from './backlinksService';
 import type { LinkRepository } from './joplinRepository';
 import { createMessageHandler } from './messageHandler';
@@ -28,7 +28,7 @@ import { loadIgnoredBacklinkNoteIdsSetting, loadIgnoredNotebookIdsSetting, loadS
 
 const repository = {} as LinkRepository;
 const NOTE_ID = 'note-1';
-const LINK = { noteId: 'note-2', direction: 'in' } as LinkItem;
+const LINK = { noteId: 'note-2', direction: 'in' } as Backlink;
 
 describe('createMessageHandler', () => {
     beforeEach(() => {

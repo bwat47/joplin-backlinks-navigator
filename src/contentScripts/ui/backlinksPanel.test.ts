@@ -51,7 +51,6 @@ const LINK: LinkItem = {
     direction: 'in',
     id: 'link-1',
     noteId: 'note-1',
-    anchor: '',
     occurrenceIndex: 0,
     occurrenceCount: 1,
     title: 'Linked note',

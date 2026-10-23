@@ -11,7 +11,7 @@
  * - host/messageHandler.ts - Plugin host handler that receives and processes messages
  */
 
-import type { ContentScriptSettings, LinkCounts, LinkItem } from './types';
+import type { Backlink, ContentScriptSettings, LinkCounts, LinkItem, OutgoingLink } from './types';
 
 /**
  * Navigation gestures that open a link somewhere other than the current note. Each maps to its own
@@ -25,9 +25,9 @@ export type AlternateOpenMode = 'ctrlClick' | 'ctrlEnter' | 'middleClick';
  */
 export interface Protocol {
     /** Request the list of backlink occurrences that link to `noteId`. */
-    getBacklinks: { request: { noteId: string }; response: LinksResponse };
+    getBacklinks: { request: { noteId: string }; response: LinksResponse<Backlink> };
     /** Request the list of distinct notes that `noteId` links to. */
-    getOutgoingLinks: { request: { noteId: string }; response: LinksResponse };
+    getOutgoingLinks: { request: { noteId: string }; response: LinksResponse<OutgoingLink> };
     /**
      * Sent when a note loads to drive the top-right indicator. The host checks the
      * "show indicator" setting first and only runs link discovery when it is enabled,
@@ -60,7 +60,7 @@ export type ResponseFor<K extends keyof Protocol> = Protocol[K]['response'];
  * "no links" from "couldn't load links". The host logs the cause; the content script owns the
  * user-facing message.
  */
-export type LinksResponse = { ok: true; links: LinkItem[] } | { ok: false };
+export type LinksResponse<T extends LinkItem = LinkItem> = { ok: true; links: T[] } | { ok: false };
 
 /**
  * Response for `getIndicatorState`.

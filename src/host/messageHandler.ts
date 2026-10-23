@@ -41,11 +41,11 @@ async function loadLinkFilters(repository: LinkRepository): Promise<LinkFilters>
  * Runs a link lookup and reports a failure in the response instead of as an empty list, so the
  * panel can show an error rather than "no links".
  */
-async function toLinksResponse(
+async function toLinksResponse<T extends LinkItem>(
     description: string,
     noteId: string,
-    load: () => Promise<LinkItem[]>
-): Promise<LinksResponse> {
+    load: () => Promise<T[]>
+): Promise<LinksResponse<T>> {
     try {
         return { ok: true, links: await load() };
     } catch (error) {

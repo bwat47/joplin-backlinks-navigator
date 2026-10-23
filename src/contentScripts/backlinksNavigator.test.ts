@@ -181,7 +181,6 @@ describe('backlinksNavigator panel integration', () => {
                         direction: 'in',
                         id: 'source',
                         noteId: 'source',
-                        anchor: '',
                         occurrenceIndex: 0,
                         occurrenceCount: 1,
                         title: 'Source',

@@ -15,7 +15,7 @@ describe('findOutgoingLinks', () => {
         mockDataGet.mockReset();
     });
 
-    it('dedupes per target, counts occurrences, resolves metadata, and sorts by title', async () => {
+    it('dedupes per target, resolves metadata, and sorts by title', async () => {
         const body =
             `# Intro\n` +
             `See [Beta](:/${NOTE_B}) and [Alpha](:/${NOTE_A}).\n` +
@@ -47,8 +47,6 @@ describe('findOutgoingLinks', () => {
                 id: NOTE_A,
                 noteId: NOTE_A,
                 anchor: '',
-                occurrenceIndex: 0,
-                occurrenceCount: 1,
                 title: 'Alpha',
                 notebookName: 'Projects',
                 section: '',
@@ -59,8 +57,6 @@ describe('findOutgoingLinks', () => {
                 id: NOTE_B,
                 noteId: NOTE_B,
                 anchor: '',
-                occurrenceIndex: 0,
-                occurrenceCount: 2,
                 title: 'Beta',
                 notebookName: 'Archive',
                 section: '',
@@ -98,8 +94,6 @@ describe('findOutgoingLinks', () => {
                 id: NOTE_A,
                 noteId: NOTE_A,
                 anchor: '',
-                occurrenceIndex: 0,
-                occurrenceCount: 1,
                 title: 'Alpha',
                 notebookName: 'Projects',
                 section: '',
@@ -170,8 +164,6 @@ describe('findOutgoingLinks', () => {
                 id: NOTE_A,
                 noteId: NOTE_A,
                 anchor: '',
-                occurrenceIndex: 0,
-                occurrenceCount: 2,
                 title: 'Alpha',
                 notebookName: 'Projects',
                 section: '',
@@ -182,8 +174,6 @@ describe('findOutgoingLinks', () => {
                 id: `${NOTE_A}#removed-heading`,
                 noteId: NOTE_A,
                 anchor: 'removed-heading',
-                occurrenceIndex: 0,
-                occurrenceCount: 1,
                 title: 'Alpha',
                 notebookName: 'Projects',
                 // Anchor no longer names a heading: show the raw slug and the note's opening.
@@ -195,8 +185,6 @@ describe('findOutgoingLinks', () => {
                 id: `${NOTE_A}#setup`,
                 noteId: NOTE_A,
                 anchor: 'setup',
-                occurrenceIndex: 0,
-                occurrenceCount: 2,
                 title: 'Alpha',
                 notebookName: 'Projects',
                 section: 'Setup',
@@ -235,8 +223,6 @@ describe('findOutgoingLinks', () => {
                 id: NOTE_A,
                 noteId: NOTE_A,
                 anchor: '',
-                occurrenceIndex: 0,
-                occurrenceCount: 1,
                 title: 'Alpha',
                 notebookName: 'Projects',
                 section: '',
@@ -247,8 +233,6 @@ describe('findOutgoingLinks', () => {
                 id: `${NOTE_A}#in3b65`,
                 noteId: NOTE_A,
                 anchor: 'in3b65',
-                occurrenceIndex: 0,
-                occurrenceCount: 2,
                 title: 'Alpha',
                 notebookName: 'Projects',
                 // The HTML anchor's own text labels the row; the anchor's line is previewed.
@@ -260,8 +244,6 @@ describe('findOutgoingLinks', () => {
                 id: `${NOTE_A}#no-such-anchor`,
                 noteId: NOTE_A,
                 anchor: 'no-such-anchor',
-                occurrenceIndex: 0,
-                occurrenceCount: 1,
                 title: 'Alpha',
                 notebookName: 'Projects',
                 // Resolves to neither heading nor HTML anchor: raw slug + note opening.
@@ -298,8 +280,6 @@ describe('findOutgoingLinks', () => {
                 id: `${NOTE_A}#日本語`,
                 noteId: NOTE_A,
                 anchor: '日本語',
-                occurrenceIndex: 0,
-                occurrenceCount: 2,
                 title: 'Alpha',
                 notebookName: 'Projects',
                 section: '日本語',
@@ -402,7 +382,7 @@ describe('findOutgoingLinks', () => {
         const result = await findOutgoingLinks(repository, SOURCE_NOTE_ID);
 
         expect(result).toHaveLength(1);
-        expect(result[0]).toMatchObject({ noteId: NOTE_A, occurrenceCount: 3 });
+        expect(result[0]).toMatchObject({ noteId: NOTE_A });
     });
 
     it('returns an empty list without fetching when note id is missing', async () => {
