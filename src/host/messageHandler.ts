@@ -25,8 +25,9 @@ import {
 /**
  * Reads the configured exclusions and resolves the ignored notebooks against the notebook tree.
  *
- * Loaded once per request and shared by every discovery call it feeds, so the indicator's two
- * counters don't each pay for the folder listing.
+ * Shared by every discovery call a request feeds, and by overlapping requests (see
+ * `createMessageHandler`), so neither the indicator's two counters nor the panel's two tabs each
+ * pay for the folder listing.
  */
 async function loadLinkFilters(repository: LinkRepository): Promise<LinkFilters> {
     const [ignoredNoteIds, configuredFolderIds] = await Promise.all([
@@ -53,7 +54,11 @@ async function toLinksResponse(
     }
 }
 
-async function loadIndicatorState(repository: LinkRepository, noteId: string): Promise<IndicatorState> {
+async function loadIndicatorState(
+    repository: LinkRepository,
+    noteId: string,
+    loadFilters: () => Promise<LinkFilters>
+): Promise<IndicatorState> {
     // Honor the setting before doing any link discovery.
     if (!(await loadShowIndicatorSetting())) {
         return { enabled: false };
@@ -62,7 +67,7 @@ async function loadIndicatorState(repository: LinkRepository, noteId: string): P
     // snippet, notebook, and anchor work — including a body fetch and markdown parse per outgoing
     // target — on every note open.
     try {
-        const filters = await loadLinkFilters(repository);
+        const filters = await loadFilters();
         const [backlinks, outgoing] = await Promise.all([
             countBacklinks(repository, noteId, filters),
             countOutgoingLinks(repository, noteId, filters),
@@ -87,17 +92,28 @@ async function loadIndicatorState(repository: LinkRepository, noteId: string): P
  * handler's response, or with undefined for a message it doesn't recognize.
  */
 export function createMessageHandler(repository: LinkRepository): (message: unknown) => Promise<unknown> {
+    // Opening the panel sends `getBacklinks` and `getOutgoingLinks` together, so share one filter
+    // load between requests that overlap. Only the in-flight load is shared, so a later request
+    // still sees setting and notebook changes.
+    let pendingFilters: Promise<LinkFilters> | null = null;
+    const loadSharedLinkFilters = (): Promise<LinkFilters> => {
+        pendingFilters ??= loadLinkFilters(repository).finally(() => {
+            pendingFilters = null;
+        });
+        return pendingFilters;
+    };
+
     const handlers: { [K in keyof Protocol]: (message: MessageOf<K>) => Promise<ResponseFor<K>> } = {
         getBacklinks: (message) =>
             toLinksResponse('backlinks', message.noteId, async () =>
-                findBacklinks(repository, message.noteId, await loadLinkFilters(repository))
+                findBacklinks(repository, message.noteId, await loadSharedLinkFilters())
             ),
         getOutgoingLinks: (message) =>
             toLinksResponse('outgoing links', message.noteId, async () =>
-                findOutgoingLinks(repository, message.noteId, await loadLinkFilters(repository))
+                findOutgoingLinks(repository, message.noteId, await loadSharedLinkFilters())
             ),
         getContentScriptSettings: () => loadContentScriptSettings(),
-        getIndicatorState: (message) => loadIndicatorState(repository, message.noteId),
+        getIndicatorState: (message) => loadIndicatorState(repository, message.noteId, loadSharedLinkFilters),
         openNote: (message) => openNote(message),
         openPanel: async () => {
             await joplin.commands.execute(COMMAND_SHOW_BACKLINKS);

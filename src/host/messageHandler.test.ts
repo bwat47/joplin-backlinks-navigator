@@ -77,6 +77,52 @@ describe('createMessageHandler', () => {
         expect(findBacklinks).not.toHaveBeenCalled();
     });
 
+    it('shares one filter load between overlapping link requests', async () => {
+        vi.mocked(findBacklinks).mockResolvedValue([LINK]);
+        vi.mocked(findOutgoingLinks).mockResolvedValue([]);
+        const handler = createMessageHandler(repository);
+
+        await Promise.all([
+            handler({ type: 'getBacklinks', noteId: NOTE_ID }),
+            handler({ type: 'getOutgoingLinks', noteId: NOTE_ID }),
+        ]);
+
+        expect(expandIgnoredFolderIds).toHaveBeenCalledTimes(1);
+        expect(findOutgoingLinks).toHaveBeenCalledWith(repository, NOTE_ID, {
+            ignoredNoteIds: new Set(['ignored-note']),
+            ignoredFolderIds: new Set(['parent', 'child']),
+        });
+    });
+
+    it('reloads filters for a request that starts after the previous load settled', async () => {
+        vi.mocked(findBacklinks).mockResolvedValue([]);
+        const handler = createMessageHandler(repository);
+
+        await handler({ type: 'getBacklinks', noteId: NOTE_ID });
+        await handler({ type: 'getBacklinks', noteId: NOTE_ID });
+
+        expect(expandIgnoredFolderIds).toHaveBeenCalledTimes(2);
+    });
+
+    it('reloads filters after a shared load fails', async () => {
+        vi.mocked(findBacklinks).mockResolvedValue([]);
+        vi.mocked(expandIgnoredFolderIds).mockRejectedValueOnce(new Error('folders unavailable'));
+        const handler = createMessageHandler(repository);
+
+        await expect(
+            Promise.all([
+                handler({ type: 'getBacklinks', noteId: NOTE_ID }),
+                handler({ type: 'getOutgoingLinks', noteId: NOTE_ID }),
+            ])
+        ).resolves.toEqual([{ ok: false }, { ok: false }]);
+        expect(expandIgnoredFolderIds).toHaveBeenCalledTimes(1);
+        expect(findBacklinks).not.toHaveBeenCalled();
+        expect(findOutgoingLinks).not.toHaveBeenCalled();
+
+        await expect(handler({ type: 'getBacklinks', noteId: NOTE_ID })).resolves.toEqual({ ok: true, links: [] });
+        expect(expandIgnoredFolderIds).toHaveBeenCalledTimes(2);
+    });
+
     it('skips link discovery when the indicator is disabled', async () => {
         vi.mocked(loadShowIndicatorSetting).mockResolvedValue(false);
 

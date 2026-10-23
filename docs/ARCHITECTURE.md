@@ -63,8 +63,9 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
   after `resolveNoteMeta`, since a destination is only a target id until then. The counting entry
   points apply the same filters, so the badge can't drift from the panel. Filtering applies to
   results only — a note inside an ignored notebook still shows its own links.
-- `src/host/messageHandler.ts` loads the filters once per request and expands the ignored notebooks before
-  handing them to a service, so the indicator's two counters share one folder listing.
+- `src/host/messageHandler.ts` loads the filters and expands the ignored notebooks before handing
+  them to a service. Overlapping requests share one in-flight load, so the indicator's two counters
+  and the panel's two tab requests each cost one folder listing. Nothing is cached once it settles.
 
 ### Editor Integration
 
