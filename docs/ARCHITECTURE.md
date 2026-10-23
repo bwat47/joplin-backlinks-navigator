@@ -69,11 +69,18 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 
 ### Editor Integration
 
-- `src/contentScripts/backlinksNavigator.ts` is the content-script entry point. It reads the current
-  note id, opens/closes the popup, fetches link data, forwards navigation requests, and coordinates
-  backlink scrolling after note changes.
+- `src/contentScripts/backlinksNavigator.ts` is the content-script entry point and does wiring only:
+  it reads the current note id, connects the two controllers, registers the editor commands, and
+  routes note switches and settings updates to them.
+- `src/contentScripts/panelController.ts` owns the popup for each editor view: opening and closing
+  it, loading both directions with stale-response protection, forwarding navigation requests, and
+  recording the pending scroll it applies once the target note loads. It tells the indicator when
+  the popup opens or closes and hands it freshly loaded rows through callbacks, so the two
+  controllers don't import each other.
 - `src/contentScripts/indicatorController.ts` owns badge visibility, cached counts, refresh scheduling,
   and stale-response protection for each editor view.
+- `src/contentScripts/editor/pendingScroll.ts` places the cursor on, scrolls to, and highlights a
+  pending scroll target, retrying briefly while the note's content settles.
 - `src/contentScripts/editor/pluginSettings.ts` stores editor-side settings in a CodeMirror facet so
   UI behavior can update without rebuilding the editor extension.
 - `src/contentScripts/editor/noteIdWatcher.ts` reports note changes inside the reused editor view.
