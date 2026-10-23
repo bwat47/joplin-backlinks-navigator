@@ -48,7 +48,10 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 - `src/markdown/markdownText.ts` centralizes logical-label extraction, CommonMark unescaping, and the
   consumer-specific visible-text policies used by headings and snippets.
 - `src/host/noteMetadata.ts` resolves note and notebook metadata with per-call caching, and expands
-  the ignored-notebook setting to the notebooks nested under it (`expandIgnoredFolderIds`).
+  the ignored-notebook setting to the notebooks nested under it (`expandIgnoredFolderIds`). The
+  caches hold lookup promises, so concurrent requests for the same id share one round trip.
+- `src/host/concurrency.ts` runs a pass's per-row lookups a bounded number at a time
+  (`LOOKUP_CONCURRENCY`) and keeps results in input order, so concurrency doesn't change row order.
 - `src/linkSort.ts` centralizes row ordering.
 - Both services accept the same `LinkFilters` (see `src/types.ts`): notes and notebooks the user
   excluded. Backlinks filter on the `parent_id` the search already returns; outgoing links filter

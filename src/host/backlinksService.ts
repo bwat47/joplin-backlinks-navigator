@@ -9,7 +9,7 @@
  *    string, indexed by FTS as a single token, so this returns candidate notes.
  * 2. Parse each candidate's rendered Markdown links to drop loose/code/example matches, and capture
  *    each matching link use as a backlink row.
- * 3. Resolve each candidate's parent notebook title (cached per call).
+ * 3. Resolve each candidate's parent notebook title (cached per call, a few lookups at a time).
  *
  * Steps 1 and 2 are shared by {@link findBacklinks} and {@link countBacklinks}; only the former
  * pays for step 3 and for parsing each candidate body into snippets and section headings.
@@ -22,7 +22,8 @@ import logger from '../logger';
 import type { LinkFilters, LinkItem } from '../types';
 import { extractNoteLinks, linkNeedle, type NoteLinkOccurrence } from '../markdown/linkExtraction';
 import { parseMarkdownBody, type ParsedMarkdownBody } from '../markdown/markdownParser';
-import { resolveNotebookName } from './noteMetadata';
+import { resolveNotebookName, type NotebookNameCache } from './noteMetadata';
+import { LOOKUP_CONCURRENCY, mapWithConcurrency } from './concurrency';
 import { compareLinkItems } from '../linkSort';
 import { extractOccurrenceContexts } from '../markdown/snippetExtraction';
 import type { LinkRepository, SearchNote } from './joplinRepository';
@@ -96,19 +97,20 @@ export async function findBacklinks(
     }
 
     const candidates = await collectBacklinkCandidates(repository, noteId, filters);
-    const notebookCache = new Map<string, string>();
-    const backlinks: LinkItem[] = [];
+    const notebookCache: NotebookNameCache = new Map();
 
-    for (const { note, parsed, occurrences } of candidates) {
-        const contexts = extractOccurrenceContexts(
-            parsed,
-            occurrences.map((occurrence) => occurrence.from)
-        );
-        const notebookName = await resolveNotebookName(repository, note.parent_id, notebookCache);
-        const occurrenceCount = contexts.length;
+    const rowsByNote = await mapWithConcurrency(
+        candidates,
+        LOOKUP_CONCURRENCY,
+        async ({ note, parsed, occurrences }) => {
+            const contexts = extractOccurrenceContexts(
+                parsed,
+                occurrences.map((occurrence) => occurrence.from)
+            );
+            const notebookName = await resolveNotebookName(repository, note.parent_id, notebookCache);
+            const occurrenceCount = contexts.length;
 
-        contexts.forEach(({ snippet, section }, occurrenceIndex) => {
-            backlinks.push({
+            return contexts.map(({ snippet, section }, occurrenceIndex): LinkItem => ({
                 direction: 'in',
                 id: `${note.id}:${occurrenceIndex}`,
                 noteId: note.id,
@@ -120,10 +122,11 @@ export async function findBacklinks(
                 notebookName,
                 section,
                 snippet,
-            });
-        });
-    }
+            }));
+        }
+    );
 
+    const backlinks = rowsByNote.flat();
     backlinks.sort(compareLinkItems);
 
     logger.debug('Resolved backlinks', { noteId, count: backlinks.length });
