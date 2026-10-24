@@ -4,7 +4,8 @@ Backlinks Navigator adds a floating popup to Joplin's CodeMirror 6 Markdown edit
 two tabs: Backlinks for notes that link to the current note, and Outgoing Links for notes the current note
 links to. Selecting an entry opens the target note.
 
-The UI is mounted directly in the editor scroll DOM. It does not use Joplin's panel or webview API.
+The UI is mounted in the editor scroll container's parent, so it stays put while the document
+scrolls beneath it. It does not use Joplin's panel or webview API.
 
 ## Request Flow
 
@@ -13,8 +14,9 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 3. The popup asks the plugin host for backlinks and outgoing links.
 4. The host searches or parses note bodies, resolves note metadata, and returns `LinkItem` rows.
 5. The content script filters, displays, and keyboard-navigates those rows.
-6. Selecting a row asks the host to open the note. Backlink selections and Outgoing selections with anchors also try to scroll to the
-   matched reference (or anchor) in the target note.
+6. Selecting a row asks the host to open the note. Ordinary current-window selections also try to
+   scroll to the matched reference or anchor when the row has a navigation target, except for
+   title-only backlinks. Alternate gestures open the note without pending scrolling or highlighting.
 
 ## Main Pieces
 
@@ -71,8 +73,10 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
   points apply the same filters, so the badge can't drift from the panel. Filtering applies to
   results only — a note inside an ignored notebook still shows its own links.
 - `src/host/messageHandler.ts` loads the filters and expands the ignored notebooks before handing
-  them to a service. Overlapping requests share one in-flight load, so the indicator's two counters
-  and the panel's two tab requests each cost one folder listing. Nothing is cached once it settles.
+  them to a service. The indicator's two counters share the filters, and overlapping requests share
+  one in-flight filter load. Each load lists folders only when the ignored-notebook setting is
+  nonempty; that listing may span multiple Data API pages. The filter load is not cached once it
+  settles.
 
 ### Editor Integration
 
@@ -103,10 +107,10 @@ The UI is mounted directly in the editor scroll DOM. It does not use Joplin's pa
 - `src/contentScripts/linkDisplay.ts` contains the shared display policy used by both the popup and
   the indicator. In title-only backlink mode, inbound rows are collapsed to one row per source note.
 - `src/contentScripts/ui/fuzzyFilter.ts` handles popup filtering.
-- `src/contentScripts/ui/editorOverlay.ts` mounts both floating elements into the editor's scroll
-  DOM, keeps them clear of the scrollbar, and injects their stylesheets. The popup and the badge
-  are positioned by one implementation rather than two that happen to match.
-- `src/contentScripts/ui/panelTheme.ts` injects the popup and indicator CSS using Joplin theme
+- `src/contentScripts/ui/editorOverlay.ts` mounts both floating elements into the editor scroll
+  container's parent, keeps them clear of the scrollbar, and injects their stylesheets. The popup
+  and the badge are positioned by one implementation rather than two that happen to match.
+- `src/contentScripts/ui/panelTheme.ts` generates the popup and indicator CSS using Joplin theme
   variables. Their shared anchoring is one constant, matching `editorOverlay.ts`.
 
 ## Message Boundary
@@ -159,8 +163,10 @@ headings, and records each heading's rendered text and source range. Anchor slug
 `fork-uslug` with the plugin's existing global duplicate policy (`intro`, `intro-2`, `intro-3`, …).
 The HTML-anchor index scans only Lezer-recognized inline/block HTML regions for explicit `id`/`name`
 attributes, e.g. `<a id="in3b65">The MERN stack</a>`; comments and code are excluded by syntax-tree
-structure. An element's rendered text becomes the row label and its line is previewed. An anchor
-that names neither a heading nor an HTML anchor falls back to the raw slug and note opening.
+structure. An element's rendered text becomes the row label, falling back to the raw slug when
+that text is empty. Its preview uses the first nonempty snippet from the anchor's line through the
+next four lines, falling back to the note opening if none is found. An anchor that names neither a
+heading nor an HTML anchor falls back to the raw slug and note opening.
 
 Snippet extraction walks the same tree with a prose policy: Markdown/HTML markers and link
 destinations are omitted, while link labels, image alt text, inline code, escapes, and entities are
@@ -175,11 +181,12 @@ source range editor navigation highlights for non-heading anchors.
 
 The badge renders two numbers, so the host counts links for it instead of resolving `LinkItem`
 rows. `countBacklinks` and `countOutgoingLinks` reuse each service's discovery step and skip the
-enrichment: no snippets, no section headings, no notebook titles, and — the expensive part — no body
-fetch or target-body parse. Discovery still performs the lightweight Lezer parse needed to
-distinguish rendered links from code and examples. Counting outgoing links also costs one body-less
-lookup per destination, because a link to a permanently deleted note is broken and the panel drops
-it; counting it would put the badge out of step with the list. A link to a _trashed_ note is not
+enrichment: no snippets, no section headings, no notebook titles, and — the expensive part — no
+outgoing target-body fetch or parse. Discovery still reads source bodies and performs the Lezer
+parse needed to distinguish rendered links from code and examples. Counting outgoing links also
+costs one body-less lookup per distinct target note, shared across its whole-note and anchored
+destinations. Both the panel and count drop targets whose lookup fails for any reason, including
+permanent deletion or a transient API failure. A link to a _trashed_ note is not
 broken: it still opens, so both the panel (which labels it "Trash") and the count keep it. Trashed
 notes never appear as backlinks, because Joplin's search does not return them.
 
@@ -195,9 +202,11 @@ results that went stale while the note sat open. Those rows also refresh the bad
 
 ## Navigation Model
 
-Both directions can carry a pending scroll, recorded by the content script before navigation and
-applied after the next note id change: it places the cursor, scrolls the target into view, and
-highlights it briefly.
+For ordinary current-window selections, both directions can carry a pending scroll, recorded by
+the content script before navigation and applied after the next note id change: it places the
+cursor, scrolls the target into view, and highlights it briefly. Alternate gestures bypass pending
+scrolling and highlighting. The host opens a new window or Note Tabs tab by note id alone, ignoring
+the anchor in those modes.
 
 - Backlinks carry the host-resolved range of the exact rendered Markdown-link use in the source
   note. This also highlights reference-style uses instead of their definitions. Title-only
@@ -209,9 +218,11 @@ highlights it briefly.
 
 Each resolved navigation target includes its exact Markdown source and up to 32 characters of
 context on either side, taken from the parsed body so the offsets use the editor's `\n` line breaks.
-The editor first validates the supplied offsets. If edits shifted the
-target, it accepts a unique exact-text match, or uses the context to distinguish repeated matches.
-Missing or ambiguous matches leave the note open without forcing a cursor position or highlight.
+The editor first accepts the supplied offsets when both the exact text and context match. Otherwise,
+it accepts a unique exact-text match, or uses the context to distinguish repeated matches. If that
+search is inconclusive, it falls back to the supplied offsets when the exact text still matches
+there, even if the context changed. If none of these checks resolves the target, the note stays
+open without forcing a cursor position or highlight.
 The delayed scroll reassertion validates the target again in case the text changed after loading.
 All Markdown parsing runs on the host; the content script does not import Lezer.
 
