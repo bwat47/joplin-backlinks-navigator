@@ -1,5 +1,5 @@
 import type { SyntaxNode } from '@lezer/common';
-import { decode } from 'html-entities';
+import { decodeHTML, decodeHTMLStrict } from 'entities';
 import type { ParsedMarkdownBody } from './markdownParser';
 
 const MARKDOWN_ESCAPE_RE = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;
@@ -65,7 +65,7 @@ function decodeMarkdownEntity(entity: string): string {
             return entity;
         }
     }
-    return decode(entity, { level: 'html5', scope: 'strict' });
+    return decodeHTMLStrict(entity);
 }
 
 /** Applies CommonMark backslash and entity unescaping to source text. */
@@ -86,7 +86,7 @@ export function stripHtmlTags(value: string): string {
 
 /** Removes HTML markup and decodes the text content it would render. */
 export function renderHtmlText(value: string): string {
-    return decode(stripHtmlTags(value), { level: 'html5', scope: 'body' });
+    return decodeHTML(stripHtmlTags(value));
 }
 
 function clippedSlice(body: string, from: number, to: number, rangeFrom: number, rangeTo: number): string {

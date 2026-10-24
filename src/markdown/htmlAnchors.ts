@@ -1,5 +1,5 @@
 import type { SyntaxNode } from '@lezer/common';
-import { decode } from 'html-entities';
+import { decodeHTMLAttribute } from 'entities';
 import { offsetToLineIndex, type ParsedMarkdownBody } from './markdownParser';
 import { extractRenderedText, renderHtmlText, SNIPPET_TEXT_POLICY } from './markdownText';
 import { extractSnippetLine, normalizeSnippetText } from './snippetExtraction';
@@ -24,7 +24,7 @@ function closeTagRe(tagName: string): RegExp {
 function htmlAnchorId(openingTag: string): string {
     const attribute = HTML_ANCHOR_ATTRIBUTE_RE.exec(openingTag);
     const source = attribute?.[1] ?? attribute?.[2] ?? attribute?.[3] ?? '';
-    return decode(source, { level: 'html5', scope: 'attribute' }).trim().toLowerCase();
+    return decodeHTMLAttribute(source).trim().toLowerCase();
 }
 
 function anchorSnippet(parsed: ParsedMarkdownBody, lineIndex: number): string {

@@ -15,6 +15,14 @@ describe('Lezer HTML anchor extraction', () => {
         expect(findHtmlAnchorById(anchors, ' A&B ')?.text).toBe('first');
     });
 
+    it('only decodes semicolonless attribute entities when the following character allows it', () => {
+        const anchors = parseHtmlAnchors(
+            parseMarkdownBody('<a id="&copy=">one</a> <a id="&copycat">two</a> <a id="&copy-">three</a>')
+        );
+
+        expect(anchors.map(({ id }) => id)).toEqual(['&copy=', '&copycat', '©-']);
+    });
+
     it('ignores anchor-looking tags inside block and inline HTML comments', () => {
         const body =
             '<!-- <a id="block-comment">no</a> -->\n\n' +

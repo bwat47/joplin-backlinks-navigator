@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseMarkdownBody } from './markdownParser';
-import { referenceDefinitions, unescapeMarkdownText } from './markdownText';
+import { referenceDefinitions, renderHtmlText, unescapeMarkdownText } from './markdownText';
 
 const ID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
@@ -34,5 +34,15 @@ describe('unescapeMarkdownText', () => {
 
     it('only removes backslashes before escapable ASCII punctuation', () => {
         expect(unescapeMarkdownText('\\) \\a \\\\')).toBe(') \\a \\');
+    });
+});
+
+describe('renderHtmlText', () => {
+    it('decodes legacy entities in text after stripping HTML markup', () => {
+        expect(renderHtmlText('<b>&copy= &copycat &amp;</b>')).toBe('©= ©cat &');
+    });
+
+    it('applies HTML numeric replacement rules while preserving unknown entities', () => {
+        expect(renderHtmlText('&#0; &#xD800; &#x80; &unknown;')).toBe('� � € &unknown;');
     });
 });
