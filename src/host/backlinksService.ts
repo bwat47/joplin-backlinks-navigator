@@ -19,6 +19,7 @@
  */
 
 import logger from '../logger';
+import { createNavigationTarget } from '../navigationTarget';
 import type { Backlink, LinkFilters } from '../types';
 import { extractNoteLinks, linkNeedle, type NoteLinkOccurrence } from '../markdown/linkExtraction';
 import { parseMarkdownBody, type ParsedMarkdownBody } from '../markdown/markdownParser';
@@ -120,6 +121,7 @@ export async function findBacklinks(
                 notebookName,
                 section,
                 snippet,
+                navigationTarget: createNavigationTarget(parsed, occurrences[occurrenceIndex]),
             }));
         }
     );

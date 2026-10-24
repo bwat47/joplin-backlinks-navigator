@@ -17,14 +17,19 @@ const markdownSyntaxParser = parser.configure([
 
 /** Markdown source and the shared structures derived from one parse. */
 export interface ParsedMarkdownBody {
+    /** The source with line breaks normalized to `\n`; all offsets refer to this text. */
     readonly body: string;
     readonly tree: Tree;
     readonly lineStarts: readonly number[];
     readonly lines: readonly string[];
 }
 
-/** Parses a body once with Lezer and prepares shared line indexes. */
-export function parseMarkdownBody(body: string): ParsedMarkdownBody {
+/**
+ * Parses a body once with Lezer and prepares shared line indexes. CRLF and lone CR line breaks
+ * become `\n` first, as in CommonMark and CodeMirror, so offsets match the editor's document text.
+ */
+export function parseMarkdownBody(source: string): ParsedMarkdownBody {
+    const body = source.replace(/\r\n?/g, '\n');
     const lines = body.split('\n');
     const lineStarts = [0];
     for (let lineIndex = 0; lineIndex < lines.length - 1; lineIndex++) {

@@ -1,7 +1,7 @@
 import { StateEffect, StateField } from '@codemirror/state';
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
 
-import type { TextRange } from './textRange';
+import type { TextRange } from '../../types';
 
 export const setReferenceHighlightEffect = StateEffect.define<TextRange>();
 

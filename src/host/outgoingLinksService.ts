@@ -25,7 +25,8 @@
  */
 
 import logger from '../logger';
-import type { LinkFilters, OutgoingLink } from '../types';
+import { createNavigationTarget } from '../navigationTarget';
+import type { LinkFilters, NavigationTarget, OutgoingLink } from '../types';
 import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from '../markdown/htmlAnchors';
 import { extractNoteLinks } from '../markdown/linkExtraction';
 import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from '../markdown/markdownHeadings';
@@ -99,6 +100,12 @@ function isInIgnoredNotebook(meta: NoteMeta, ignoredFolderIds: ReadonlySet<strin
     return Boolean(meta.parent_id) && ignoredFolderIds.has(meta.parent_id);
 }
 
+interface DestinationPreview {
+    section: string;
+    snippet: string;
+    navigationTarget?: NavigationTarget;
+}
+
 /**
  * Resolves the label and preview text for one destination in an already-parsed target note.
  *
@@ -110,7 +117,7 @@ function isInIgnoredNotebook(meta: NoteMeta, ignoredFolderIds: ReadonlySet<strin
  *
  * An unanchored link previews the target note's opening and has no section label.
  */
-function resolveDestinationPreview(targetBody: ParsedTargetBody, anchor: string): { section: string; snippet: string } {
+function resolveDestinationPreview(targetBody: ParsedTargetBody, anchor: string): DestinationPreview {
     const { headings, parsed } = targetBody;
     const heading = anchor ? findHeadingByAnchor(headings, anchor) : null;
 
@@ -120,6 +127,7 @@ function resolveDestinationPreview(targetBody: ParsedTargetBody, anchor: string)
         return {
             section: heading.text,
             snippet: extractSectionOpening(parsed, heading.endLineIndex, sectionEndLineIndex),
+            navigationTarget: createNavigationTarget(parsed, heading),
         };
     }
 
@@ -129,6 +137,7 @@ function resolveDestinationPreview(targetBody: ParsedTargetBody, anchor: string)
         return {
             section: htmlAnchor?.text || anchor,
             snippet: htmlAnchor?.snippet || extractNoteOpening(parsed, headings),
+            ...(htmlAnchor ? { navigationTarget: createNavigationTarget(parsed, htmlAnchor) } : {}),
         };
     }
 
@@ -190,7 +199,7 @@ export async function findOutgoingLinks(
                 };
                 parsedBodyCache.set(group.targetId, targetBody);
             }
-            const { section, snippet } = resolveDestinationPreview(targetBody, group.anchor);
+            const preview = resolveDestinationPreview(targetBody, group.anchor);
             return {
                 direction: 'out',
                 id: group.key,
@@ -198,8 +207,7 @@ export async function findOutgoingLinks(
                 anchor: group.anchor,
                 title: meta.title,
                 notebookName,
-                section,
-                snippet,
+                ...preview,
                 isTrashed: meta.isTrashed,
             };
         }
