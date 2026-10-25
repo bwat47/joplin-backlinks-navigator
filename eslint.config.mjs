@@ -10,6 +10,13 @@ import sonarjs from 'eslint-plugin-sonarjs';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 
+// Type-only imports are erased at build time, so they may cross these boundaries.
+const hostApiMessage = 'The Joplin plugin API is only available in src/host and src/index.ts.';
+const apiPaths = [
+    { name: 'api', message: hostApiMessage, allowTypeImports: true },
+    { name: 'api/types', message: hostApiMessage, allowTypeImports: true },
+];
+
 export default defineConfig(
     {
         ignores: ['api/**', 'dist/**', 'webpack.config.js', '.prettierrc.js'],
@@ -55,6 +62,50 @@ export default defineConfig(
             'sonarjs/different-types-comparison': 'off',
             '@typescript-eslint/no-inferrable-types': 'error',
             '@typescript-eslint/explicit-module-boundary-types': 'error',
+        },
+    },
+
+    // Runtime boundaries. Later blocks replace (not merge) rule options, so contentScripts repeats apiPaths.
+    {
+        files: ['src/**/*.ts'],
+        ignores: ['src/index.ts', 'src/host/**'],
+        rules: {
+            'no-restricted-imports': ['error', { paths: apiPaths }],
+        },
+    },
+    {
+        files: ['src/contentScripts/**/*.ts'],
+        rules: {
+            'no-restricted-imports': [
+                'error',
+                {
+                    paths: apiPaths,
+                    patterns: [
+                        {
+                            regex: '^(\\.\\./)+host/',
+                            message: 'Content scripts run in the editor and cannot import host code.',
+                            allowTypeImports: true,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        files: ['src/host/**/*.ts'],
+        rules: {
+            'no-restricted-imports': [
+                'error',
+                {
+                    patterns: [
+                        {
+                            regex: '^(\\.\\./)+contentScripts/',
+                            message: 'Host code cannot import code bundled for the editor content scripts.',
+                            allowTypeImports: true,
+                        },
+                    ],
+                },
+            ],
         },
     },
 
