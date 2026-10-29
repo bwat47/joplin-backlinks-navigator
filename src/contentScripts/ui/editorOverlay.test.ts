@@ -1,4 +1,4 @@
-import { vi, describe, beforeEach, it, expect } from 'vitest';
+import { assert, vi, describe, beforeEach, it, expect } from 'vitest';
 import type { EditorView } from '@codemirror/view';
 import { EditorOverlay, ensureOverlayStyles } from './editorOverlay';
 
@@ -105,7 +105,9 @@ describe('EditorOverlay', () => {
         new EditorOverlay(view, element).mount();
 
         setScrollbarWidth(view.scrollDOM, 0);
-        FakeResizeObserver.instances[0].trigger();
+        const observer = FakeResizeObserver.instances[0];
+        assert.isDefined(observer);
+        observer.trigger();
 
         expect(element.style.right).toBe(`${OVERLAY_RIGHT_GAP_PX}px`);
         expect(observed).toEqual([view.scrollDOM]);

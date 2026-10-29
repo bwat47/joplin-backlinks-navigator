@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { assert, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SelectionRange } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { createNavigationTarget } from '../../navigationTarget';
@@ -38,7 +38,9 @@ describe('scrollToPendingTarget', () => {
         expect(h.dispatch).not.toHaveBeenCalled();
         h.setBody(source);
         await vi.advanceTimersByTimeAsync(80);
-        expect(h.dispatch.mock.calls[0][0].selection.head).toBe(7);
+        const call = h.dispatch.mock.calls[0];
+        assert.isDefined(call);
+        expect(call[0].selection.head).toBe(7);
     });
 
     it('revalidates the source range before reasserting the scroll', async () => {
@@ -47,7 +49,9 @@ describe('scrollToPendingTarget', () => {
         h.setBody('New\n' + source);
         await vi.advanceTimersByTimeAsync(150);
         expect(h.dispatch).toHaveBeenCalledTimes(2);
-        expect(h.dispatch.mock.calls[1][0].selection.head).toBe(11);
+        const call = h.dispatch.mock.calls[1];
+        assert.isDefined(call);
+        expect(call[0].selection.head).toBe(11);
     });
 
     it('does not reassert a removed target', async () => {
