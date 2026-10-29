@@ -73,8 +73,10 @@ export function parseMarkdownHeadings(parsed: ParsedMarkdownBody): MarkdownHeadi
 /** Returns the nearest heading at or above a line. */
 export function findSection(headings: readonly MarkdownHeading[], linkLineIndex: number): string {
     for (let index = headings.length - 1; index >= 0; index--) {
-        if (headings[index].startLineIndex <= linkLineIndex) {
-            return headings[index].text;
+        // The reverse loop only visits existing headings.
+        const heading = headings[index]!;
+        if (heading.startLineIndex <= linkLineIndex) {
+            return heading.text;
         }
     }
     return '';

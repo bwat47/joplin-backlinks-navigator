@@ -393,7 +393,8 @@ export class BacklinksPanel {
         if (this.filtered.length === 0) {
             this.selectedId = null;
         } else if (!this.selectedId || !this.filtered.some((b) => b.id === this.selectedId)) {
-            this.selectedId = this.filtered[0].id;
+            // This branch only runs for a nonempty filtered list.
+            this.selectedId = this.filtered[0]!.id;
         }
 
         this.render();
@@ -438,8 +439,10 @@ export class BacklinksPanel {
             return;
         }
         const currentIndex = this.filtered.findIndex((b) => b.id === this.selectedId);
-        const nextIndex = currentIndex >= 0 ? (currentIndex + delta + this.filtered.length) % this.filtered.length : 0;
-        this.selectedId = this.filtered[nextIndex].id;
+        const count = this.filtered.length;
+        // Double modulo wraps any delta, including negative ones, into the nonempty list.
+        const nextIndex = currentIndex >= 0 ? (((currentIndex + delta) % count) + count) % count : 0;
+        this.selectedId = this.filtered[nextIndex]!.id;
         this.updateSelection();
         this.scrollActiveItemIntoView();
     }

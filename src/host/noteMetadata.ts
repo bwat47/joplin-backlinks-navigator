@@ -153,8 +153,9 @@ export async function expandIgnoredFolderIds(
     const childrenByParent = groupFoldersByParent(folders);
     const expanded = new Set(configuredIds);
     const queue = [...configuredIds];
-    for (let index = 0; index < queue.length; index += 1) {
-        for (const childId of childrenByParent.get(queue[index]) ?? []) {
+    // Array iteration also visits descendants appended during the walk.
+    for (const parentId of queue) {
+        for (const childId of childrenByParent.get(parentId) ?? []) {
             if (!expanded.has(childId)) {
                 expanded.add(childId);
                 queue.push(childId);

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { assert, describe, it, expect } from 'vitest';
 import { parseHtmlAnchors } from './htmlAnchors';
 import { extractNoteLinks } from './linkExtraction';
 import { parseMarkdownHeadings } from './markdownHeadings';
@@ -23,12 +23,7 @@ describe('Markdown extraction golden behavior', () => {
             { targetId: ID_A, anchor: 'referenced', from: 140, to: 148 },
         ]);
 
-        expect(
-            extractOccurrenceContexts(
-                parsed,
-                extractNoteLinks(parsed).map(({ from }) => from)
-            )
-        ).toEqual([
+        expect(extractOccurrenceContexts(parsed, extractNoteLinks(parsed))).toMatchObject([
             { snippet: 'Inline Angle', section: 'Links' },
             { snippet: 'Inline Angle', section: 'Links' },
             { snippet: 'Ref target target', section: 'Links' },
@@ -91,6 +86,9 @@ describe('Markdown extraction golden behavior', () => {
 
         const emptySection = parseMarkdownBody('## Setup\n\n## Next\nText');
         const headings = parseMarkdownHeadings(emptySection);
-        expect(extractSectionOpening(emptySection, headings[0].endLineIndex, headings[1].startLineIndex)).toBe('');
+        const [setup, next] = headings;
+        assert.isDefined(setup);
+        assert.isDefined(next);
+        expect(extractSectionOpening(emptySection, setup.endLineIndex, next.startLineIndex)).toBe('');
     });
 });

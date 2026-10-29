@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { assert, describe, it, expect } from 'vitest';
 import { findHtmlAnchorById, parseHtmlAnchors } from './htmlAnchors';
 import { parseMarkdownBody } from './markdownParser';
 
@@ -35,12 +35,14 @@ describe('Lezer HTML anchor extraction', () => {
     it('does not treat a closing tag inside a comment as the anchor boundary', () => {
         const body = '<a id="real">before<!-- </a> -->after</a>';
         const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
+        assert.isDefined(anchor);
 
         expect(anchor).toMatchObject({ id: 'real', text: 'beforeafter', from: 0, to: body.length });
     });
 
     it('extracts rendered text from formatted inline anchor contents', () => {
         const [anchor] = parseHtmlAnchors(parseMarkdownBody('<a id="formatted">Visible **bold** &amp; `code`</a>'));
+        assert.isDefined(anchor);
 
         expect(anchor.text).toBe('Visible bold & code');
         expect(anchor.snippet).toBe('Visible bold & code');

@@ -32,7 +32,8 @@ function parseNoteLinkDestination(destination: string): Pick<NoteLinkOccurrence,
         return null;
     }
     return {
-        targetId: match[1].toLowerCase(),
+        // A successful match always captures the required 32-character note id.
+        targetId: match[1]!.toLowerCase(),
         anchor: normalizeLinkAnchor(match[2] ?? ''),
     };
 }

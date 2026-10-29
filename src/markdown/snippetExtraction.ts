@@ -96,22 +96,27 @@ export function extractSectionOpening(
     return extractOpening(parsed, startLineIndex, endLineIndex, []);
 }
 
-/** Display context for a single rendered link occurrence. */
-export interface OccurrenceContext {
+/** Display context for a single rendered link occurrence, paired with the occurrence itself. */
+export interface OccurrenceContext<T> {
+    occurrence: T;
     snippet: string;
     section: string;
 }
 
-/** Resolves the rendered line preview and enclosing heading for each source offset. */
-export function extractOccurrenceContexts(parsed: ParsedMarkdownBody, offsets: readonly number[]): OccurrenceContext[] {
-    if (!offsets.length) {
+/** Resolves the rendered line preview and enclosing heading for each occurrence's source offset. */
+export function extractOccurrenceContexts<T extends { from: number }>(
+    parsed: ParsedMarkdownBody,
+    occurrences: readonly T[]
+): OccurrenceContext<T>[] {
+    if (!occurrences.length) {
         return [];
     }
 
     const headings = parseMarkdownHeadings(parsed);
-    return offsets.map((offset) => {
-        const lineIndex = offsetToLineIndex(parsed.lineStarts, offset);
+    return occurrences.map((occurrence) => {
+        const lineIndex = offsetToLineIndex(parsed.lineStarts, occurrence.from);
         return {
+            occurrence,
             snippet: extractSnippetLine(parsed, lineIndex),
             section: findSection(headings, lineIndex),
         };

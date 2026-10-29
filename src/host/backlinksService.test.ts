@@ -1,4 +1,4 @@
-import { vi, describe, beforeEach, it, expect } from 'vitest';
+import { assert, vi, describe, beforeEach, it, expect } from 'vitest';
 import { countBacklinks, findBacklinks } from './backlinksService';
 import { createNavigationTarget, resolveNavigationTarget } from '../navigationTarget';
 import { parseMarkdownBody } from '../markdown/markdownParser';
@@ -272,8 +272,12 @@ describe('findBacklinks', () => {
         const rows = await findBacklinks(repository, TARGET_NOTE_ID);
 
         const second = editorText.lastIndexOf(link);
-        expect(rows[1].navigationTarget).toMatchObject({ from: second, to: second + link.length, text: link });
-        expect(resolveNavigationTarget(editorText, rows[1].navigationTarget!)).toEqual({
+        const [, row] = rows;
+        assert.isDefined(row);
+        const target = row.navigationTarget;
+        assert.isDefined(target);
+        expect(target).toMatchObject({ from: second, to: second + link.length, text: link });
+        expect(resolveNavigationTarget(editorText, target)).toEqual({
             from: second,
             to: second + link.length,
         });

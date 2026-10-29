@@ -104,14 +104,11 @@ export async function findBacklinks(
         candidates,
         LOOKUP_CONCURRENCY,
         async ({ note, parsed, occurrences }) => {
-            const contexts = extractOccurrenceContexts(
-                parsed,
-                occurrences.map((occurrence) => occurrence.from)
-            );
+            const contexts = extractOccurrenceContexts(parsed, occurrences);
             const notebookName = await resolveNotebookName(repository, note.parent_id, notebookCache);
             const occurrenceCount = contexts.length;
 
-            return contexts.map(({ snippet, section }, occurrenceIndex): Backlink => ({
+            return contexts.map(({ occurrence, snippet, section }, occurrenceIndex): Backlink => ({
                 direction: 'in',
                 id: `${note.id}:${occurrenceIndex}`,
                 noteId: note.id,
@@ -121,7 +118,7 @@ export async function findBacklinks(
                 notebookName,
                 section,
                 snippet,
-                navigationTarget: createNavigationTarget(parsed, occurrences[occurrenceIndex]),
+                navigationTarget: createNavigationTarget(parsed, occurrence),
             }));
         }
     );

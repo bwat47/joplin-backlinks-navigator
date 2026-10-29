@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { assert, describe, it, expect } from 'vitest';
 import { findHtmlAnchorById, parseHtmlAnchors } from './htmlAnchors';
 import { extractNoteLinks, linkNeedle } from './linkExtraction';
 import { findHeadingByAnchor, findSection, parseMarkdownHeadings, slugifyHeading } from './markdownHeadings';
@@ -104,7 +104,10 @@ describe('extractSectionOpening', () => {
         const body = '# Title\n\n## Setup\n\n## Troubleshooting\n\nRestart the app.';
         const parsed = parseMarkdownBody(body);
         const headings = parseMarkdownHeadings(parsed);
-        expect(extractSectionOpening(parsed, headings[1].endLineIndex, headings[2].startLineIndex)).toBe('');
+        const [, setup, troubleshooting] = headings;
+        assert.isDefined(setup);
+        assert.isDefined(troubleshooting);
+        expect(extractSectionOpening(parsed, setup.endLineIndex, troubleshooting.startLineIndex)).toBe('');
     });
 });
 
@@ -252,7 +255,8 @@ describe('findHeadingByAnchor', () => {
 describe('parseHtmlAnchors', () => {
     it('captures an inline <a id> anchor with its own text and line preview', () => {
         const body = 'Intro paragraph.\n\n<a id="in3b65">The MERN stack</a> is a widely adopted framework.';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
+        assert.isDefined(anchor);
         expect(anchor).toMatchObject({
             id: 'in3b65',
             text: 'The MERN stack',
@@ -263,27 +267,31 @@ describe('parseHtmlAnchors', () => {
 
     it('covers the whole element for an empty <a id> anchor', () => {
         const body = 'Intro paragraph.\n\n<a id="ab12cd"></a>\n\nBody text here.';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
+        assert.isDefined(anchor);
         expect(anchor).toMatchObject({ id: 'ab12cd', text: '' });
         expect(body.slice(anchor.from, anchor.to)).toBe('<a id="ab12cd"></a>');
     });
 
     it('stops at the opening tag when an <a id> anchor is never closed', () => {
         const body = '<a id="unclosed">dangling';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
+        assert.isDefined(anchor);
         expect(body.slice(anchor.from, anchor.to)).toBe('<a id="unclosed">');
     });
 
     it('covers the whole element and labels it for a closed non-anchor tag', () => {
         const body = '<span id="marked">The MERN stack</span> is popular.';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
+        assert.isDefined(anchor);
         expect(anchor).toMatchObject({ id: 'marked', text: 'The MERN stack' });
         expect(body.slice(anchor.from, anchor.to)).toBe('<span id="marked">The MERN stack</span>');
     });
 
     it('covers a multi-line element, collapsing its label onto one line', () => {
         const body = 'Text <a id="wrapped">some\nlong label</a> tail.';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
+        assert.isDefined(anchor);
         expect(anchor.text).toBe('some long label');
         expect(body.slice(anchor.from, anchor.to)).toBe('<a id="wrapped">some\nlong label</a>');
     });
@@ -292,7 +300,8 @@ describe('parseHtmlAnchors', () => {
         // Matching nesting depth would cost more than it buys: same-tag nesting around an id is
         // vanishingly rare in notes, and under-highlighting is harmless.
         const body = '<div id="outer"><div>inner</div></div>';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
+        assert.isDefined(anchor);
         expect(body.slice(anchor.from, anchor.to)).toBe('<div id="outer"><div>inner</div>');
     });
 
@@ -305,7 +314,8 @@ describe('parseHtmlAnchors', () => {
 
     it('captures a block anchor closed past a blank line, which lands outside its region', () => {
         const body = '<div id="section-2">\n\nBody text here.\n\n</div>';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
+        assert.isDefined(anchor);
         expect(anchor).toMatchObject({ id: 'section-2', text: '', snippet: 'Body text here.' });
         expect(body.slice(anchor.from, anchor.to)).toBe('<div id="section-2">');
     });
@@ -319,7 +329,10 @@ describe('parseHtmlAnchors', () => {
         const body = '<a id="dup">first</a>\n\n<a id="dup">second</a>';
         const anchors = parseHtmlAnchors(parseMarkdownBody(body));
         expect(anchors.map((a) => a.text)).toEqual(['first', 'second']);
-        expect(anchors[0].from).toBeLessThan(anchors[1].from);
+        const [first, second] = anchors;
+        assert.isDefined(first);
+        assert.isDefined(second);
+        expect(first.from).toBeLessThan(second.from);
     });
 
     it('matches uppercase attribute names, which HTML treats as equivalent', () => {
@@ -341,17 +354,22 @@ describe('parseHtmlAnchors', () => {
         const body = '<span class="x"><a id="y">The MERN stack</a></span>';
         const anchors = parseHtmlAnchors(parseMarkdownBody(body));
         expect(anchors).toEqual([expect.objectContaining({ id: 'y', text: 'The MERN stack' })]);
-        expect(body.slice(anchors[0].from, anchors[0].to)).toBe('<a id="y">The MERN stack</a>');
+        const [anchor] = anchors;
+        assert.isDefined(anchor);
+        expect(body.slice(anchor.from, anchor.to)).toBe('<a id="y">The MERN stack</a>');
     });
 
     it('strips nested markup that a single pass would splice back into a tag', () => {
         const body = '<a id="nested">Safe</a> then <<a>script>alert(1)<</a>/script> tail.';
-        expect(parseHtmlAnchors(parseMarkdownBody(body))[0].snippet).toBe('Safe then alert(1) tail.');
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
+        assert.isDefined(anchor);
+        expect(anchor.snippet).toBe('Safe then alert(1) tail.');
     });
 
     it('captures an anchor written inside a table cell', () => {
         const body = '| Term | Notes |\n| --- | --- |\n| <a id="cell">The MERN stack</a> | popular |\n';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
+        assert.isDefined(anchor);
         expect(anchor).toMatchObject({ id: 'cell', text: 'The MERN stack' });
         expect(body.slice(anchor.from, anchor.to)).toBe('<a id="cell">The MERN stack</a>');
     });
@@ -536,16 +554,18 @@ describe('extractNoteLinks', () => {
         const occurrences = extractLinks(body);
 
         expect(occurrences).toHaveLength(2);
-        expect(body.slice(occurrences[0].from, occurrences[0].to)).toBe(first);
-        expect(body.slice(occurrences[1].from, occurrences[1].to)).toBe(second);
+        const [firstOccurrence, secondOccurrence] = occurrences;
+        assert.isDefined(firstOccurrence);
+        assert.isDefined(secondOccurrence);
+        expect(body.slice(firstOccurrence.from, firstOccurrence.to)).toBe(first);
+        expect(body.slice(secondOccurrence.from, secondOccurrence.to)).toBe(second);
     });
 });
 
 describe('extractOccurrenceContexts', () => {
-    it('maps each offset to its line snippet and section', () => {
+    it('maps each occurrence to its line snippet and section', () => {
         const body = `# Heading\nSee [Target](:/${ID_A}) here\nplain`;
-        const offsets = extractLinks(body).map((occurrence) => occurrence.from);
-        expect(extractOccurrenceContexts(parseMarkdownBody(body), offsets)).toEqual([
+        expect(extractOccurrenceContexts(parseMarkdownBody(body), extractLinks(body))).toMatchObject([
             { snippet: 'See Target here', section: 'Heading' },
         ]);
     });
@@ -553,14 +573,12 @@ describe('extractOccurrenceContexts', () => {
     it('ignores heading-like code and recognizes Setext sections', () => {
         const body =
             `Real Section\n============\n\n` + '```md\n## Fake Section\n```\n\n' + `See [Target](:/${ID_A}) here`;
-        const offsets = extractLinks(body).map((occurrence) => occurrence.from);
-
-        expect(extractOccurrenceContexts(parseMarkdownBody(body), offsets)).toEqual([
+        expect(extractOccurrenceContexts(parseMarkdownBody(body), extractLinks(body))).toMatchObject([
             { snippet: 'See Target here', section: 'Real Section' },
         ]);
     });
 
-    it('returns an empty array for no offsets', () => {
+    it('returns an empty array for no occurrences', () => {
         expect(extractOccurrenceContexts(parseMarkdownBody('anything'), [])).toEqual([]);
     });
 });
