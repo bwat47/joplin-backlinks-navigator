@@ -11,6 +11,7 @@
         "noImplicitOverride": true,
         "noFallthroughCasesInSwitch": true,
         "allowUnreachableCode": false,
+        "noUncheckedIndexedAccess": true,
         "types": ["node"],
         "paths": {
             "api": ["./api/index.ts"],
