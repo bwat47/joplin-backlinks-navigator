@@ -308,7 +308,6 @@ export function createIndicatorCss(): string {
     line-height: 1;
     cursor: pointer;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-    opacity: 0.85;
     transition: opacity 120ms ease-out, background-color 120ms ease-out;
     z-index: 1999;
 }
