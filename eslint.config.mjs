@@ -62,6 +62,7 @@ export default defineConfig(
             // Redundant with TypeScript's own no-overlap check (TS2367), and misfires on union types
             'sonarjs/different-types-comparison': 'off',
             '@typescript-eslint/no-inferrable-types': 'error',
+            '@typescript-eslint/no-unnecessary-condition': 'error',
             '@typescript-eslint/explicit-module-boundary-types': 'error',
         },
     },

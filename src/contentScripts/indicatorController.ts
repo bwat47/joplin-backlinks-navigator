@@ -122,6 +122,7 @@ export class IndicatorController {
         try {
             state = await request(this.context, { type: 'getIndicatorState', noteId });
         } catch (error) {
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- dispose() can run during the await.
             if (!this.disposed) {
                 logger.warn('Failed to fetch backlink indicator state', error);
             }
@@ -130,6 +131,7 @@ export class IndicatorController {
 
         // Ignore if the editor was destroyed, the note changed, or another refresh
         // superseded this one.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- dispose() can run during the await.
         if (this.disposed || seq !== this.seq || this.dependencies.resolveNoteId() !== noteId) {
             return;
         }
