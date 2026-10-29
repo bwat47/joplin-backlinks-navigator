@@ -38,7 +38,7 @@ describe('scrollToPendingTarget', () => {
         expect(h.dispatch).not.toHaveBeenCalled();
         h.setBody(source);
         await vi.advanceTimersByTimeAsync(80);
-        const call = h.dispatch.mock.calls[0];
+        const [call] = h.dispatch.mock.calls;
         assert.isDefined(call);
         expect(call[0].selection.head).toBe(7);
     });
@@ -49,7 +49,7 @@ describe('scrollToPendingTarget', () => {
         h.setBody('New\n' + source);
         await vi.advanceTimersByTimeAsync(150);
         expect(h.dispatch).toHaveBeenCalledTimes(2);
-        const call = h.dispatch.mock.calls[1];
+        const [, call] = h.dispatch.mock.calls;
         assert.isDefined(call);
         expect(call[0].selection.head).toBe(11);
     });

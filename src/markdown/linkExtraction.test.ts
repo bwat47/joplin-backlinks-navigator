@@ -255,7 +255,7 @@ describe('findHeadingByAnchor', () => {
 describe('parseHtmlAnchors', () => {
     it('captures an inline <a id> anchor with its own text and line preview', () => {
         const body = 'Intro paragraph.\n\n<a id="in3b65">The MERN stack</a> is a widely adopted framework.';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
         assert.isDefined(anchor);
         expect(anchor).toMatchObject({
             id: 'in3b65',
@@ -267,7 +267,7 @@ describe('parseHtmlAnchors', () => {
 
     it('covers the whole element for an empty <a id> anchor', () => {
         const body = 'Intro paragraph.\n\n<a id="ab12cd"></a>\n\nBody text here.';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
         assert.isDefined(anchor);
         expect(anchor).toMatchObject({ id: 'ab12cd', text: '' });
         expect(body.slice(anchor.from, anchor.to)).toBe('<a id="ab12cd"></a>');
@@ -275,14 +275,14 @@ describe('parseHtmlAnchors', () => {
 
     it('stops at the opening tag when an <a id> anchor is never closed', () => {
         const body = '<a id="unclosed">dangling';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
         assert.isDefined(anchor);
         expect(body.slice(anchor.from, anchor.to)).toBe('<a id="unclosed">');
     });
 
     it('covers the whole element and labels it for a closed non-anchor tag', () => {
         const body = '<span id="marked">The MERN stack</span> is popular.';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
         assert.isDefined(anchor);
         expect(anchor).toMatchObject({ id: 'marked', text: 'The MERN stack' });
         expect(body.slice(anchor.from, anchor.to)).toBe('<span id="marked">The MERN stack</span>');
@@ -290,7 +290,7 @@ describe('parseHtmlAnchors', () => {
 
     it('covers a multi-line element, collapsing its label onto one line', () => {
         const body = 'Text <a id="wrapped">some\nlong label</a> tail.';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
         assert.isDefined(anchor);
         expect(anchor.text).toBe('some long label');
         expect(body.slice(anchor.from, anchor.to)).toBe('<a id="wrapped">some\nlong label</a>');
@@ -300,7 +300,7 @@ describe('parseHtmlAnchors', () => {
         // Matching nesting depth would cost more than it buys: same-tag nesting around an id is
         // vanishingly rare in notes, and under-highlighting is harmless.
         const body = '<div id="outer"><div>inner</div></div>';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
         assert.isDefined(anchor);
         expect(body.slice(anchor.from, anchor.to)).toBe('<div id="outer"><div>inner</div>');
     });
@@ -314,7 +314,7 @@ describe('parseHtmlAnchors', () => {
 
     it('captures a block anchor closed past a blank line, which lands outside its region', () => {
         const body = '<div id="section-2">\n\nBody text here.\n\n</div>';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
         assert.isDefined(anchor);
         expect(anchor).toMatchObject({ id: 'section-2', text: '', snippet: 'Body text here.' });
         expect(body.slice(anchor.from, anchor.to)).toBe('<div id="section-2">');
@@ -368,7 +368,7 @@ describe('parseHtmlAnchors', () => {
 
     it('captures an anchor written inside a table cell', () => {
         const body = '| Term | Notes |\n| --- | --- |\n| <a id="cell">The MERN stack</a> | popular |\n';
-        const anchor = parseHtmlAnchors(parseMarkdownBody(body))[0];
+        const [anchor] = parseHtmlAnchors(parseMarkdownBody(body));
         assert.isDefined(anchor);
         expect(anchor).toMatchObject({ id: 'cell', text: 'The MERN stack' });
         expect(body.slice(anchor.from, anchor.to)).toBe('<a id="cell">The MERN stack</a>');

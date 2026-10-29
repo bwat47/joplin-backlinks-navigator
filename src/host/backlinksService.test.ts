@@ -272,7 +272,7 @@ describe('findBacklinks', () => {
         const rows = await findBacklinks(repository, TARGET_NOTE_ID);
 
         const second = editorText.lastIndexOf(link);
-        const row = rows[1];
+        const [, row] = rows;
         assert.isDefined(row);
         const target = row.navigationTarget;
         assert.isDefined(target);

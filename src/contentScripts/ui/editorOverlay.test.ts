@@ -105,7 +105,7 @@ describe('EditorOverlay', () => {
         new EditorOverlay(view, element).mount();
 
         setScrollbarWidth(view.scrollDOM, 0);
-        const observer = FakeResizeObserver.instances[0];
+        const [observer] = FakeResizeObserver.instances;
         assert.isDefined(observer);
         observer.trigger();
 
