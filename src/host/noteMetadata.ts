@@ -110,7 +110,7 @@ function groupFoldersByParent(folders: readonly FolderNode[]): Map<string, strin
     const childrenByParent = new Map<string, string[]>();
 
     for (const folder of folders) {
-        if (!folder?.id || !folder.parent_id) {
+        if (!folder.id || !folder.parent_id) {
             continue;
         }
         const siblings = childrenByParent.get(folder.parent_id);
