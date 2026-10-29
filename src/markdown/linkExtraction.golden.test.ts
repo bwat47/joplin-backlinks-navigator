@@ -23,12 +23,7 @@ describe('Markdown extraction golden behavior', () => {
             { targetId: ID_A, anchor: 'referenced', from: 140, to: 148 },
         ]);
 
-        expect(
-            extractOccurrenceContexts(
-                parsed,
-                extractNoteLinks(parsed).map(({ from }) => from)
-            )
-        ).toEqual([
+        expect(extractOccurrenceContexts(parsed, extractNoteLinks(parsed))).toMatchObject([
             { snippet: 'Inline Angle', section: 'Links' },
             { snippet: 'Inline Angle', section: 'Links' },
             { snippet: 'Ref target target', section: 'Links' },

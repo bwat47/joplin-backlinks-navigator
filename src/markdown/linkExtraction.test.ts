@@ -563,10 +563,9 @@ describe('extractNoteLinks', () => {
 });
 
 describe('extractOccurrenceContexts', () => {
-    it('maps each offset to its line snippet and section', () => {
+    it('maps each occurrence to its line snippet and section', () => {
         const body = `# Heading\nSee [Target](:/${ID_A}) here\nplain`;
-        const offsets = extractLinks(body).map((occurrence) => occurrence.from);
-        expect(extractOccurrenceContexts(parseMarkdownBody(body), offsets)).toEqual([
+        expect(extractOccurrenceContexts(parseMarkdownBody(body), extractLinks(body))).toMatchObject([
             { snippet: 'See Target here', section: 'Heading' },
         ]);
     });
@@ -574,14 +573,12 @@ describe('extractOccurrenceContexts', () => {
     it('ignores heading-like code and recognizes Setext sections', () => {
         const body =
             `Real Section\n============\n\n` + '```md\n## Fake Section\n```\n\n' + `See [Target](:/${ID_A}) here`;
-        const offsets = extractLinks(body).map((occurrence) => occurrence.from);
-
-        expect(extractOccurrenceContexts(parseMarkdownBody(body), offsets)).toEqual([
+        expect(extractOccurrenceContexts(parseMarkdownBody(body), extractLinks(body))).toMatchObject([
             { snippet: 'See Target here', section: 'Real Section' },
         ]);
     });
 
-    it('returns an empty array for no offsets', () => {
+    it('returns an empty array for no occurrences', () => {
         expect(extractOccurrenceContexts(parseMarkdownBody('anything'), [])).toEqual([]);
     });
 });
