@@ -4,6 +4,7 @@ import { offsetToLineIndex, type ParsedMarkdownBody } from './markdownParser';
 import { extractRenderedText, renderHtmlText, SNIPPET_TEXT_POLICY } from './markdownText';
 import { extractSnippetLine, normalizeSnippetText } from './snippetExtraction';
 
+// Group 1 always captures the tag name, e.g. "a" in <a id="top">.
 const HTML_OPEN_TAG_RE = /<([a-z][a-z\d-]*)\b[^<>]*>/gi;
 const HTML_ANCHOR_ATTRIBUTE_RE = /\s(?:id|name)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i;
 const HTML_COMMENT_RE = /<!--[\s\S]*?(?:-->|$)/g;
@@ -98,7 +99,7 @@ export function parseHtmlAnchors(parsed: ParsedMarkdownBody): HtmlAnchor[] {
                 const region = parsed.body.slice(regionStart, container.to);
                 seenOffsets.add(cursor.from);
                 anchors.push(
-                    createHtmlAnchor(parsed, region, regionStart, openingTag, match[1], cursor.from, id, container)
+                    createHtmlAnchor(parsed, region, regionStart, openingTag, match[1]!, cursor.from, id, container)
                 );
                 return false;
             }
@@ -119,7 +120,7 @@ export function parseHtmlAnchors(parsed: ParsedMarkdownBody): HtmlAnchor[] {
                     continue;
                 }
                 seenOffsets.add(from);
-                anchors.push(createHtmlAnchor(parsed, region, regionStart, match[0], match[1], from, id));
+                anchors.push(createHtmlAnchor(parsed, region, regionStart, match[0], match[1]!, from, id));
             }
             return false;
         },

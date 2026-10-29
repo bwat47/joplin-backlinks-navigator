@@ -31,9 +31,11 @@ export interface ParsedMarkdownBody {
 export function parseMarkdownBody(source: string): ParsedMarkdownBody {
     const body = source.replace(/\r\n?/g, '\n');
     const lines = body.split('\n');
-    const lineStarts = [0];
-    for (let lineIndex = 0; lineIndex < lines.length - 1; lineIndex++) {
-        lineStarts.push(lineStarts[lineIndex] + lines[lineIndex].length + 1);
+    const lineStarts: number[] = [];
+    let lineStart = 0;
+    for (const line of lines) {
+        lineStarts.push(lineStart);
+        lineStart += line.length + 1;
     }
 
     return {
@@ -51,7 +53,8 @@ export function offsetToLineIndex(lineStarts: readonly number[], offset: number)
     let result = 0;
     while (lo <= hi) {
         const mid = (lo + hi) >> 1;
-        if (lineStarts[mid] <= offset) {
+        // lo and hi bound mid to an existing entry.
+        if (lineStarts[mid]! <= offset) {
             result = mid;
             lo = mid + 1;
         } else {

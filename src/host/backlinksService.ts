@@ -109,20 +109,24 @@ export async function findBacklinks(
                 occurrences.map((occurrence) => occurrence.from)
             );
             const notebookName = await resolveNotebookName(repository, note.parent_id, notebookCache);
-            const occurrenceCount = contexts.length;
+            const occurrenceCount = occurrences.length;
 
-            return contexts.map(({ snippet, section }, occurrenceIndex): Backlink => ({
-                direction: 'in',
-                id: `${note.id}:${occurrenceIndex}`,
-                noteId: note.id,
-                occurrenceIndex,
-                occurrenceCount,
-                title: note.title,
-                notebookName,
-                section,
-                snippet,
-                navigationTarget: createNavigationTarget(parsed, occurrences[occurrenceIndex]),
-            }));
+            return occurrences.map((occurrence, occurrenceIndex): Backlink => {
+                // extractOccurrenceContexts maps every supplied offset once, preserving order.
+                const { snippet, section } = contexts[occurrenceIndex]!;
+                return {
+                    direction: 'in',
+                    id: `${note.id}:${occurrenceIndex}`,
+                    noteId: note.id,
+                    occurrenceIndex,
+                    occurrenceCount,
+                    title: note.title,
+                    notebookName,
+                    section,
+                    snippet,
+                    navigationTarget: createNavigationTarget(parsed, occurrence),
+                };
+            });
         }
     );
 

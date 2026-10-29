@@ -100,7 +100,8 @@ function normalizeReferenceLabel(label: string): string {
 
 function primaryLabel(parsed: ParsedMarkdownBody, node: SyntaxNode): string {
     const marks = node.getChildren('LinkMark');
-    return marks.length >= 2 ? extractLogicalSource(parsed, node, marks[0].to, marks[1].from) : '';
+    const [opening, closing] = marks;
+    return opening && closing ? extractLogicalSource(parsed, node, opening.to, closing.from) : '';
 }
 
 /** Resolves the normalized label used by a full, collapsed, or shortcut reference. */
