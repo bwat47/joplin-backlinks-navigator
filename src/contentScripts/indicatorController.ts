@@ -100,6 +100,14 @@ export class IndicatorController {
         this.badge.destroy();
     }
 
+    /**
+     * Reads the disposed flag through a call so TypeScript doesn't keep a narrowing from
+     * before an await; dispose() can run while a refresh is waiting on the host.
+     */
+    private isDisposed(): boolean {
+        return this.disposed;
+    }
+
     private async refresh(attempt = 0): Promise<void> {
         if (this.disposed) {
             return;
@@ -122,8 +130,7 @@ export class IndicatorController {
         try {
             state = await request(this.context, { type: 'getIndicatorState', noteId });
         } catch (error) {
-            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- dispose() can run during the await.
-            if (!this.disposed) {
+            if (!this.isDisposed()) {
                 logger.warn('Failed to fetch backlink indicator state', error);
             }
             return;
@@ -131,8 +138,7 @@ export class IndicatorController {
 
         // Ignore if the editor was destroyed, the note changed, or another refresh
         // superseded this one.
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- dispose() can run during the await.
-        if (this.disposed || seq !== this.seq || this.dependencies.resolveNoteId() !== noteId) {
+        if (this.isDisposed() || seq !== this.seq || this.dependencies.resolveNoteId() !== noteId) {
             return;
         }
 
