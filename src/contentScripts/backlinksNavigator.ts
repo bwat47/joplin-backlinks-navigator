@@ -33,7 +33,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
             // Extensions and listeners are scoped to this EditorView instance. When Joplin
             // destroys the editor (note close, plugin disable), they are cleaned up automatically.
             const view = editorControl.editor as EditorView;
-            const noteIdFacet = editorControl.joplinExtensions?.noteIdFacet as NoteIdFacet | undefined;
+            const noteIdFacet = editorControl.joplinExtensions.noteIdFacet as NoteIdFacet | undefined;
             const resolveNoteId = (): string | null => {
                 if (!noteIdFacet) {
                     return null;

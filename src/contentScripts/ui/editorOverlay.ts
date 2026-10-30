@@ -105,7 +105,7 @@ export function ensureOverlayStyles(
     if (!style) {
         style = doc.createElement('style');
         style.id = styleId;
-        (doc.head ?? doc.body).appendChild(style);
+        doc.head.appendChild(style);
     } else if (style.getAttribute(STYLE_SIGNATURE_ATTR) === signature) {
         return;
     }
