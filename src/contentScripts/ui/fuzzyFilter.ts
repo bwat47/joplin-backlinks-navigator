@@ -5,6 +5,7 @@
  */
 
 import fuzzysort, { type KeyResult } from 'fuzzysort';
+
 import type { LinkItem } from '../../types';
 
 /** Minimum match score (0-1); 0 accepts any match. */

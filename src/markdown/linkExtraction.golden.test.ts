@@ -1,4 +1,5 @@
-import { assert, describe, it, expect } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
+
 import { parseHtmlAnchors } from './htmlAnchors';
 import { extractNoteLinks } from './linkExtraction';
 import { parseMarkdownHeadings } from './markdownHeadings';

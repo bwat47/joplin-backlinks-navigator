@@ -1,4 +1,15 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import joplin from 'api';
+import { COMMAND_SHOW_BACKLINKS } from '../commandIds';
+import type { Backlink } from '../types';
+import { countBacklinks, findBacklinks } from './backlinksService';
+import type { LinkRepository } from './joplinRepository';
+import { createMessageHandler } from './messageHandler';
+import { openNote } from './navigation';
+import { expandIgnoredFolderIds } from './noteMetadata';
+import { countOutgoingLinks, findOutgoingLinks } from './outgoingLinksService';
+import { loadIgnoredBacklinkNoteIdsSetting, loadIgnoredNotebookIdsSetting, loadShowIndicatorSetting } from './settings';
 
 vi.mock('api', () => ({
     __esModule: true,
@@ -14,17 +25,6 @@ vi.mock('./backlinksService', () => ({ countBacklinks: vi.fn(), findBacklinks: v
 vi.mock('./outgoingLinksService', () => ({ countOutgoingLinks: vi.fn(), findOutgoingLinks: vi.fn() }));
 vi.mock('./noteMetadata', () => ({ expandIgnoredFolderIds: vi.fn() }));
 vi.mock('./navigation', () => ({ openNote: vi.fn() }));
-
-import joplin from 'api';
-import { COMMAND_SHOW_BACKLINKS } from '../commandIds';
-import type { Backlink } from '../types';
-import { countBacklinks, findBacklinks } from './backlinksService';
-import type { LinkRepository } from './joplinRepository';
-import { createMessageHandler } from './messageHandler';
-import { openNote } from './navigation';
-import { expandIgnoredFolderIds } from './noteMetadata';
-import { countOutgoingLinks, findOutgoingLinks } from './outgoingLinksService';
-import { loadIgnoredBacklinkNoteIdsSetting, loadIgnoredNotebookIdsSetting, loadShowIndicatorSetting } from './settings';
 
 const repository = {} as LinkRepository;
 const NOTE_ID = 'note-1';

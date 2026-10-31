@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
 import {
     DEFAULT_PANEL_HEIGHT_PERCENTAGE,
     DEFAULT_PANEL_WIDTH,

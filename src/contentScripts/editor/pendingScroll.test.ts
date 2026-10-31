@@ -1,8 +1,9 @@
-import { assert, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SelectionRange } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
-import { createNavigationTarget } from '../../navigationTarget';
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { parseMarkdownBody } from '../../markdown/markdownParser';
+import { createNavigationTarget } from '../../navigationTarget';
 import { scrollToPendingTarget } from './pendingScroll';
 
 describe('scrollToPendingTarget', () => {

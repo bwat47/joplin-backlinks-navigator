@@ -1,5 +1,6 @@
-import { assert, vi, describe, beforeEach, it, expect } from 'vitest';
 import type { EditorView } from '@codemirror/view';
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { EditorOverlay, ensureOverlayStyles } from './editorOverlay';
 
 const OVERLAY_RIGHT_GAP_PX = 8;

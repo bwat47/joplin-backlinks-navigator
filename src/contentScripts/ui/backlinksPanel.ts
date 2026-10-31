@@ -1,9 +1,10 @@
 import type { EditorView } from '@codemirror/view';
+
 import type { LinkDirection, LinkItem, PanelSettings } from '../../types';
 import { getDisplayLinkCount, getDisplayLinks } from '../linkDisplay';
-import { createPanelCss } from './panelTheme';
-import { fuzzyFilter, highlightMatch } from './fuzzyFilter';
 import { EditorOverlay, ensureOverlayStyles } from './editorOverlay';
+import { fuzzyFilter, highlightMatch } from './fuzzyFilter';
+import { createPanelCss } from './panelTheme';
 
 const PANEL_STYLE_ID = 'backlinks-navigator-styles';
 const FILTER_DEBOUNCE_MS = 80;

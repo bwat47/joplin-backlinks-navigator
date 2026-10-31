@@ -1,6 +1,7 @@
-import { vi, describe, beforeEach, it, expect } from 'vitest';
-import { createNavigationTarget } from '../navigationTarget';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { parseMarkdownBody } from '../markdown/markdownParser';
+import { createNavigationTarget } from '../navigationTarget';
 import { JoplinRepository } from './joplinRepository';
 import { countOutgoingLinks, findOutgoingLinks } from './outgoingLinksService';
 

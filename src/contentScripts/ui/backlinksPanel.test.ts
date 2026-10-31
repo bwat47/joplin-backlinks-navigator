@@ -1,5 +1,6 @@
-import { vi, describe, beforeEach, it, expect } from 'vitest';
 import type { EditorView } from '@codemirror/view';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS, type LinkItem } from '../../types';
 import { BacklinksPanel, type PanelCallbacks } from './backlinksPanel';
 

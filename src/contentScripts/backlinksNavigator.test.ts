@@ -1,10 +1,11 @@
-import { vi, describe, beforeEach, afterEach, it, expect } from 'vitest';
 import { EditorState, Facet, StateEffect, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import type { CodeMirrorControl, ContentScriptContext } from 'api/types';
-import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS } from '../types';
 import { EDITOR_COMMAND_TOGGLE_PANEL } from '../commandIds';
 import type { IndicatorState, LinksResponse, MessageOf, Protocol } from '../messages';
+import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS } from '../types';
 import backlinksNavigator from './backlinksNavigator';
 
 const INDICATOR_DEBOUNCE_MS = 350;

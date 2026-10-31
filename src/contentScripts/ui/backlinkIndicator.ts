@@ -1,6 +1,7 @@
 import type { EditorView } from '@codemirror/view';
-import { createIndicatorCss } from './panelTheme';
+
 import { EditorOverlay, ensureOverlayStyles } from './editorOverlay';
+import { createIndicatorCss } from './panelTheme';
 
 const INDICATOR_STYLE_ID = 'backlinks-navigator-indicator-styles';
 

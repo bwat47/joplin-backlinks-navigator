@@ -1,5 +1,6 @@
 import type { SyntaxNode } from '@lezer/common';
 import { decodeHTMLAttribute } from 'entities';
+
 import { offsetToLineIndex, type ParsedMarkdownBody } from './markdownParser';
 import { extractRenderedText, renderHtmlText, SNIPPET_TEXT_POLICY } from './markdownText';
 import { extractSnippetLine, normalizeSnippetText } from './snippetExtraction';

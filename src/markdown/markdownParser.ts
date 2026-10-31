@@ -1,5 +1,6 @@
 import type { Tree } from '@lezer/common';
 import { parser, Strikethrough, Subscript, Superscript, Table, TaskList } from '@lezer/markdown';
+
 import { Highlight, Insert } from './markdownDelimiters';
 
 // Keep the standalone grammar explicit. The full GFM bundle also enables bare-URL autolinking,

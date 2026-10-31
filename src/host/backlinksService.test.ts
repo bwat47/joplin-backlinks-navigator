@@ -1,7 +1,8 @@
-import { assert, vi, describe, beforeEach, it, expect } from 'vitest';
-import { countBacklinks, findBacklinks } from './backlinksService';
-import { createNavigationTarget, resolveNavigationTarget } from '../navigationTarget';
+import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { parseMarkdownBody } from '../markdown/markdownParser';
+import { createNavigationTarget, resolveNavigationTarget } from '../navigationTarget';
+import { countBacklinks, findBacklinks } from './backlinksService';
 import { JoplinRepository } from './joplinRepository';
 
 const mockDataGet = vi.fn();

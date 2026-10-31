@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
 import { dedupeByNoteId } from './linkSort';
 import type { LinkItem } from './types';
 

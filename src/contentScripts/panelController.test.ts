@@ -1,17 +1,18 @@
-import { vi, describe, beforeEach, afterEach, it, expect } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import type { ContentScriptContext } from 'api/types';
-import type { LinksResponse, MessageOf, Protocol } from '../messages';
-import type { Backlink, LinkItem, OutgoingLink } from '../types';
-import { createNavigationTarget } from '../navigationTarget';
 import { parseMarkdownBody } from '../markdown/markdownParser';
-import { PanelController } from './panelController';
+import type { LinksResponse, MessageOf, Protocol } from '../messages';
+import { createNavigationTarget } from '../navigationTarget';
+import type { Backlink, LinkItem, OutgoingLink } from '../types';
 import {
     applyContentScriptSettings,
     createSettingsExtension,
     DEFAULT_CONTENT_SCRIPT_SETTINGS,
 } from './editor/pluginSettings';
+import { PanelController } from './panelController';
 
 const CURRENT_NOTE = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const OTHER_NOTE = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';

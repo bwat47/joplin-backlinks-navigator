@@ -1,4 +1,5 @@
 import type { SyntaxNode } from '@lezer/common';
+
 import { findSection, parseMarkdownHeadings, type MarkdownHeading } from './markdownHeadings';
 import { offsetToLineIndex, type ParsedMarkdownBody } from './markdownParser';
 import { extractRenderedText, SNIPPET_TEXT_POLICY, stripHtmlTags } from './markdownText';

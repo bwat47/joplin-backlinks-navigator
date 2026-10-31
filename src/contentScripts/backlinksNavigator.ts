@@ -12,20 +12,21 @@
  * - messages.ts - Message protocol
  */
 
-import { type EditorView, ViewPlugin } from '@codemirror/view';
+import { ViewPlugin, type EditorView } from '@codemirror/view';
+
 import type { CodeMirrorControl, ContentScriptContext, MarkdownEditorContentScriptModule } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../commandIds';
+import logger from '../logger';
 import type { ContentScriptSettings } from '../types';
-import { IndicatorController } from './indicatorController';
-import { PanelController } from './panelController';
 import { createNoteIdWatcher, type NoteIdFacet } from './editor/noteIdWatcher';
-import { referenceHighlightExtension } from './editor/referenceHighlight';
 import {
     applyContentScriptSettings,
     createSettingsExtension,
     syncInitialContentScriptSettings,
 } from './editor/pluginSettings';
-import logger from '../logger';
+import { referenceHighlightExtension } from './editor/referenceHighlight';
+import { IndicatorController } from './indicatorController';
+import { PanelController } from './panelController';
 
 export default function backlinksNavigator(context: ContentScriptContext): MarkdownEditorContentScriptModule {
     return {

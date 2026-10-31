@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createNavigationTarget, resolveNavigationTarget } from './navigationTarget';
+
 import { parseMarkdownBody } from './markdown/markdownParser';
+import { createNavigationTarget, resolveNavigationTarget } from './navigationTarget';
 
 describe('navigation targets', () => {
     const body = 'Intro 😀\n\n[link](:/note)\n\nFollowing text';

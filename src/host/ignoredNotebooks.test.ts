@@ -1,4 +1,10 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { toggleIgnoredNotebook } from './ignoredNotebooks';
+import type { LinkRepository } from './joplinRepository';
+import { resolveNotebookName } from './noteMetadata';
+import { loadIgnoredNotebookIdsSetting, setIgnoredNotebookIdsSetting } from './settings';
+import { showToast } from './toast';
 
 vi.mock('api/types', () => ({ ToastType: { Info: 'info' } }));
 vi.mock('./settings', () => ({
@@ -7,12 +13,6 @@ vi.mock('./settings', () => ({
 }));
 vi.mock('./noteMetadata', () => ({ resolveNotebookName: vi.fn() }));
 vi.mock('./toast', () => ({ showToast: vi.fn() }));
-
-import { toggleIgnoredNotebook } from './ignoredNotebooks';
-import type { LinkRepository } from './joplinRepository';
-import { resolveNotebookName } from './noteMetadata';
-import { loadIgnoredNotebookIdsSetting, setIgnoredNotebookIdsSetting } from './settings';
-import { showToast } from './toast';
 
 const repository = {} as LinkRepository;
 

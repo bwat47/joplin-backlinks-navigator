@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest';
 import { EditorSelection, EditorState } from '@codemirror/state';
+import { describe, expect, it } from 'vitest';
+
 import {
-    referenceHighlightField,
     referenceHighlightExtension,
+    referenceHighlightField,
     setReferenceHighlightEffect,
 } from './referenceHighlight';
 

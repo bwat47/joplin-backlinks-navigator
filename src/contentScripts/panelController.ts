@@ -1,8 +1,9 @@
 import type { EditorView } from '@codemirror/view';
+
 import type { ContentScriptContext } from 'api/types';
-import type { LinkDirection, LinkItem, PanelSettings } from '../types';
-import type { AlternateOpenMode, MessageOf } from '../messages';
 import logger from '../logger';
+import type { AlternateOpenMode, MessageOf } from '../messages';
+import type { LinkDirection, LinkItem, PanelSettings } from '../types';
 import { request } from './bridge';
 import { scrollToPendingTarget, type PendingScroll } from './editor/pendingScroll';
 import { getContentScriptSettings } from './editor/pluginSettings';

@@ -12,13 +12,6 @@ import joplin from 'api';
 import { SettingItemType } from 'api/types';
 import logger from '../logger';
 import {
-    type BacklinkOpenBehavior,
-    type ContentScriptSettings,
-    type LinkPreviewMode,
-    type PanelSettings,
-    DEFAULT_LINK_PREVIEW_SETTINGS,
-} from '../types';
-import {
     DEFAULT_PANEL_HEIGHT_PERCENTAGE,
     DEFAULT_PANEL_WIDTH,
     MAX_PANEL_HEIGHT_PERCENTAGE,
@@ -28,6 +21,13 @@ import {
     normalizePanelHeightPercentage,
     normalizePanelWidth,
 } from '../panelDimensions';
+import {
+    DEFAULT_LINK_PREVIEW_SETTINGS,
+    type BacklinkOpenBehavior,
+    type ContentScriptSettings,
+    type LinkPreviewMode,
+    type PanelSettings,
+} from '../types';
 
 const SECTION_ID = 'backlinksNavigator';
 const SETTING_PANEL_WIDTH = 'backlinksNavigator.panelWidth';

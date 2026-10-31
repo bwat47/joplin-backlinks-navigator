@@ -1,9 +1,10 @@
 import { Compartment, Facet, type EditorState, type Extension } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
+
 import type { ContentScriptContext } from 'api/types';
-import { type ContentScriptSettings, DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS } from '../../types';
-import { request } from '../bridge';
 import logger from '../../logger';
+import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS, type ContentScriptSettings } from '../../types';
+import { request } from '../bridge';
 
 export const DEFAULT_CONTENT_SCRIPT_SETTINGS: ContentScriptSettings = {
     panel: {

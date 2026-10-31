@@ -1,4 +1,10 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import joplin from 'api';
+import type { AlternateOpenMode } from '../messages';
+import { openNote } from './navigation';
+import { loadCtrlClickBehaviorSetting, loadCtrlEnterBehaviorSetting, loadMiddleClickBehaviorSetting } from './settings';
+import { showToast } from './toast';
 
 vi.mock('api', () => ({
     __esModule: true,
@@ -10,12 +16,6 @@ vi.mock('./settings', () => ({
     loadMiddleClickBehaviorSetting: vi.fn(),
 }));
 vi.mock('./toast', () => ({ showToast: vi.fn() }));
-
-import joplin from 'api';
-import type { AlternateOpenMode } from '../messages';
-import { openNote } from './navigation';
-import { loadCtrlClickBehaviorSetting, loadCtrlEnterBehaviorSetting, loadMiddleClickBehaviorSetting } from './settings';
-import { showToast } from './toast';
 
 const mockExecute = vi.mocked(joplin.commands.execute);
 const NOTE_ID = 'note-1';

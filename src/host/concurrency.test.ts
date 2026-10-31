@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
 import { mapWithConcurrency } from './concurrency';
 
 /** Resolves on a later macrotask, so overlapping calls really overlap. */

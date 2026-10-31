@@ -24,25 +24,25 @@
  * Only the plugin host has Data API access, so this runs here rather than in the content script.
  */
 
+import { compareLinkItems } from '../linkSort';
 import logger from '../logger';
-import { createNavigationTarget } from '../navigationTarget';
-import type { LinkFilters, NavigationTarget, OutgoingLink } from '../types';
 import { findHtmlAnchorById, parseHtmlAnchors, type HtmlAnchor } from '../markdown/htmlAnchors';
 import { extractNoteLinks } from '../markdown/linkExtraction';
 import { findHeadingByAnchor, parseMarkdownHeadings, type MarkdownHeading } from '../markdown/markdownHeadings';
 import { parseMarkdownBody, type ParsedMarkdownBody } from '../markdown/markdownParser';
+import { extractNoteOpening, extractSectionOpening } from '../markdown/snippetExtraction';
+import { createNavigationTarget } from '../navigationTarget';
+import type { LinkFilters, NavigationTarget, OutgoingLink } from '../types';
+import { LOOKUP_CONCURRENCY, mapWithConcurrency } from './concurrency';
+import type { LinkRepository, NoteMeta } from './joplinRepository';
 import {
+    resolveNotebookName,
     resolveNoteMeta,
     resolveNoteWithBody,
-    resolveNotebookName,
+    type NotebookNameCache,
     type NoteMetaCache,
     type NoteWithBodyCache,
-    type NotebookNameCache,
 } from './noteMetadata';
-import { LOOKUP_CONCURRENCY, mapWithConcurrency } from './concurrency';
-import { compareLinkItems } from '../linkSort';
-import { extractNoteOpening, extractSectionOpening } from '../markdown/snippetExtraction';
-import type { LinkRepository, NoteMeta } from './joplinRepository';
 
 interface ParsedTargetBody {
     parsed: ParsedMarkdownBody;

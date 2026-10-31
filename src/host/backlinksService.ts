@@ -18,16 +18,16 @@
  * the content script.
  */
 
+import { compareLinkItems } from '../linkSort';
 import logger from '../logger';
-import { createNavigationTarget } from '../navigationTarget';
-import type { Backlink, LinkFilters } from '../types';
 import { extractNoteLinks, linkNeedle, type NoteLinkOccurrence } from '../markdown/linkExtraction';
 import { parseMarkdownBody, type ParsedMarkdownBody } from '../markdown/markdownParser';
-import { resolveNotebookName, type NotebookNameCache } from './noteMetadata';
-import { LOOKUP_CONCURRENCY, mapWithConcurrency } from './concurrency';
-import { compareLinkItems } from '../linkSort';
 import { extractOccurrenceContexts } from '../markdown/snippetExtraction';
+import { createNavigationTarget } from '../navigationTarget';
+import type { Backlink, LinkFilters } from '../types';
+import { LOOKUP_CONCURRENCY, mapWithConcurrency } from './concurrency';
 import type { LinkRepository, SearchNote } from './joplinRepository';
+import { resolveNotebookName, type NotebookNameCache } from './noteMetadata';
 
 /** A search hit confirmed to contain one or more rendered links to the target note. */
 interface BacklinkCandidate {

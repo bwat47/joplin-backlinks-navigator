@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
 import { Compartment, EditorState, Facet } from '@codemirror/state';
+import { describe, expect, it } from 'vitest';
+
 import { createNoteIdWatcher } from './noteIdWatcher';
 
 const noteIdFacet = Facet.define<string, string>({

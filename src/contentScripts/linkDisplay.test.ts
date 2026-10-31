@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { getDisplayCounts, getDisplayLinkCount, getDisplayLinks, toBacklinkCounts } from './linkDisplay';
+import { describe, expect, it } from 'vitest';
+
 import type { LinkCounts, LinkDirection, LinkItem, LinkPreviewMode } from '../types';
+import { getDisplayCounts, getDisplayLinkCount, getDisplayLinks, toBacklinkCounts } from './linkDisplay';
 
 const makeLink = (direction: LinkDirection, noteId: string, occurrenceIndex: number): LinkItem => {
     const row = {

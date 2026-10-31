@@ -1,4 +1,5 @@
 import uslug from '@joplin/fork-uslug';
+
 import { offsetToLineIndex, type ParsedMarkdownBody } from './markdownParser';
 import { extractRenderedText, HEADING_TEXT_POLICY } from './markdownText';
 

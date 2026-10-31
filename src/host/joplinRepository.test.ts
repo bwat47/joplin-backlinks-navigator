@@ -1,4 +1,5 @@
-import { vi, describe, it, expect } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
 import { JoplinRepository } from './joplinRepository';
 
 describe('JoplinRepository', () => {

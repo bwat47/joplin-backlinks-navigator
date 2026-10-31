@@ -1,15 +1,4 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
-
-vi.mock('api', () => ({
-    __esModule: true,
-    default: {
-        settings: {
-            value: vi.fn(),
-            values: vi.fn(),
-            setValue: vi.fn(),
-        },
-    },
-}));
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import joplin from 'api';
 import {
@@ -22,6 +11,17 @@ import {
     normalizeLinkPreviewMode,
     setIgnoredNotebookIdsSetting,
 } from './settings';
+
+vi.mock('api', () => ({
+    __esModule: true,
+    default: {
+        settings: {
+            value: vi.fn(),
+            values: vi.fn(),
+            setValue: vi.fn(),
+        },
+    },
+}));
 
 const mockSettings = vi.mocked(joplin.settings);
 

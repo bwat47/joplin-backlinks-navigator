@@ -1,15 +1,16 @@
-import { vi, describe, beforeEach, afterEach, it, expect } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import type { ContentScriptContext } from 'api/types';
 import type { IndicatorState, MessageOf, Protocol } from '../messages';
-import { type LinkItem, EMPTY_LINK_COUNTS } from '../types';
-import { IndicatorController } from './indicatorController';
+import { EMPTY_LINK_COUNTS, type LinkItem } from '../types';
 import {
     applyContentScriptSettings,
     createSettingsExtension,
     DEFAULT_CONTENT_SCRIPT_SETTINGS,
 } from './editor/pluginSettings';
+import { IndicatorController } from './indicatorController';
 
 const COUNTS = { backlinkOccurrences: 3, backlinkNotes: 2, outgoing: 4 };
 const ENABLED: IndicatorState = { enabled: true, ok: true, counts: COUNTS };

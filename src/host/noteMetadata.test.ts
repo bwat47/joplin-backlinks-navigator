@@ -1,13 +1,14 @@
-import { vi, describe, beforeEach, it, expect } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { JoplinRepository } from './joplinRepository';
 import {
     expandIgnoredFolderIds,
+    resolveNotebookName,
     resolveNoteMeta,
     resolveNoteWithBody,
-    resolveNotebookName,
+    type NotebookNameCache,
     type NoteMetaCache,
     type NoteWithBodyCache,
-    type NotebookNameCache,
 } from './noteMetadata';
 
 const mockDataGet = vi.fn();

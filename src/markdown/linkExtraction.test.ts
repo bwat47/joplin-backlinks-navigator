@@ -1,4 +1,5 @@
-import { assert, describe, it, expect } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
+
 import { findHtmlAnchorById, parseHtmlAnchors } from './htmlAnchors';
 import { extractNoteLinks, linkNeedle } from './linkExtraction';
 import { findHeadingByAnchor, findSection, parseMarkdownHeadings, slugifyHeading } from './markdownHeadings';

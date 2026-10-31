@@ -10,9 +10,10 @@
 
 import { EditorSelection } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import type { NavigationTarget, TextRange } from '../../types';
-import { resolveNavigationTarget } from '../../navigationTarget';
+
 import logger from '../../logger';
+import { resolveNavigationTarget } from '../../navigationTarget';
+import type { NavigationTarget, TextRange } from '../../types';
 import { setReferenceHighlightEffect } from './referenceHighlight';
 
 /** Host-resolved target to apply after its note loads in the reused editor. */

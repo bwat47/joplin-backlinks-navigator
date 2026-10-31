@@ -21,7 +21,9 @@ import {
     EDITOR_COMMAND_TOGGLE_PANEL,
     EDITOR_COMMAND_UPDATE_SETTINGS,
 } from './commandIds';
-import logger from './logger';
+import { toggleIgnoredNotebook } from './host/ignoredNotebooks';
+import { JoplinRepository, type LinkRepository } from './host/joplinRepository';
+import { createMessageHandler } from './host/messageHandler';
 import {
     DEBUG_SETTING_KEY,
     isEditorAffectingSettingChanged,
@@ -29,9 +31,7 @@ import {
     loadDebugSetting,
     registerSettings,
 } from './host/settings';
-import { toggleIgnoredNotebook } from './host/ignoredNotebooks';
-import { JoplinRepository, type LinkRepository } from './host/joplinRepository';
-import { createMessageHandler } from './host/messageHandler';
+import logger from './logger';
 
 /**
  * Desktop when-clause: true only when the CodeMirror (markdown) editor pane is shown,

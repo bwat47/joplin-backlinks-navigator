@@ -1,5 +1,6 @@
 import type { SyntaxNode } from '@lezer/common';
 import { decodeHTML, decodeHTMLStrict } from 'entities';
+
 import type { ParsedMarkdownBody } from './markdownParser';
 
 const MARKDOWN_ESCAPE_RE = /\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g;

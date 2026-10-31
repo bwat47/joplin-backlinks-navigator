@@ -1,11 +1,12 @@
 import type { EditorView } from '@codemirror/view';
+
 import type { ContentScriptContext } from 'api/types';
-import { type LinkCounts, type LinkDirection, type LinkItem, EMPTY_LINK_COUNTS } from '../types';
-import type { IndicatorState } from '../messages';
 import logger from '../logger';
+import type { IndicatorState } from '../messages';
+import { EMPTY_LINK_COUNTS, type LinkCounts, type LinkDirection, type LinkItem } from '../types';
 import { request } from './bridge';
-import { getDisplayCounts, toBacklinkCounts } from './linkDisplay';
 import { getContentScriptSettings } from './editor/pluginSettings';
+import { getDisplayCounts, toBacklinkCounts } from './linkDisplay';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
 
 const INDICATOR_DEBOUNCE_MS = 350;
