@@ -53,7 +53,7 @@
         "@joplin/fork-uslug": "^2.0.6",
         "@lezer/common": "1.5.4",
         "@lezer/markdown": "1.8.1",
-        "entities": "^8.1.0",
+        "entities": "^9.0.0",
         "fuzzysort": "^4.0.2"
     }
 }
