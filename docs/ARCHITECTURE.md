@@ -228,10 +228,11 @@ All Markdown parsing runs on the host; the content script does not import Lezer.
 
 ## Build
 
-`npm run dist` runs the webpack build and creates the plugin archive in `publish/*.jpl`.
+`npm run dist` typechecks, bundles with esbuild through the shared `@bwat47/joplin-plugin-scripts`
+package, and creates the plugin archive in `publish/*.jpl`. See [BUILDING.md](BUILDING.md).
 
 The content script entry is listed in `plugin.config.json` as an `extraScripts` entry. CodeMirror
-packages are externalized because Joplin provides them at runtime. The generated configuration
+packages are externalized because Joplin provides them at runtime. The shared configuration
 also lists Lezer as external, but only the host imports it, so Lezer is bundled into `index.js`.
 
 ## Design Intent
