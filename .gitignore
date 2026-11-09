@@ -9,7 +9,8 @@ publish/
 *:Zone.Identifier
 *.patch
 *.diff
-.codex
+.codex/
+.claude/
 gemini/
 prompts/
 .api-staging-*/
