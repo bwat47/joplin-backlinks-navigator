@@ -1,2 +1,5 @@
 api/
 .api-staging-*/
+.claude/
+.codex/
+package-lock.json
