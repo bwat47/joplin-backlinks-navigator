@@ -57,14 +57,13 @@ Any outgoing links referencing an anchor (pointing to a markdown heading or html
 
 - Scrolling to a specific backlink occurrence after note switch only works on desktop. It does not work when opening the note in a new window or pinning with Note Tabs.
 
-## Development
+## Building
+
+Requires Node 22 or later.
 
 ```sh
-npm test
-npm run lint
-npm run format
-npm install
+npm ci
 npm run dist
 ```
 
-The built plugin archive is created in `publish/`.
+The installable plugin is written to `publish/com.bwat47.joplin-backlinks-navigator.jpl`.

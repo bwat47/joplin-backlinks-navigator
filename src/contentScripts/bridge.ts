@@ -11,5 +11,7 @@ export function request<K extends keyof Protocol>(
     context: ContentScriptContext,
     message: MessageOf<K>
 ): Promise<ResponseFor<K> | undefined> {
+    // Joplin's content-script bridge, not window.postMessage, so there is no target origin.
+    // oxlint-disable-next-line unicorn/require-post-message-target-origin
     return context.postMessage(message) as Promise<ResponseFor<K> | undefined>;
 }
