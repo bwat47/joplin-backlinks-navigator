@@ -35,7 +35,7 @@ export interface Protocol {
      */
     getIndicatorState: { request: { noteId: string }; response: IndicatorState };
     /** Request settings consumed by the editor content script. */
-    getContentScriptSettings: { request: Record<never, never>; response: ContentScriptSettings };
+    getContentScriptSettings: { request: object; response: ContentScriptSettings };
     /**
      * Ask the host to navigate to `noteId`, optionally to the heading named by `anchor` (Joplin's
      * `openItem` accepts the `:/<id>#<anchor>` form).
@@ -46,7 +46,7 @@ export interface Protocol {
      * host runs the normal command, so the panel opens with the user's configured dimensions and
      * the correct mobile flag.
      */
-    openPanel: { request: Record<never, never>; response: void };
+    openPanel: { request: object; response: void };
 }
 
 export type MessageOf<K extends keyof Protocol> = { [P in K]: { type: P } & Protocol[P]['request'] }[K];
@@ -72,4 +72,6 @@ export type LinksResponse<T extends LinkItem = LinkItem> = { ok: true; links: T[
  * current preview settings.
  */
 export type IndicatorState =
-    { enabled: false } | { enabled: true; ok: true; counts: LinkCounts } | { enabled: true; ok: false };
+    | { enabled: false }
+    | { enabled: true; ok: true; counts: LinkCounts }
+    | { enabled: true; ok: false };

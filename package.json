@@ -6,13 +6,14 @@
         "prepare": "npm run dist",
         "updateVersion": "joplin-plugin-scripts update-version",
         "updateApi": "joplin-plugin-scripts update-api",
-        "lint": "eslint src/",
-        "lint:fix": "eslint src/ --fix",
-        "format": "prettier --write .",
-        "format:check": "prettier --check .",
+        "lint": "oxlint src/ && npm run lint:dead-code && npm run lint:complexity",
+        "lint:dead-code": "fallow dead-code",
+        "lint:complexity": "fallow health --complexity",
+        "lint:fix": "oxlint src/ --fix",
+        "format": "oxfmt --write",
+        "format:check": "oxfmt --check",
         "test": "vitest run --passWithNoTests",
         "test:watch": "vitest --passWithNoTests",
-        "knip": "knip",
         "typecheck": "tsc --noEmit"
     },
     "license": "MIT",
@@ -29,22 +30,14 @@
         "@bwat47/joplin-plugin-scripts": "^1.6.0",
         "@codemirror/state": "6.5.2",
         "@codemirror/view": "6.38.7",
-        "@eslint/js": "^10.0.1",
-        "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
-        "@types/node": "^25.9.4",
-        "@vitest/eslint-plugin": "^1.6.28",
-        "eslint": "^10.13.0",
-        "eslint-config-prettier": "^10.1.8",
-        "eslint-import-resolver-typescript": "^4.4.5",
-        "eslint-plugin-import-x": "^4.17.1",
-        "eslint-plugin-sonarjs": "^4.2.2",
-        "eslint-plugin-tsdoc": "^0.5.4",
-        "globals": "^17.6.0",
+        "@types/node": "^24.19.2",
+        "eslint-plugin-regexp": "^3.3.3",
+        "fallow": "^3.43.0",
         "jsdom": "^30.1.3",
-        "knip": "^6.42.1",
-        "prettier": "^3.9.10",
-        "typescript": "^6.0.3",
-        "typescript-eslint": "8.72.1",
+        "oxfmt": "^0.78.0",
+        "oxlint": "^1.93.0",
+        "oxlint-tsgolint": "^7.0.2007",
+        "typescript": "^7.0.2",
         "vitest": "^5.0.5"
     },
     "dependencies": {
@@ -53,10 +46,5 @@
         "@lezer/markdown": "1.8.1",
         "entities": "^9.0.0",
         "fuzzysort": "^4.0.2"
-    },
-    "overrides": {
-        "eslint-plugin-tsdoc": {
-            "@typescript-eslint/utils": "8.72.1"
-        }
     }
 }
