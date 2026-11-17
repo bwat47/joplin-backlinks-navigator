@@ -2,7 +2,7 @@ import type { EditorView } from '@codemirror/view';
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EditorOverlay, ensureOverlayStyles } from './editorOverlay';
-import { OVERLAY_FONT_FAMILY_VAR } from './panelTheme';
+import { OVERLAY_FONT_FAMILY_VAR, OVERLAY_FONT_SIZE_VAR } from './panelTheme';
 
 const OVERLAY_RIGHT_GAP_PX = 8;
 
@@ -108,6 +108,20 @@ describe('EditorOverlay', () => {
         view.contentDOM.style.fontFamily = '"Other Font", sans-serif';
         overlay.syncEditorFont();
         expect(element.style.getPropertyValue(OVERLAY_FONT_FAMILY_VAR)).toContain('Other Font');
+    });
+
+    it('copies the editor content font size onto the element each time it syncs', () => {
+        const view = createView();
+        const element = document.createElement('div');
+        const overlay = new EditorOverlay(view, element);
+
+        view.contentDOM.style.fontSize = '18px';
+        overlay.syncEditorFont();
+        expect(element.style.getPropertyValue(OVERLAY_FONT_SIZE_VAR)).toBe('18px');
+
+        view.contentDOM.style.fontSize = '13px';
+        overlay.syncEditorFont();
+        expect(element.style.getPropertyValue(OVERLAY_FONT_SIZE_VAR)).toBe('13px');
     });
 
     it('offsets the element clear of the editor scrollbar', () => {

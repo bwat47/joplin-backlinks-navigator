@@ -87,15 +87,18 @@ export class BacklinkIndicator {
         const showBacklinks = counts.backlinks > 0;
         const showOutgoing = counts.outgoing > 0;
 
+        // Inline styles only ever hide (`none`); clearing them defers to the stylesheet's display.
+
         this.backlinksCountEl.textContent = showBacklinks ? `${counts.backlinks}` : '';
-        this.backlinksEl.style.display = showBacklinks ? 'inline-flex' : 'none';
+        this.backlinksEl.style.display = showBacklinks ? '' : 'none';
         this.outgoingCountEl.textContent = showOutgoing ? `${counts.outgoing}` : '';
-        this.outgoingEl.style.display = showOutgoing ? 'inline-flex' : 'none';
+        this.outgoingEl.style.display = showOutgoing ? '' : 'none';
+        this.button.classList.toggle('is-split', showBacklinks && showOutgoing);
 
         const label = describeCounts(counts);
         this.button.title = `Show links (${label})`;
         this.button.setAttribute('aria-label', label);
-        this.button.style.display = 'inline-flex';
+        this.button.style.display = '';
     }
 
     /** Hides the indicator (stays mounted for cheap re-show). */

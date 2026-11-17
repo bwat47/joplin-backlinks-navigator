@@ -15,8 +15,22 @@ import type { PanelDimensions } from '../../types';
  */
 export const OVERLAY_FONT_FAMILY_VAR = '--backlinks-navigator-font-family';
 
+/**
+ * Inline CSS custom property carrying the editor's resolved font size, copied alongside
+ * {@link OVERLAY_FONT_FAMILY_VAR} for the same reason. Only the indicator badge scales with it.
+ */
+export const OVERLAY_FONT_SIZE_VAR = '--backlinks-navigator-font-size';
+
 /** Font stack shared by the panel and the indicator badge: the editor font, then Joplin's UI font. */
 const OVERLAY_FONT_FAMILY_CSS = `font-family: var(${OVERLAY_FONT_FAMILY_VAR}, var(--joplin-font-family, system-ui, sans-serif)) !important;`;
+
+/**
+ * Badge text size: a fixed fraction of the editor font size, so the badge stays in proportion as
+ * the editor font grows or shrinks. The fallback editor size (15px, Joplin's default) keeps the
+ * badge at 12px when the editor size cannot be read; the clamp stops it getting unreadably small
+ * or oversized at extreme settings. Badge spacing and icons are in `em`, so they follow this.
+ */
+const INDICATOR_FONT_SIZE_CSS = `font-size: clamp(11px, calc(var(${OVERLAY_FONT_SIZE_VAR}, 15px) * 0.8), 18px);`;
 
 const SEARCH_CANCEL_MASK_DATA_URI =
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 2l8 8m0-8L2 10' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E";
@@ -137,7 +151,6 @@ export function createPanelCss(dimensions: PanelDimensions): string {
 
 .backlinks-navigator-input::-webkit-search-cancel-button:hover {
     opacity: 1;
-    color: var(--joplin-color, #131313);
 }
 
 .backlinks-navigator-list {
@@ -146,7 +159,6 @@ export function createPanelCss(dimensions: PanelDimensions): string {
     list-style: none;
     overflow-y: auto;
     font-size: 13px;
-    background-color: inherit;
 }
 
 .backlinks-navigator-list::-webkit-scrollbar {
@@ -173,7 +185,6 @@ export function createPanelCss(dimensions: PanelDimensions): string {
     gap: 2px;
     padding: 8px 12px;
     cursor: pointer;
-    background-color: transparent;
 }
 
 .backlinks-navigator-item:hover {
@@ -182,7 +193,6 @@ export function createPanelCss(dimensions: PanelDimensions): string {
 
 .backlinks-navigator-item.is-selected {
     background-color: var(--joplin-selected-color, #e5e5e5);
-    color: var(--joplin-color, #131313);
 }
 
 .backlinks-navigator-item-header {
@@ -310,41 +320,57 @@ export function createIndicatorCss(): string {
     ${OVERLAY_ANCHOR_CSS}
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 4px 9px;
+    gap: 0.42em;
+    padding: 0.33em 0.75em;
     border: 1px solid var(--joplin-divider-color, #dddddd);
     border-radius: 999px;
     background-color: var(--joplin-background-color3, #f4f5f6);
     color: var(--joplin-color, #32373f);
     ${OVERLAY_FONT_FAMILY_CSS}
-    font-size: 12px;
+    ${INDICATOR_FONT_SIZE_CSS}
     line-height: 1;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-    transition: opacity 120ms ease-out, background-color 120ms ease-out;
+    /* Light at rest so the always-visible badge sits quietly over the text; lifts on hover/focus. */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    transition: box-shadow 120ms ease-out, background-color 120ms ease-out;
     z-index: 1999;
 }
 
 .backlinks-navigator-indicator:hover,
 .backlinks-navigator-indicator:focus-visible {
-    opacity: 1;
     background-color: var(--joplin-background-color-hover3, #cbdaf1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
     outline: none;
+}
+
+/* Keyboard focus ring, layered over the lifted drop shadow. */
+.backlinks-navigator-indicator:focus-visible {
+    box-shadow:
+        0 0 0 2px var(--joplin-color4, #2b6cb0),
+        0 2px 8px rgba(0, 0, 0, 0.18);
 }
 
 .backlinks-navigator-indicator-direction {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 0.33em;
+}
+
+/* When both directions show, a divider keeps each arrow visibly attached to its own count. */
+.backlinks-navigator-indicator.is-split .backlinks-navigator-indicator-direction.is-outgoing {
+    margin-left: 0.17em;
+    padding-left: 0.58em;
+    border-left: 1px solid var(--joplin-divider-color, #dddddd);
 }
 
 .backlinks-navigator-indicator-icon {
     display: inline-flex;
+    color: var(--joplin-color-faded, #7c8b9e);
 }
 
 .backlinks-navigator-indicator-icon svg {
-    width: 15px;
-    height: 15px;
+    width: 1.1em;
+    height: 1.1em;
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
@@ -354,6 +380,8 @@ export function createIndicatorCss(): string {
 
 .backlinks-navigator-indicator-count {
     font-weight: 600;
+    /* Equal-width digits so the badge doesn't shift width as counts change between notes. */
+    font-variant-numeric: tabular-nums;
 }
 `;
 }

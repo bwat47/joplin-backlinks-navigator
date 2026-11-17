@@ -78,6 +78,12 @@ function badge(): HTMLButtonElement | null {
     return document.querySelector('.backlinks-navigator-indicator');
 }
 
+/** Whether the badge is mounted and not hidden by its inline `display: none`. */
+function isBadgeVisible(): boolean {
+    const element = badge();
+    return element !== null && element.style.display !== 'none';
+}
+
 describe('IndicatorController', () => {
     beforeEach(() => {
         vi.useFakeTimers();
@@ -101,7 +107,7 @@ describe('IndicatorController', () => {
         expect(h.postMessage).not.toHaveBeenCalled();
         await vi.advanceTimersByTimeAsync(1);
         expect(h.postMessage).toHaveBeenCalledExactlyOnceWith({ type: 'getIndicatorState', noteId: 'note-a' });
-        expect(badge()?.style.display).toBe('inline-flex');
+        expect(isBadgeVisible()).toBe(true);
         expect(badge()?.getAttribute('aria-label')).toBe('3 backlinks, 4 outgoing links');
     });
 
@@ -113,7 +119,7 @@ describe('IndicatorController', () => {
         await h.refresh();
         first.resolve({ enabled: false });
         await vi.advanceTimersByTimeAsync(0);
-        expect(badge()?.style.display).toBe('inline-flex');
+        expect(isBadgeVisible()).toBe(true);
         expect(badge()?.getAttribute('aria-label')).toBe('3 backlinks, 4 outgoing links');
     });
 
@@ -124,7 +130,7 @@ describe('IndicatorController', () => {
         h.setNote('note-b');
         response.resolve(ENABLED);
         await vi.advanceTimersByTimeAsync(0);
-        expect(badge()?.style.display ?? 'none').toBe('none');
+        expect(isBadgeVisible()).toBe(false);
     });
 
     it('retries while the note-id facet is empty', async () => {
@@ -136,7 +142,7 @@ describe('IndicatorController', () => {
         h.setNote('note-b');
         await vi.advanceTimersByTimeAsync(150);
         expect(h.postMessage).toHaveBeenCalledExactlyOnceWith({ type: 'getIndicatorState', noteId: 'note-b' });
-        expect(badge()?.style.display).toBe('inline-flex');
+        expect(isBadgeVisible()).toBe(true);
         expect(badge()?.getAttribute('aria-label')).toBe('3 backlinks, 4 outgoing links');
     });
 
@@ -196,7 +202,7 @@ describe('IndicatorController', () => {
         h.controller.recordLinks('in', [link('a')]);
         h.controller.recordLinks('out', [link('b', 'out')]);
         h.controller.sync();
-        expect(badge()?.style.display ?? 'none').toBe('none');
+        expect(isBadgeVisible()).toBe(false);
     });
 
     it('records both directions without changing the other count or synchronizing visibility', async () => {
@@ -205,14 +211,14 @@ describe('IndicatorController', () => {
         h.setPanelOpen(true);
         h.controller.sync();
         h.controller.recordLinks('in', [link('a'), link('a')]);
-        expect(badge()?.style.display ?? 'none').toBe('none');
+        expect(isBadgeVisible()).toBe(false);
         h.setPanelOpen(false);
         h.controller.sync();
-        expect(badge()?.style.display).toBe('inline-flex');
+        expect(isBadgeVisible()).toBe(true);
         expect(badge()?.getAttribute('aria-label')).toBe('2 backlinks, 4 outgoing links');
         h.controller.recordLinks('out', [link('b', 'out')]);
         h.controller.sync();
-        expect(badge()?.style.display).toBe('inline-flex');
+        expect(isBadgeVisible()).toBe(true);
         expect(badge()?.getAttribute('aria-label')).toBe('2 backlinks, 1 outgoing link');
         applyContentScriptSettings(h.view, {
             ...DEFAULT_CONTENT_SCRIPT_SETTINGS,
@@ -220,7 +226,7 @@ describe('IndicatorController', () => {
             showIndicator: true,
         });
         h.controller.sync();
-        expect(badge()?.style.display).toBe('inline-flex');
+        expect(isBadgeVisible()).toBe(true);
         expect(badge()?.getAttribute('aria-label')).toBe('1 backlink, 1 outgoing link');
     });
 
@@ -232,17 +238,17 @@ describe('IndicatorController', () => {
         h.controller.reset();
         response.resolve(ENABLED);
         await vi.advanceTimersByTimeAsync(0);
-        expect(badge()?.style.display ?? 'none').toBe('none');
+        expect(isBadgeVisible()).toBe(false);
     });
 
     it('keeps the badge hidden while the panel is open', async () => {
         const h = harness();
         h.setPanelOpen(true);
         await h.refresh();
-        expect(badge()?.style.display ?? 'none').toBe('none');
+        expect(isBadgeVisible()).toBe(false);
         h.setPanelOpen(false);
         h.controller.sync();
-        expect(badge()?.style.display).toBe('inline-flex');
+        expect(isBadgeVisible()).toBe(true);
         expect(badge()?.getAttribute('aria-label')).toBe('3 backlinks, 4 outgoing links');
     });
 
@@ -255,10 +261,10 @@ describe('IndicatorController', () => {
         const response = vi.fn().mockResolvedValueOnce(ENABLED).mockResolvedValueOnce(state);
         const h = harness(response);
         await h.refresh();
-        expect(badge()?.style.display).toBe('inline-flex');
+        expect(isBadgeVisible()).toBe(true);
         expect(badge()?.getAttribute('aria-label')).toBe('3 backlinks, 4 outgoing links');
         await h.refresh();
-        expect(badge()?.style.display ?? 'none').toBe('none');
+        expect(isBadgeVisible()).toBe(false);
     });
 
     it('reset clears counts and hides the badge without invalidating an in-flight refresh', async () => {
@@ -268,10 +274,10 @@ describe('IndicatorController', () => {
         await h.refresh();
         h.controller.reset();
         h.controller.sync();
-        expect(badge()?.style.display ?? 'none').toBe('none');
+        expect(isBadgeVisible()).toBe(false);
         pending.resolve(ENABLED);
         await vi.advanceTimersByTimeAsync(0);
-        expect(badge()?.style.display).toBe('inline-flex');
+        expect(isBadgeVisible()).toBe(true);
         expect(badge()?.getAttribute('aria-label')).toBe('3 backlinks, 4 outgoing links');
     });
 
@@ -280,7 +286,7 @@ describe('IndicatorController', () => {
         h.controller.scheduleRefresh();
         h.controller.reset();
         await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
-        expect(badge()?.style.display).toBe('inline-flex');
+        expect(isBadgeVisible()).toBe(true);
         expect(badge()?.getAttribute('aria-label')).toBe('3 backlinks, 4 outgoing links');
     });
 

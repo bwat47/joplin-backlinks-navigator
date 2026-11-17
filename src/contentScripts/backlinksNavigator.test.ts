@@ -195,13 +195,13 @@ describe('backlinksNavigator panel integration', () => {
         await flushPromises();
         await vi.advanceTimersByTimeAsync(INDICATOR_DEBOUNCE_MS);
         const indicator = document.querySelector<HTMLElement>('.backlinks-navigator-indicator');
-        expect(indicator?.style.display).toBe('inline-flex');
+        expect(indicator?.style.display).toBe('');
 
         runCommand(EDITOR_COMMAND_TOGGLE_PANEL, false);
         await flushPromises();
         expect(indicator?.style.display).toBe('none');
         runCommand(EDITOR_COMMAND_TOGGLE_PANEL, false);
-        expect(indicator?.style.display).toBe('inline-flex');
+        expect(indicator?.style.display).toBe('');
         expect(indicator?.getAttribute('aria-label')).toBe('1 backlink, 1 outgoing link');
         view.destroy();
     });

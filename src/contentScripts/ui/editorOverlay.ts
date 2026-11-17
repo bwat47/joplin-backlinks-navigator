@@ -9,7 +9,7 @@
 
 import type { EditorView } from '@codemirror/view';
 
-import { OVERLAY_FONT_FAMILY_VAR } from './panelTheme';
+import { OVERLAY_FONT_FAMILY_VAR, OVERLAY_FONT_SIZE_VAR } from './panelTheme';
 
 /** Gap between an overlay's right edge and the editor's scrollbar. */
 const OVERLAY_RIGHT_GAP_PX = 8;
@@ -71,18 +71,15 @@ export class EditorOverlay {
     }
 
     /**
-     * Copies the editor's rendered font onto the element so it follows Joplin's editor font setting.
-     * Callers re-run this whenever they show the element, since the setting can change while the
-     * element stays cached.
+     * Copies the editor's rendered font family and size onto the element as CSS custom properties,
+     * so it follows Joplin's editor font settings. Callers re-run this whenever they show the
+     * element, since the settings can change while the element stays cached.
      */
     public syncEditorFont(): void {
         const contentDOM = this.view.contentDOM;
-        const fontFamily = contentDOM.ownerDocument.defaultView?.getComputedStyle(contentDOM).fontFamily;
-        if (fontFamily) {
-            this.element.style.setProperty(OVERLAY_FONT_FAMILY_VAR, fontFamily);
-        } else {
-            this.element.style.removeProperty(OVERLAY_FONT_FAMILY_VAR);
-        }
+        const computed = contentDOM.ownerDocument.defaultView?.getComputedStyle(contentDOM);
+        this.setOrClearProperty(OVERLAY_FONT_FAMILY_VAR, computed?.fontFamily);
+        this.setOrClearProperty(OVERLAY_FONT_SIZE_VAR, computed?.fontSize);
     }
 
     public isMounted(): boolean {
@@ -94,6 +91,14 @@ export class EditorOverlay {
         this.scrollerObserver?.disconnect();
         this.scrollerObserver = null;
         this.element.remove();
+    }
+
+    private setOrClearProperty(name: string, value: string | undefined): void {
+        if (value) {
+            this.element.style.setProperty(name, value);
+        } else {
+            this.element.style.removeProperty(name);
+        }
     }
 
     private updateRightOffset(): void {
