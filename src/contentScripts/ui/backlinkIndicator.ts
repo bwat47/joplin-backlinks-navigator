@@ -82,6 +82,7 @@ export class BacklinkIndicator {
     /** Shows the indicator with the given link counts, hiding the side that has none. */
     public show(counts: IndicatorCounts): void {
         this.mount();
+        this.overlay.syncEditorFont();
 
         const showBacklinks = counts.backlinks > 0;
         const showOutgoing = counts.outgoing > 0;

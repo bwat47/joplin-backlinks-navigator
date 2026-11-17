@@ -9,6 +9,8 @@
 
 import type { EditorView } from '@codemirror/view';
 
+import { OVERLAY_FONT_FAMILY_VAR } from './panelTheme';
+
 /** Gap between an overlay's right edge and the editor's scrollbar. */
 const OVERLAY_RIGHT_GAP_PX = 8;
 
@@ -66,6 +68,21 @@ export class EditorOverlay {
         this.updateRightOffset();
         this.scrollerObserver = new ResizeObserver(() => this.updateRightOffset());
         this.scrollerObserver.observe(this.view.scrollDOM);
+    }
+
+    /**
+     * Copies the editor's rendered font onto the element so it follows Joplin's editor font setting.
+     * Callers re-run this whenever they show the element, since the setting can change while the
+     * element stays cached.
+     */
+    public syncEditorFont(): void {
+        const contentDOM = this.view.contentDOM;
+        const fontFamily = contentDOM.ownerDocument.defaultView?.getComputedStyle(contentDOM).fontFamily;
+        if (fontFamily) {
+            this.element.style.setProperty(OVERLAY_FONT_FAMILY_VAR, fontFamily);
+        } else {
+            this.element.style.removeProperty(OVERLAY_FONT_FAMILY_VAR);
+        }
     }
 
     public isMounted(): boolean {

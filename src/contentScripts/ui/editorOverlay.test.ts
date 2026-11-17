@@ -2,6 +2,7 @@ import type { EditorView } from '@codemirror/view';
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EditorOverlay, ensureOverlayStyles } from './editorOverlay';
+import { OVERLAY_FONT_FAMILY_VAR } from './panelTheme';
 
 const OVERLAY_RIGHT_GAP_PX = 8;
 
@@ -45,6 +46,8 @@ function createView(options: { scrollbarWidth?: number; detachScroller?: boolean
     const dom = document.createElement('div');
     const scrollRoot = document.createElement('div');
     const scrollDOM = document.createElement('div');
+    const contentDOM = document.createElement('div');
+    scrollDOM.appendChild(contentDOM);
 
     editorParent.appendChild(dom);
     if (!detachScroller) {
@@ -55,7 +58,7 @@ function createView(options: { scrollbarWidth?: number; detachScroller?: boolean
     setScrollbarWidth(scrollDOM, scrollbarWidth);
     document.body.appendChild(editorParent);
 
-    return { dom, scrollDOM } as unknown as EditorView;
+    return { dom, scrollDOM, contentDOM } as unknown as EditorView;
 }
 
 function setScrollbarWidth(scrollDOM: HTMLElement, width: number): void {
@@ -89,6 +92,22 @@ describe('EditorOverlay', () => {
 
         // scrollDOM is detached, so the editor's own parent is used.
         expect(element.parentElement).toBe(view.dom.parentElement);
+    });
+
+    it('copies the editor content font onto the element each time it syncs', () => {
+        const view = createView();
+        const element = document.createElement('div');
+        const overlay = new EditorOverlay(view, element);
+
+        view.contentDOM.style.fontFamily = '"Editor Font", serif';
+        overlay.syncEditorFont();
+        expect(element.style.getPropertyValue(OVERLAY_FONT_FAMILY_VAR)).toBe(
+            getComputedStyle(view.contentDOM).fontFamily
+        );
+
+        view.contentDOM.style.fontFamily = '"Other Font", sans-serif';
+        overlay.syncEditorFont();
+        expect(element.style.getPropertyValue(OVERLAY_FONT_FAMILY_VAR)).toContain('Other Font');
     });
 
     it('offsets the element clear of the editor scrollbar', () => {

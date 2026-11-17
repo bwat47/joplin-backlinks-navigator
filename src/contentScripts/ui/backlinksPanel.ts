@@ -4,7 +4,7 @@ import type { LinkDirection, LinkItem, PanelSettings } from '../../types';
 import { getDisplayLinkCount, getDisplayLinks } from '../linkDisplay';
 import { EditorOverlay, ensureOverlayStyles } from './editorOverlay';
 import { fuzzyFilter, highlightMatch } from './fuzzyFilter';
-import { createPanelCss, PANEL_FONT_FAMILY_VAR } from './panelTheme';
+import { createPanelCss } from './panelTheme';
 
 const PANEL_STYLE_ID = 'backlinks-navigator-styles';
 const FILTER_DEBOUNCE_MS = 80;
@@ -182,7 +182,7 @@ export class BacklinksPanel {
      */
     public open(): void {
         this.mount();
-        this.applyEditorFont();
+        this.overlay.syncEditorFont();
         this.input.value = '';
         this.filterText = '';
         this.selectedId = null;
@@ -357,20 +357,6 @@ export class BacklinksPanel {
         this.applyFilter(this.input.value);
         if (this.isOpen()) {
             this.input.focus();
-        }
-    }
-
-    /**
-     * Copies the editor's rendered font onto the panel so it follows Joplin's editor font setting.
-     * Read on every open, since the setting can change while the panel element stays cached.
-     */
-    private applyEditorFont(): void {
-        const contentDOM = this.view.contentDOM;
-        const fontFamily = contentDOM.ownerDocument.defaultView?.getComputedStyle(contentDOM).fontFamily;
-        if (fontFamily) {
-            this.container.style.setProperty(PANEL_FONT_FAMILY_VAR, fontFamily);
-        } else {
-            this.container.style.removeProperty(PANEL_FONT_FAMILY_VAR);
         }
     }
 

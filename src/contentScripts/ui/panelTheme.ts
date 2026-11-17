@@ -10,11 +10,13 @@ import type { PanelDimensions } from '../../types';
  * Inline CSS custom property carrying the editor's resolved font family.
  *
  * Joplin desktop applies the "Editor font family" setting only to `.cm-editor .cm-content` via a
- * global stylesheet (there is no CSS variable for it), and the panel lives outside that element,
- * so the content script copies the computed font onto the panel. `--joplin-font-family` is the
- * fallback when the editor font cannot be read.
+ * global stylesheet (there is no CSS variable for it), and the overlays live outside that element, so `ui/editorOverlay.ts` copies the computed font onto
+ * them. `--joplin-font-family` is the fallback when the editor font cannot be read.
  */
-export const PANEL_FONT_FAMILY_VAR = '--backlinks-navigator-font-family';
+export const OVERLAY_FONT_FAMILY_VAR = '--backlinks-navigator-font-family';
+
+/** Font stack shared by the panel and the indicator badge: the editor font, then Joplin's UI font. */
+const OVERLAY_FONT_FAMILY_CSS = `font-family: var(${OVERLAY_FONT_FAMILY_VAR}, var(--joplin-font-family, system-ui, sans-serif)) !important;`;
 
 const SEARCH_CANCEL_MASK_DATA_URI =
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 2l8 8m0-8L2 10' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E";
@@ -47,7 +49,7 @@ export function createPanelCss(dimensions: PanelDimensions): string {
     max-height: ${maxHeight};
     display: flex;
     flex-direction: column;
-    font-family: var(${PANEL_FONT_FAMILY_VAR}, var(--joplin-font-family, system-ui, sans-serif)) !important;
+    ${OVERLAY_FONT_FAMILY_CSS}
     background-color: var(--joplin-background-color3, #f4f5f6);
     color: var(--joplin-color, #32373f);
     border: 1px solid var(--joplin-divider-color, #dddddd);
@@ -314,7 +316,7 @@ export function createIndicatorCss(): string {
     border-radius: 999px;
     background-color: var(--joplin-background-color3, #f4f5f6);
     color: var(--joplin-color, #32373f);
-    font-family: system-ui, sans-serif !important;
+    ${OVERLAY_FONT_FAMILY_CSS}
     font-size: 12px;
     line-height: 1;
     cursor: pointer;
