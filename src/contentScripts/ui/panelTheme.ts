@@ -6,6 +6,16 @@
 
 import type { PanelDimensions } from '../../types';
 
+/**
+ * Inline CSS custom property carrying the editor's resolved font family.
+ *
+ * Joplin desktop applies the "Editor font family" setting only to `.cm-editor .cm-content` via a
+ * global stylesheet (there is no CSS variable for it), and the panel lives outside that element,
+ * so the content script copies the computed font onto the panel. `--joplin-font-family` is the
+ * fallback when the editor font cannot be read.
+ */
+export const PANEL_FONT_FAMILY_VAR = '--backlinks-navigator-font-family';
+
 const SEARCH_CANCEL_MASK_DATA_URI =
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 2l8 8m0-8L2 10' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E";
 
@@ -37,7 +47,7 @@ export function createPanelCss(dimensions: PanelDimensions): string {
     max-height: ${maxHeight};
     display: flex;
     flex-direction: column;
-    font-family: system-ui, sans-serif !important;
+    font-family: var(${PANEL_FONT_FAMILY_VAR}, var(--joplin-font-family, system-ui, sans-serif)) !important;
     background-color: var(--joplin-background-color3, #f4f5f6);
     color: var(--joplin-color, #32373f);
     border: 1px solid var(--joplin-divider-color, #dddddd);
@@ -92,6 +102,7 @@ export function createPanelCss(dimensions: PanelDimensions): string {
     border-bottom: 1px solid var(--joplin-divider-color, #dddddd);
     background-color: inherit;
     color: inherit;
+    font-family: inherit;
     font-size: 14px;
     outline: none;
 }

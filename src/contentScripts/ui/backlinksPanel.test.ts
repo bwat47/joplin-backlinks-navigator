@@ -16,11 +16,17 @@ function createView(): EditorView {
     const dom = document.createElement('div');
     const scrollRoot = document.createElement('div');
     const scrollDOM = document.createElement('div');
+    const contentDOM = document.createElement('div');
     dom.appendChild(scrollRoot);
     scrollRoot.appendChild(scrollDOM);
+    scrollDOM.appendChild(contentDOM);
     document.body.appendChild(dom);
 
-    return { dom, scrollDOM } as unknown as EditorView;
+    return { dom, scrollDOM, contentDOM } as unknown as EditorView;
+}
+
+function computedPanelFont(): string {
+    return getComputedStyle(document.querySelector('.backlinks-navigator-panel')!).fontFamily;
 }
 
 function createPanelHarness(isMobile = false): { panel: BacklinksPanel; callbacks: PanelCallbacks } {
@@ -88,6 +94,38 @@ describe('BacklinksPanel filter context menu', () => {
         const event = openContextMenu();
 
         expect(event.defaultPrevented).toBe(false);
+        panel.destroy();
+    });
+});
+
+describe('BacklinksPanel editor font', () => {
+    beforeEach(() => {
+        document.body.replaceChildren();
+        document.head.replaceChildren();
+    });
+
+    it('uses the editor content font and refreshes it on each open', () => {
+        const view = createView();
+        const panel = new BacklinksPanel(
+            view,
+            {
+                onSelect: vi.fn(),
+                onCtrlClickSelect: vi.fn(),
+                onCtrlEnterSelect: vi.fn(),
+                onMiddleClickSelect: vi.fn(),
+                onClose: vi.fn(),
+            },
+            { dimensions: DEFAULT_PANEL_DIMENSIONS, preview: DEFAULT_LINK_PREVIEW_SETTINGS }
+        );
+
+        view.contentDOM.style.fontFamily = '"Editor Font", serif';
+        panel.open();
+        expect(computedPanelFont()).toBe(getComputedStyle(view.contentDOM).fontFamily);
+        expect(computedPanelFont()).toContain('Editor Font');
+
+        view.contentDOM.style.fontFamily = '"Other Font", sans-serif';
+        panel.open();
+        expect(computedPanelFont()).toContain('Other Font');
         panel.destroy();
     });
 });
