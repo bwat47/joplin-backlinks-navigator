@@ -41,8 +41,8 @@
         "vitest": "^5.1.0"
     },
     "dependencies": {
-        "@joplin/fork-uslug": "^2.0.6",
-        "@lezer/common": "1.5.4",
+        "@joplin/fork-uslug": "^2.0.10",
+        "@lezer/common": "1.5.6",
         "@lezer/markdown": "1.8.1",
         "entities": "^9.0.0",
         "fuzzysort": "^4.0.2"
