@@ -27,7 +27,7 @@ const SKIPPED_BLOCK_NODE_NAMES = new Set([
 ]);
 const referenceDefinitionCache = new WeakMap<ParsedMarkdownBody, ReadonlyMap<string, string>>();
 
-export interface MarkdownTextPolicy {
+interface MarkdownTextPolicy {
     readonly includeImageAlt: boolean;
     readonly skipBlockNodes: boolean;
 }

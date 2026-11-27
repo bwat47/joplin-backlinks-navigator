@@ -98,7 +98,7 @@ export function extractSectionOpening(
 }
 
 /** Display context for a single rendered link occurrence, paired with the occurrence itself. */
-export interface OccurrenceContext<T> {
+interface OccurrenceContext<T> {
     occurrence: T;
     snippet: string;
     section: string;

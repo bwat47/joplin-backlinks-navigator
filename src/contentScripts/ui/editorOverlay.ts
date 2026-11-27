@@ -25,7 +25,7 @@ function resolveOverlayRoot(view: EditorView): HTMLElement {
     return view.scrollDOM.parentElement ?? view.dom.parentElement ?? view.dom;
 }
 
-export interface EditorOverlayOptions {
+interface EditorOverlayOptions {
     /**
      * Keep the overlay's `right` offset clear of the editor's scrollbar, tracking width changes.
      * Disable when the stylesheet positions the element itself, as the mobile panel does by

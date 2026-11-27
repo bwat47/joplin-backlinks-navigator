@@ -6,7 +6,7 @@ const MAX_ITEMS = 50_000;
 const MAX_PAGES = MAX_ITEMS / PAGE_SIZE;
 
 /** The read-only portion of Joplin's Data API used by this plugin. */
-export interface JoplinDataApi {
+interface JoplinDataApi {
     get(path: string[], query?: unknown): Promise<unknown>;
 }
 
