@@ -130,37 +130,27 @@ export async function findBacklinks(
     return backlinks;
 }
 
-/** Backlink tallies, matching the rows {@link findBacklinks} would return for the same note. */
-export interface BacklinkCounts {
-    /** One per backlink row: every occurrence across every linking note. */
-    occurrences: number;
-    /** Distinct notes that link here. */
-    notes: number;
-}
-
 /**
- * Counts the backlinks to the given note without building rows for them.
+ * Counts the notes linking to the given note without building rows for them.
  *
- * Drives the indicator badge, which needs only the tallies: this skips the per-candidate
- * snippet/section parsing and notebook lookups that {@link findBacklinks} performs.
+ * Drives the indicator badge, which counts linking notes — the groups the panel shows — rather than
+ * individual occurrences. This skips the per-candidate snippet/section parsing and notebook lookups
+ * that {@link findBacklinks} performs; each candidate is still parsed to confirm it really links here.
  *
- * @returns Backlink tallies. Rejects if the search fails.
+ * @returns The number of distinct linking notes. Rejects if the search fails.
  */
 export async function countBacklinks(
     repository: LinkRepository,
     noteId: string,
     filters: LinkFilters = {}
-): Promise<BacklinkCounts> {
+): Promise<number> {
     if (!noteId) {
-        return { occurrences: 0, notes: 0 };
+        return 0;
     }
 
     const candidates = await collectBacklinkCandidates(repository, noteId, filters);
-    const counts: BacklinkCounts = {
-        occurrences: candidates.reduce((total, candidate) => total + candidate.occurrences.length, 0),
-        notes: candidates.length,
-    };
+    const count = candidates.length;
 
-    logger.debug('Counted backlinks', { noteId, ...counts });
-    return counts;
+    logger.debug('Counted backlinks', { noteId, count });
+    return count;
 }

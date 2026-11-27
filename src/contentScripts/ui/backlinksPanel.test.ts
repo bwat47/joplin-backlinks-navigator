@@ -1,7 +1,7 @@
 import type { EditorView } from '@codemirror/view';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS, type LinkItem } from '../../types';
+import { DEFAULT_PANEL_DIMENSIONS, type Backlink, type LinkItem, type PanelSettings } from '../../types';
 import { BacklinksPanel, type PanelCallbacks } from './backlinksPanel';
 
 class FakeResizeObserver {
@@ -29,23 +29,29 @@ function computedPanelFont(): string {
     return getComputedStyle(document.querySelector('.backlinks-navigator-panel')!).fontFamily;
 }
 
-function createPanelHarness(isMobile = false): { panel: BacklinksPanel; callbacks: PanelCallbacks } {
-    const callbacks: PanelCallbacks = {
+const SETTINGS: PanelSettings = {
+    dimensions: DEFAULT_PANEL_DIMENSIONS,
+    showBacklinkHeading: false,
+    collapseGroups: false,
+};
+
+function createCallbacks(): PanelCallbacks {
+    return {
         onSelect: vi.fn(),
         onCtrlClickSelect: vi.fn(),
         onCtrlEnterSelect: vi.fn(),
         onMiddleClickSelect: vi.fn(),
         onClose: vi.fn(),
+        onCollapseChange: vi.fn(),
     };
-    const panel = new BacklinksPanel(
-        createView(),
-        callbacks,
-        {
-            dimensions: DEFAULT_PANEL_DIMENSIONS,
-            preview: DEFAULT_LINK_PREVIEW_SETTINGS,
-        },
-        isMobile
-    );
+}
+
+function createPanelHarness(
+    isMobile = false,
+    settings: PanelSettings = SETTINGS
+): { panel: BacklinksPanel; callbacks: PanelCallbacks } {
+    const callbacks = createCallbacks();
+    const panel = new BacklinksPanel(createView(), callbacks, settings, isMobile);
     panel.open();
     return { panel, callbacks };
 }
@@ -106,17 +112,7 @@ describe('BacklinksPanel editor font', () => {
 
     it('uses the editor content font and refreshes it on each open', () => {
         const view = createView();
-        const panel = new BacklinksPanel(
-            view,
-            {
-                onSelect: vi.fn(),
-                onCtrlClickSelect: vi.fn(),
-                onCtrlEnterSelect: vi.fn(),
-                onMiddleClickSelect: vi.fn(),
-                onClose: vi.fn(),
-            },
-            { dimensions: DEFAULT_PANEL_DIMENSIONS, preview: DEFAULT_LINK_PREVIEW_SETTINGS }
-        );
+        const panel = new BacklinksPanel(view, createCallbacks(), SETTINGS);
 
         view.contentDOM.style.fontFamily = '"Editor Font", serif';
         panel.open();
@@ -211,6 +207,7 @@ describe('BacklinksPanel trashed outgoing links', () => {
                 notebookName: '',
                 section: '',
                 snippet: '',
+                noteOpening: '',
                 isTrashed: true,
             },
         ]);
@@ -229,5 +226,241 @@ describe('BacklinksPanel trashed outgoing links', () => {
         expect(item.classList.contains('is-trashed')).toBe(false);
         expect(item.querySelector('.backlinks-navigator-item-notebook')?.textContent).toBe('Notebook');
         panel.destroy();
+    });
+});
+
+function occurrence(noteId: string, occurrenceIndex: number, snippet = `occurrence ${occurrenceIndex}`): Backlink {
+    return {
+        direction: 'in',
+        id: `${noteId}:${occurrenceIndex}`,
+        noteId,
+        occurrenceIndex,
+        occurrenceCount: 2,
+        title: `Note ${noteId}`,
+        notebookName: 'Notebook',
+        section: '',
+        snippet,
+    };
+}
+
+const rowIds = (): (string | undefined)[] =>
+    [...document.querySelectorAll<HTMLLIElement>('.backlinks-navigator-item')].map((item) => item.dataset.rowId);
+
+const selectedRowId = (): string | undefined =>
+    document.querySelector<HTMLLIElement>('.backlinks-navigator-item.is-selected')?.dataset.rowId;
+
+const pressKey = (key: string, init: KeyboardEventInit = {}): void => {
+    document
+        .querySelector<HTMLInputElement>('.backlinks-navigator-input')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }));
+};
+
+describe('BacklinksPanel grouping', () => {
+    const LINKS = [occurrence('a', 0), occurrence('a', 1), occurrence('b', 0)];
+
+    beforeEach(() => {
+        document.body.replaceChildren();
+        document.head.replaceChildren();
+    });
+
+    it('nests a note’s occurrences under a header that shows their count', () => {
+        const { panel } = createPanelHarness();
+        panel.setLinks('in', LINKS);
+
+        expect(rowIds()).toEqual(['group:a', 'a:0', 'a:1', 'b:0']);
+        const header = document.querySelector('[data-row-id="group:a"]')!;
+        const count = header.querySelector<HTMLSpanElement>('.backlinks-navigator-item-count')!;
+        expect(count.textContent).toBe('2');
+        expect(count.title).toBe('2 backlinks');
+        expect(header.querySelector('.backlinks-navigator-item-snippet')).toBeNull();
+        const nested = document.querySelector('[data-row-id="a:1"]')!;
+        expect(nested.classList.contains('is-nested')).toBe(true);
+        expect(nested.querySelector('.backlinks-navigator-item-title')).toBeNull();
+        expect(nested.textContent).toBe('occurrence 1');
+        panel.destroy();
+    });
+
+    it('counts linked notes in the tab, not occurrences', () => {
+        const { panel } = createPanelHarness();
+        panel.setLinks('in', LINKS);
+
+        expect(document.querySelector('[data-tab="in"] .backlinks-navigator-tab-count')?.textContent).toBe('2');
+        panel.destroy();
+    });
+
+    it('falls back to the heading, then the position, for a nested occurrence with no snippet', () => {
+        const { panel } = createPanelHarness();
+        panel.setLinks('in', [{ ...occurrence('a', 0, ''), section: 'Intro' }, occurrence('a', 1, '')]);
+
+        expect(document.querySelector('[data-row-id="a:0"]')?.textContent).toBe('§ Intro');
+        expect(document.querySelector('[data-row-id="a:1"]')?.textContent).toBe('Link 2');
+        panel.destroy();
+    });
+
+    it('shows nearest heading on single-link and nested backlinks when enabled and expanded', () => {
+        const { panel } = createPanelHarness(false, { ...SETTINGS, showBacklinkHeading: true });
+        panel.setLinks('in', [
+            { ...occurrence('a', 0), section: 'Intro' },
+            { ...occurrence('a', 1), section: 'Details' },
+            { ...occurrence('b', 0), section: 'Summary' },
+        ]);
+
+        expect(document.querySelector('[data-row-id="a:1"] .backlinks-navigator-item-section')?.textContent).toBe(
+            '§ Details'
+        );
+        expect(document.querySelector('[data-row-id="b:0"] .backlinks-navigator-item-section')?.textContent).toBe(
+            '§ Summary'
+        );
+        panel.destroy();
+    });
+
+    it('hides nested rows, snippets, and headings when collapsed', () => {
+        const { panel } = createPanelHarness(false, { ...SETTINGS, showBacklinkHeading: true, collapseGroups: true });
+        panel.setLinks('in', [
+            { ...occurrence('a', 0), section: 'Intro' },
+            { ...occurrence('a', 1), section: 'Details' },
+            { ...occurrence('b', 0), section: 'Summary' },
+        ]);
+
+        expect(rowIds()).toEqual(['group:a', 'b:0']);
+        expect(document.querySelector('[data-row-id="b:0"] .backlinks-navigator-item-snippet')).toBeNull();
+        expect(document.querySelector('[data-row-id="b:0"] .backlinks-navigator-item-section')).toBeNull();
+        expect(document.querySelector('[data-row-id="group:a"] .backlinks-navigator-item-snippet')).toBeNull();
+        panel.destroy();
+    });
+
+    it('collapses from the toggle, reports the choice, and moves a hidden selection to its header', () => {
+        const { panel, callbacks } = createPanelHarness();
+        panel.setLinks('in', LINKS);
+        pressKey('ArrowDown');
+        pressKey('ArrowDown');
+        expect(selectedRowId()).toBe('a:1');
+
+        document.querySelector<HTMLButtonElement>('.backlinks-navigator-collapse-toggle')!.click();
+
+        expect(callbacks.onCollapseChange).toHaveBeenCalledWith(true);
+        expect(rowIds()).toEqual(['group:a', 'b:0']);
+        expect(selectedRowId()).toBe('group:a');
+        panel.destroy();
+    });
+
+    it('collapses and expands with Alt+Left and Alt+Right only', () => {
+        const { panel, callbacks } = createPanelHarness();
+        panel.setLinks('in', LINKS);
+
+        pressKey('ArrowLeft');
+        expect(callbacks.onCollapseChange).not.toHaveBeenCalled();
+        pressKey('ArrowLeft', { altKey: true });
+        expect(rowIds()).toEqual(['group:a', 'b:0']);
+        pressKey('ArrowLeft', { altKey: true });
+        pressKey('ArrowRight', { altKey: true });
+        expect(rowIds()).toEqual(['group:a', 'a:0', 'a:1', 'b:0']);
+        expect(vi.mocked(callbacks.onCollapseChange).mock.calls).toEqual([[true], [false]]);
+        panel.destroy();
+    });
+
+    it('keeps the details toggle visible for single-link rows and ignores Alt+arrows when empty', () => {
+        const { panel, callbacks } = createPanelHarness();
+        const toggle = document.querySelector<HTMLButtonElement>('.backlinks-navigator-collapse-toggle')!;
+
+        // Empty/loading: button stays in the tab bar (no layout shift), Alt+arrows are a no-op
+        expect(toggle.hidden).toBe(false);
+        pressKey('ArrowLeft', { altKey: true });
+        expect(callbacks.onCollapseChange).not.toHaveBeenCalled();
+
+        // Single-link note: Alt+Left hides its snippet, Alt+Right restores it
+        panel.setLinks('in', [occurrence('b', 0)]);
+        expect(document.querySelector('[data-row-id="b:0"] .backlinks-navigator-item-snippet')?.textContent).toBe(
+            'occurrence 0'
+        );
+        pressKey('ArrowLeft', { altKey: true });
+        expect(callbacks.onCollapseChange).toHaveBeenCalledWith(true);
+        expect(document.querySelector('[data-row-id="b:0"] .backlinks-navigator-item-snippet')).toBeNull();
+        panel.destroy();
+    });
+
+    it('opens a header’s note without an occurrence to scroll to', () => {
+        const { panel, callbacks } = createPanelHarness();
+        panel.setLinks('in', [
+            {
+                ...occurrence('a', 0),
+                navigationTarget: { from: 0, to: 1, text: 'x', contextBefore: '', contextAfter: '' },
+            },
+            occurrence('a', 1),
+        ]);
+
+        document.querySelector('[data-row-id="group:a"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+        expect(callbacks.onSelect).toHaveBeenCalledWith(expect.objectContaining({ noteId: 'a' }));
+        expect(vi.mocked(callbacks.onSelect).mock.calls[0]![0].navigationTarget).toBeUndefined();
+        panel.destroy();
+    });
+
+    describe('outgoing groups', () => {
+        const destination = (anchor: string): LinkItem => ({
+            direction: 'out',
+            id: anchor ? `a#${anchor}` : 'a',
+            noteId: 'a',
+            anchor,
+            title: 'Note a',
+            notebookName: 'Notebook',
+            section: anchor ? `Heading ${anchor}` : '',
+            snippet: anchor ? `Section ${anchor}` : 'Note opening',
+            noteOpening: 'Note opening',
+            isTrashed: false,
+        });
+
+        const showOutgoing = (settings: PanelSettings, links: LinkItem[]): BacklinksPanel => {
+            const { panel } = createPanelHarness(false, settings);
+            panel.setLinks('in', []);
+            panel.setLinks('out', links);
+            return panel;
+        };
+
+        it('nests only the anchors, counting them in the header', () => {
+            const panel = showOutgoing(SETTINGS, [destination(''), destination('setup'), destination('usage')]);
+
+            // The header opens the note itself, so the whole-note destination gets no row of its own.
+            expect(rowIds()).toEqual(['group:a', 'a#setup', 'a#usage']);
+            const header = document.querySelector('[data-row-id="group:a"]')!;
+            const count = header.querySelector<HTMLSpanElement>('.backlinks-navigator-item-count')!;
+            expect(count.textContent).toBe('2');
+            expect(count.title).toBe('2 anchors');
+            expect(document.querySelector('[data-row-id="a#setup"]')?.textContent).toBe('§ Heading setupSection setup');
+            panel.destroy();
+        });
+
+        it('uses singular anchor tooltip when a mixed outgoing group has one anchor', () => {
+            const panel = showOutgoing(SETTINGS, [destination(''), destination('setup')]);
+
+            const count = document.querySelector<HTMLSpanElement>(
+                '[data-row-id="group:a"] .backlinks-navigator-item-count'
+            )!;
+            expect(count.textContent).toBe('1');
+            expect(count.title).toBe('1 anchor');
+            panel.destroy();
+        });
+
+        it('previews the note’s opening on the header when expanded, even with only anchors linked', () => {
+            const panel = showOutgoing(SETTINGS, [destination('setup'), destination('usage')]);
+
+            expect(
+                document.querySelector('[data-row-id="group:a"] .backlinks-navigator-item-snippet')?.textContent
+            ).toBe('Note opening');
+            panel.destroy();
+        });
+
+        it('hides nested anchors and snippets when collapsed', () => {
+            const panel = showOutgoing({ ...SETTINGS, collapseGroups: true }, [
+                destination(''),
+                destination('setup'),
+                { ...destination(''), id: 'b', noteId: 'b', title: 'Note b' },
+            ]);
+
+            expect(rowIds()).toEqual(['group:a', 'b']);
+            expect(document.querySelector('[data-row-id="group:a"] .backlinks-navigator-item-snippet')).toBeNull();
+            expect(document.querySelector('[data-row-id="b"] .backlinks-navigator-item-snippet')).toBeNull();
+            panel.destroy();
+        });
     });
 });

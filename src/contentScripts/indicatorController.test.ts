@@ -12,7 +12,7 @@ import {
 } from './editor/pluginSettings';
 import { IndicatorController } from './indicatorController';
 
-const COUNTS = { backlinkOccurrences: 3, backlinkNotes: 2, outgoing: 4 };
+const COUNTS = { backlinks: 3, outgoing: 4 };
 const ENABLED: IndicatorState = { enabled: true, ok: true, counts: COUNTS };
 const DEBOUNCE_MS = 350;
 
@@ -34,7 +34,7 @@ function link(noteId: string, direction: 'in' | 'out' = 'in'): LinkItem {
     const row = { noteId, id: noteId, title: noteId, notebookName: '', section: '', snippet: '' };
     return direction === 'in'
         ? { ...row, direction, occurrenceIndex: 0, occurrenceCount: 1 }
-        : { ...row, direction, anchor: '', isTrashed: false };
+        : { ...row, direction, anchor: '', noteOpening: '', isTrashed: false };
 }
 
 const cleanups: (() => void)[] = [];
@@ -108,7 +108,7 @@ describe('IndicatorController', () => {
         await vi.advanceTimersByTimeAsync(1);
         expect(h.postMessage).toHaveBeenCalledExactlyOnceWith({ type: 'getIndicatorState', noteId: 'note-a' });
         expect(isBadgeVisible()).toBe(true);
-        expect(badge()?.getAttribute('aria-label')).toBe('3 backlinks, 4 outgoing links');
+        expect(badge()?.getAttribute('aria-label')).toBe('Linked from 3 notes, links to 4 notes');
     });
 
     it('ignores a superseded response', async () => {
@@ -120,7 +120,7 @@ describe('IndicatorController', () => {
         first.resolve({ enabled: false });
         await vi.advanceTimersByTimeAsync(0);
         expect(isBadgeVisible()).toBe(true);
-        expect(badge()?.getAttribute('aria-label')).toBe('3 backlinks, 4 outgoing links');
+        expect(badge()?.getAttribute('aria-label')).toBe('Linked from 3 notes, links to 4 notes');
     });
 
     it('ignores a response for a note that is no longer active', async () => {
@@ -143,7 +143,7 @@ describe('IndicatorController', () => {
         await vi.advanceTimersByTimeAsync(150);
         expect(h.postMessage).toHaveBeenCalledExactlyOnceWith({ type: 'getIndicatorState', noteId: 'note-b' });
         expect(isBadgeVisible()).toBe(true);
-        expect(badge()?.getAttribute('aria-label')).toBe('3 backlinks, 4 outgoing links');
+        expect(badge()?.getAttribute('aria-label')).toBe('Linked from 3 notes, links to 4 notes');
     });
 
     it('stops retrying after five retries', async () => {
@@ -205,29 +205,22 @@ describe('IndicatorController', () => {
         expect(isBadgeVisible()).toBe(false);
     });
 
-    it('records both directions without changing the other count or synchronizing visibility', async () => {
+    it('records linked-note counts for both directions without synchronizing visibility', async () => {
         const h = harness();
         await h.refresh();
         h.setPanelOpen(true);
         h.controller.sync();
+        // Two occurrences from one note count as one linked note.
         h.controller.recordLinks('in', [link('a'), link('a')]);
         expect(isBadgeVisible()).toBe(false);
         h.setPanelOpen(false);
         h.controller.sync();
         expect(isBadgeVisible()).toBe(true);
-        expect(badge()?.getAttribute('aria-label')).toBe('2 backlinks, 4 outgoing links');
-        h.controller.recordLinks('out', [link('b', 'out')]);
+        expect(badge()?.getAttribute('aria-label')).toBe('Linked from 1 note, links to 4 notes');
+        h.controller.recordLinks('out', [link('b', 'out'), link('c', 'out')]);
         h.controller.sync();
         expect(isBadgeVisible()).toBe(true);
-        expect(badge()?.getAttribute('aria-label')).toBe('2 backlinks, 1 outgoing link');
-        applyContentScriptSettings(h.view, {
-            ...DEFAULT_CONTENT_SCRIPT_SETTINGS,
-            panel: { ...DEFAULT_CONTENT_SCRIPT_SETTINGS.panel, preview: { in: 'title', out: 'title' } },
-            showIndicator: true,
-        });
-        h.controller.sync();
-        expect(isBadgeVisible()).toBe(true);
-        expect(badge()?.getAttribute('aria-label')).toBe('1 backlink, 1 outgoing link');
+        expect(badge()?.getAttribute('aria-label')).toBe('Linked from 1 note, links to 2 notes');
     });
 
     it('ignores an in-flight response after the setting is turned off', async () => {
@@ -249,7 +242,7 @@ describe('IndicatorController', () => {
         h.setPanelOpen(false);
         h.controller.sync();
         expect(isBadgeVisible()).toBe(true);
-        expect(badge()?.getAttribute('aria-label')).toBe('3 backlinks, 4 outgoing links');
+        expect(badge()?.getAttribute('aria-label')).toBe('Linked from 3 notes, links to 4 notes');
     });
 
     it.each([
@@ -262,7 +255,7 @@ describe('IndicatorController', () => {
         const h = harness(response);
         await h.refresh();
         expect(isBadgeVisible()).toBe(true);
-        expect(badge()?.getAttribute('aria-label')).toBe('3 backlinks, 4 outgoing links');
+        expect(badge()?.getAttribute('aria-label')).toBe('Linked from 3 notes, links to 4 notes');
         await h.refresh();
         expect(isBadgeVisible()).toBe(false);
     });
@@ -278,7 +271,7 @@ describe('IndicatorController', () => {
         pending.resolve(ENABLED);
         await vi.advanceTimersByTimeAsync(0);
         expect(isBadgeVisible()).toBe(true);
-        expect(badge()?.getAttribute('aria-label')).toBe('3 backlinks, 4 outgoing links');
+        expect(badge()?.getAttribute('aria-label')).toBe('Linked from 3 notes, links to 4 notes');
     });
 
     it('reset does not cancel a queued refresh', async () => {
@@ -287,7 +280,7 @@ describe('IndicatorController', () => {
         h.controller.reset();
         await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
         expect(isBadgeVisible()).toBe(true);
-        expect(badge()?.getAttribute('aria-label')).toBe('3 backlinks, 4 outgoing links');
+        expect(badge()?.getAttribute('aria-label')).toBe('Linked from 3 notes, links to 4 notes');
     });
 
     it('sends openPanel when the badge is clicked', async () => {

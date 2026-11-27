@@ -47,6 +47,8 @@ import {
 interface ParsedTargetBody {
     parsed: ParsedMarkdownBody;
     headings: MarkdownHeading[];
+    /** The note's opening preview, shared by its whole-note row and every row's `noteOpening`. */
+    opening: string;
     htmlAnchors?: HtmlAnchor[];
 }
 
@@ -136,12 +138,12 @@ function resolveDestinationPreview(targetBody: ParsedTargetBody, anchor: string)
         const htmlAnchor = findHtmlAnchorById(targetBody.htmlAnchors, anchor);
         return {
             section: htmlAnchor?.text || anchor,
-            snippet: htmlAnchor?.snippet || extractNoteOpening(parsed, headings),
+            snippet: htmlAnchor?.snippet || targetBody.opening,
             ...(htmlAnchor ? { navigationTarget: createNavigationTarget(parsed, htmlAnchor) } : {}),
         };
     }
 
-    return { section: '', snippet: extractNoteOpening(parsed, headings) };
+    return { section: '', snippet: targetBody.opening };
 }
 
 /**
@@ -193,10 +195,8 @@ export async function findOutgoingLinks(
             let targetBody = parsedBodyCache.get(group.targetId);
             if (!targetBody) {
                 const parsed = parseMarkdownBody(meta.body);
-                targetBody = {
-                    parsed,
-                    headings: parseMarkdownHeadings(parsed),
-                };
+                const headings = parseMarkdownHeadings(parsed);
+                targetBody = { parsed, headings, opening: extractNoteOpening(parsed, headings) };
                 parsedBodyCache.set(group.targetId, targetBody);
             }
             const preview = resolveDestinationPreview(targetBody, group.anchor);
@@ -208,6 +208,7 @@ export async function findOutgoingLinks(
                 title: meta.title,
                 notebookName,
                 ...preview,
+                noteOpening: targetBody.opening,
                 isTrashed: meta.isTrashed,
             };
         }
@@ -221,15 +222,16 @@ export async function findOutgoingLinks(
 }
 
 /**
- * Counts the distinct destinations the given note links to, without building rows for them.
+ * Counts the distinct notes the given note links to, without building rows for them.
  *
- * Drives the indicator badge, which needs only the tally. Each destination still costs one note
- * lookup, because a link whose target no longer exists is broken and {@link findOutgoingLinks}
- * drops it — so counting it would put the badge out of step with the panel. The same lookup carries
- * the `parent_id` that the ignored-notebook filter needs. It omits the target's `body`, which is what makes this cheap: no bodies are transferred and no target note is
- * parsed for headings or HTML anchors.
+ * Drives the indicator badge, which counts linked notes — the groups the panel shows — so a note's
+ * whole-note and anchored destinations count once. Each target still costs one note lookup, because
+ * a link whose target no longer exists is broken and {@link findOutgoingLinks} drops it — so counting
+ * it would put the badge out of step with the panel. The same lookup carries the `parent_id` that the
+ * ignored-notebook filter needs. It omits the target's `body`, which is what makes this cheap: no
+ * bodies are transferred and no target note is parsed for headings or HTML anchors.
  *
- * @returns The number of resolvable destinations. Rejects if the note's own body can't be read.
+ * @returns The number of resolvable target notes. Rejects if the note's own body can't be read.
  */
 export async function countOutgoingLinks(
     repository: LinkRepository,
@@ -243,9 +245,10 @@ export async function countOutgoingLinks(
     const body = await repository.getNoteBody(noteId);
     const ignoredFolderIds = filters.ignoredFolderIds ?? new Set<string>();
     const destinations = collectDestinations(parseMarkdownBody(body), noteId, filters.ignoredNoteIds ?? new Set());
+    const targetIds = [...new Set(destinations.map((destination) => destination.targetId))];
     const noteMetaCache: NoteMetaCache = new Map();
-    const resolvable = await mapWithConcurrency(destinations, LOOKUP_CONCURRENCY, async (destination) => {
-        const meta = await resolveNoteMeta(repository, destination.targetId, noteMetaCache);
+    const resolvable = await mapWithConcurrency(targetIds, LOOKUP_CONCURRENCY, async (targetId) => {
+        const meta = await resolveNoteMeta(repository, targetId, noteMetaCache);
         return meta !== null && !isInIgnoredNotebook(meta, ignoredFolderIds);
     });
     const count = resolvable.filter(Boolean).length;

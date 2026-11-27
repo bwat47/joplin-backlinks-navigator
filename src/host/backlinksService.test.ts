@@ -337,11 +337,11 @@ describe('countBacklinks', () => {
         });
     };
 
-    it('counts occurrences and source notes without resolving notebooks', async () => {
+    it('counts source notes without resolving notebooks', async () => {
         // The mock throws on any non-search request, so a notebook lookup here would fail the test.
         mockSearchResults(false);
 
-        await expect(countBacklinks(repository, TARGET_NOTE_ID)).resolves.toEqual({ occurrences: 3, notes: 2 });
+        await expect(countBacklinks(repository, TARGET_NOTE_ID)).resolves.toBe(2);
         expect(mockDataGet).toHaveBeenCalledTimes(1);
     });
 
@@ -349,21 +349,17 @@ describe('countBacklinks', () => {
         mockSearchResults(true);
 
         const rows = await findBacklinks(repository, TARGET_NOTE_ID);
-        const counts = await countBacklinks(repository, TARGET_NOTE_ID);
+        const count = await countBacklinks(repository, TARGET_NOTE_ID);
 
-        expect(counts.occurrences).toBe(rows.length);
-        expect(counts.notes).toBe(new Set(rows.map((row) => row.noteId)).size);
+        expect(count).toBe(new Set(rows.map((row) => row.noteId)).size);
     });
 
     it('omits ignored source notes', async () => {
         mockSearchResults(false);
 
-        await expect(
-            countBacklinks(repository, TARGET_NOTE_ID, { ignoredNoteIds: new Set(['note-z']) })
-        ).resolves.toEqual({
-            occurrences: 1,
-            notes: 1,
-        });
+        await expect(countBacklinks(repository, TARGET_NOTE_ID, { ignoredNoteIds: new Set(['note-z']) })).resolves.toBe(
+            1
+        );
     });
 
     it('omits source notes in ignored notebooks', async () => {
@@ -372,14 +368,11 @@ describe('countBacklinks', () => {
         // note-z lives in folder-1 and links twice; note-a is the only remaining source.
         await expect(
             countBacklinks(repository, TARGET_NOTE_ID, { ignoredFolderIds: new Set(['folder-1']) })
-        ).resolves.toEqual({
-            occurrences: 1,
-            notes: 1,
-        });
+        ).resolves.toBe(1);
     });
 
-    it('returns zeros without searching when note id is missing', async () => {
-        await expect(countBacklinks(repository, '')).resolves.toEqual({ occurrences: 0, notes: 0 });
+    it('returns 0 without searching when note id is missing', async () => {
+        await expect(countBacklinks(repository, '')).resolves.toBe(0);
         expect(mockDataGet).not.toHaveBeenCalled();
     });
 

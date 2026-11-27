@@ -59,6 +59,7 @@ function outgoing(anchor: string): OutgoingLink {
         direction: 'out',
         id: anchor ? `${OTHER_NOTE}#${anchor}` : OTHER_NOTE,
         anchor,
+        noteOpening: '',
         isTrashed: false,
         ...(anchor
             ? { navigationTarget: createNavigationTarget(parseMarkdownBody(HEADING_BODY), { from: 7, to: 14 }) }
@@ -109,7 +110,7 @@ function harness(links: { in?: LinkItem[]; out?: LinkItem[] } = {}, respond?: Li
 }
 
 function clickRow(id: string, init: MouseEventInit = {}): void {
-    const item = document.querySelector(`.backlinks-navigator-item[data-link-id="${id}"]`);
+    const item = document.querySelector(`.backlinks-navigator-item[data-row-id="${id}"]`);
     if (!item) {
         throw new Error(`Row not rendered: ${id}`);
     }
@@ -174,19 +175,27 @@ describe('PanelController', () => {
         expect(h.view.state.selection.main.head).toBe(body.indexOf('[b]'));
     });
 
-    it('does not scroll to an occurrence when title-only backlinks collapse them', async () => {
+    it('opens a group header’s note without scrolling to an occurrence', async () => {
         const h = harness({ in: [backlink(0), backlink(1)] });
-        applyContentScriptSettings(h.view, {
-            ...DEFAULT_CONTENT_SCRIPT_SETTINGS,
-            panel: { ...DEFAULT_CONTENT_SCRIPT_SETTINGS.panel, preview: { in: 'title', out: 'titleSnippet' } },
-        });
         await h.open();
 
-        clickRow(`${OTHER_NOTE}:0`);
+        clickRow(`group:${OTHER_NOTE}`);
         await vi.advanceTimersByTimeAsync(0);
         await h.switchNote(OTHER_NOTE, `Intro\n\n[a](:/${CURRENT_NOTE})`);
 
+        expect(h.postMessage).toHaveBeenCalledWith({ type: 'openNote', noteId: OTHER_NOTE, anchor: '' });
         expect(h.view.state.selection.main.head).toBe(0);
+    });
+
+    it('remembers the collapse choice through the host', async () => {
+        const h = harness({ in: [backlink(0), backlink(1)] });
+        await h.open();
+
+        document.querySelector<HTMLButtonElement>('.backlinks-navigator-collapse-toggle')!.click();
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(h.postMessage).toHaveBeenCalledWith({ type: 'setCollapseGroups', collapsed: true });
+        expect(document.querySelector(`[data-row-id="${OTHER_NOTE}:0"]`)).toBeNull();
     });
 
     it('scrolls to the heading an outgoing anchor names', async () => {

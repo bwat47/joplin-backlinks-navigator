@@ -59,6 +59,12 @@ export interface OutgoingLink extends LinkItemBase {
      */
     anchor: string;
     /**
+     * Preview of the target note's opening, whatever the anchor. The panel shows it on the header
+     * that groups a note's destinations, which stands for the note as a whole — including when the
+     * note is only linked through its anchors, so no whole-note row carries this snippet.
+     */
+    noteOpening: string;
+    /**
      * The target note is in the trash. Unlike a trashed backlink source (which Joplin's search
      * never returns), a link to a trashed note is still a link in the current note's body — one the
      * user may want to clean up — so the row is kept and marked instead. `notebookName` is empty:
@@ -88,25 +94,21 @@ export interface LinkFilters {
 }
 
 /**
- * Link tallies for the current note, resolved without building {@link LinkItem} rows.
+ * Linked-note tallies for the current note, resolved without building {@link LinkItem} rows.
  *
  * The indicator badge only needs numbers, so the host counts links instead of resolving snippets,
  * notebook names, and anchors for every row (see `countBacklinks`/`countOutgoingLinks`). Both
- * backlink figures are carried because the display policy that picks between them lives in the
- * content script, which owns the current preview settings — see `getDisplayCounts`.
+ * figures count distinct notes, matching the panel, which groups each note's rows under one entry.
  */
 export interface LinkCounts {
-    /** Total inbound link occurrences, matching one backlink row each. */
-    backlinkOccurrences: number;
-    /** Distinct notes linking here — what title-only backlink mode collapses those rows to. */
-    backlinkNotes: number;
-    /** Distinct outgoing destinations (note + optional anchor), excluding broken links. */
+    /** Distinct notes linking to the current note. */
+    backlinks: number;
+    /** Distinct notes the current note links to, excluding broken links. */
     outgoing: number;
 }
 
 export const EMPTY_LINK_COUNTS: LinkCounts = {
-    backlinkOccurrences: 0,
-    backlinkNotes: 0,
+    backlinks: 0,
     outgoing: 0,
 };
 
@@ -121,16 +123,15 @@ export interface PanelDimensions {
     maxHeightPercentage: number;
 }
 
-export type LinkPreviewMode = 'title' | 'titleSnippet' | 'titleSnippetHeading';
-
-export interface LinkPreviewSettings {
-    in: LinkPreviewMode;
-    out: LinkPreviewMode;
-}
-
 export interface PanelSettings {
     dimensions: PanelDimensions;
-    preview: LinkPreviewSettings;
+    /** Show the nearest heading above each backlink when panel details are expanded. */
+    showBacklinkHeading: boolean;
+    /**
+     * Compact view: show one title-only row per linked note, hiding nested occurrences/anchors
+     * and context previews. Toggled from the panel and remembered as a hidden setting.
+     */
+    collapseGroups: boolean;
 }
 
 export interface ContentScriptSettings {
@@ -143,9 +144,4 @@ export type BacklinkOpenBehavior = 'newWindow' | 'newTab';
 export const DEFAULT_PANEL_DIMENSIONS: PanelDimensions = {
     width: 360,
     maxHeightPercentage: 75,
-};
-
-export const DEFAULT_LINK_PREVIEW_SETTINGS: LinkPreviewSettings = {
-    in: 'titleSnippet',
-    out: 'titleSnippet',
 };

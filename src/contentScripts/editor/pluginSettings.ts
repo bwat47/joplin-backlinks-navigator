@@ -3,13 +3,14 @@ import type { EditorView } from '@codemirror/view';
 
 import type { ContentScriptContext } from 'api/types';
 import logger from '../../logger';
-import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS, type ContentScriptSettings } from '../../types';
+import { DEFAULT_PANEL_DIMENSIONS, type ContentScriptSettings } from '../../types';
 import { request } from '../bridge';
 
 export const DEFAULT_CONTENT_SCRIPT_SETTINGS: ContentScriptSettings = {
     panel: {
         dimensions: { ...DEFAULT_PANEL_DIMENSIONS },
-        preview: { ...DEFAULT_LINK_PREVIEW_SETTINGS },
+        showBacklinkHeading: false,
+        collapseGroups: false,
     },
     showIndicator: false,
 };

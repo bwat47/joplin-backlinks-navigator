@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CodeMirrorControl, ContentScriptContext } from 'api/types';
 import { EDITOR_COMMAND_TOGGLE_PANEL } from '../commandIds';
 import type { IndicatorState, LinksResponse, MessageOf, Protocol } from '../messages';
-import { DEFAULT_LINK_PREVIEW_SETTINGS, DEFAULT_PANEL_DIMENSIONS } from '../types';
+import { DEFAULT_PANEL_DIMENSIONS } from '../types';
 import backlinksNavigator from './backlinksNavigator';
 
 const INDICATOR_DEBOUNCE_MS = 350;
@@ -46,14 +46,14 @@ function createDeferred<T>(): Deferred<T> {
 const SETTINGS = {
     panel: {
         dimensions: DEFAULT_PANEL_DIMENSIONS,
-        preview: DEFAULT_LINK_PREVIEW_SETTINGS,
+        showBacklinkHeading: false,
+        collapseGroups: false,
     },
     showIndicator: true,
 };
 
 const INDICATOR_COUNTS = {
-    backlinkOccurrences: 1,
-    backlinkNotes: 1,
+    backlinks: 1,
     outgoing: 0,
 };
 
@@ -202,7 +202,7 @@ describe('backlinksNavigator panel integration', () => {
         expect(indicator?.style.display).toBe('none');
         runCommand(EDITOR_COMMAND_TOGGLE_PANEL, false);
         expect(indicator?.style.display).toBe('');
-        expect(indicator?.getAttribute('aria-label')).toBe('1 backlink, 1 outgoing link');
+        expect(indicator?.getAttribute('aria-label')).toBe('Linked from 1 note, links to 1 note');
         view.destroy();
     });
 });

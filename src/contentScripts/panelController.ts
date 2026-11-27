@@ -125,6 +125,9 @@ export class PanelController {
                 onClose: (reason: PanelCloseReason) => {
                     this.close(reason === 'escape');
                 },
+                onCollapseChange: (collapsed) => {
+                    void this.rememberCollapse(collapsed);
+                },
             },
             getContentScriptSettings(this.view.state).panel,
             isMobile
@@ -180,18 +183,26 @@ export class PanelController {
     }
 
     /**
+     * Stores the expand/collapse choice as a setting. The host's settings push then updates every
+     * editor, so the next panel opens the same way; until it arrives this panel keeps its own state.
+     */
+    private async rememberCollapse(collapsed: boolean): Promise<void> {
+        try {
+            await request(this.context, { type: 'setCollapseGroups', collapsed });
+        } catch (error) {
+            logger.warn('Failed to remember the panel collapse choice', error);
+        }
+    }
+
+    /**
      * Where to scroll once the selected row's note loads: the host-resolved navigation target, if
      * the row has one. For a backlink that's the link occurrence pointing back to the current note;
      * for an anchored outgoing link it's the heading or HTML anchor the anchor names. Rows without
-     * a target (unanchored or unresolved outgoing links) just open the note. In title-only mode
-     * backlinks are collapsed to one row per note rather than a specific occurrence, so they don't
-     * scroll either.
+     * a target (unanchored or unresolved outgoing links, and group headers, which stand for the
+     * note as a whole) just open the note.
      */
     private pendingScrollFor(link: LinkItem): PendingScroll | null {
         if (!link.navigationTarget) {
-            return null;
-        }
-        if (link.direction === 'in' && getContentScriptSettings(this.view.state).panel.preview.in === 'title') {
             return null;
         }
         return { targetNoteId: link.noteId, navigationTarget: link.navigationTarget };
