@@ -34,13 +34,18 @@ describe('fuzzyFilter', () => {
         expect(fuzzyFilter('al pr', backlinks).map((item) => item.id)).toEqual(['alpha']);
     });
 
-    it('orders same-note backlink ties by occurrence index', () => {
+    it('keeps the input order for tied scores', () => {
         const repeatedBacklinks = [
-            backlink('source:1', 'Source Note', 1, 'source'),
             backlink('source:0', 'Source Note', 0, 'source'),
+            backlink('other', 'Source Note'),
+            backlink('source:1', 'Source Note', 1, 'source'),
         ];
 
-        expect(fuzzyFilter('source', repeatedBacklinks).map((item) => item.id)).toEqual(['source:0', 'source:1']);
+        expect(fuzzyFilter('source', repeatedBacklinks).map((item) => item.id)).toEqual([
+            'source:0',
+            'other',
+            'source:1',
+        ]);
     });
 
     it('returns no results when the query cannot match any title', () => {
