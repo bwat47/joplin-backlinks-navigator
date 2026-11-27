@@ -200,10 +200,10 @@ one-line-per-note list. Every row in it opens its note without scrolling, even a
 link: with no context shown, rows that look alike shouldn't land in different places. Expanding shows nested occurrences/anchors and context snippets on every
 row; the `showBacklinkHeading` setting adds the nearest heading above each backlink when expanded.
 The toggle (or Alt+Up / Alt+Down, which leave Alt+Left/Right to macOS word-wise caret movement in
-the filter) reports the choice to the host, which stores it in the hidden
-`collapseDetails` setting; the resulting settings push updates every editor, so the next popup
-opens the same way. An open popup ignores pushed `collapseDetails` values, since a push can lag
-behind a later toggle, and the host handles setting changes in order so the last push is current.
+the filter) applies the choice to the editor's own settings facet, so its next popup opens the same
+way, and reports it to the host, which stores it in the hidden `collapseDetails` setting for the
+next startup. That setting isn't pushed back to editors: the toggling editor already has it, and a
+push could lag behind a later toggle. Other open editors pick it up with their next settings push.
 
 Counts are linked notes rather than rows — the tab counts and the badge alike — so they don't
 change when panel details are expanded or collapsed, and don't depend on any display setting.

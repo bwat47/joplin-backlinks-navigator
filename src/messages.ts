@@ -48,8 +48,8 @@ export interface Protocol {
      */
     openPanel: { request: object; response: void };
     /**
-     * Remember the panel's compact/detailed choice. The host stores it as a setting, whose change
-     * pushes updated settings back to every editor.
+     * Remember the panel's compact/detailed choice for the next startup. The toggling editor has
+     * already applied it, so the host stores it without pushing settings back.
      */
     setCollapseDetails: { request: { collapsed: boolean }; response: void };
 }

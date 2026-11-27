@@ -133,11 +133,8 @@ void joplin.plugins.register({
         const isMobile = await isMobilePlatform();
         await registerSettings();
         await applyDebugSetting();
-        // Handle changes one at a time, so pushes reach editors in order and the last one carries the
-        // latest values (e.g. after quick collapse toggles). `handleSettingsChange` never rejects.
-        let settingsChangeQueue = Promise.resolve();
         await joplin.settings.onChange(({ keys }) => {
-            settingsChangeQueue = settingsChangeQueue.then(() => handleSettingsChange(keys));
+            void handleSettingsChange(keys);
         });
         await registerContentScripts(repository);
         await registerCommands(repository, isMobile);

@@ -363,20 +363,17 @@ describe('BacklinksPanel grouping', () => {
         panel.destroy();
     });
 
-    it('skips re-rendering rows when echoed settings do not change row display', () => {
+    it('skips re-rendering rows when pushed settings do not change row display', () => {
         const { panel } = createPanelHarness();
         panel.setLinks('in', LINKS);
+        const header = document.querySelector('[data-row-id="group:a"]');
 
-        document.querySelector<HTMLButtonElement>('.backlinks-navigator-collapse-toggle')!.click();
-        const headerAfterToggle = document.querySelector('[data-row-id="group:a"]');
-
-        // Simulate the host echoing the persisted collapseDetails setting back via onChange.
-        panel.setSettings({ ...SETTINGS, collapseDetails: true });
-        expect(document.querySelector('[data-row-id="group:a"]')).toBe(headerAfterToggle);
+        panel.setSettings({ ...SETTINGS, dimensions: { ...SETTINGS.dimensions, width: 400 } });
+        expect(document.querySelector('[data-row-id="group:a"]')).toBe(header);
 
         // Changing a row-affecting setting still re-renders.
-        panel.setSettings({ ...SETTINGS, collapseDetails: true, showBacklinkHeading: true });
-        expect(document.querySelector('[data-row-id="group:a"]')).not.toBe(headerAfterToggle);
+        panel.setSettings({ ...SETTINGS, showBacklinkHeading: true });
+        expect(document.querySelector('[data-row-id="group:a"]')).not.toBe(header);
         panel.destroy();
     });
 
@@ -402,18 +399,16 @@ describe('BacklinksPanel grouping', () => {
         panel.destroy();
     });
 
-    it('keeps its own collapse choice when a stale settings push arrives after quick toggles', () => {
-        const { panel } = createPanelHarness();
+    it('follows a pushed collapse choice without reporting it as a toggle', () => {
+        const { panel, callbacks } = createPanelHarness();
         panel.setLinks('in', LINKS);
         const toggle = document.querySelector<HTMLButtonElement>('.backlinks-navigator-collapse-toggle')!;
 
-        toggle.click(); // collapse
-        toggle.click(); // expand again before the first write's push arrives
-        // The first write's push, read before the second write landed, still says collapsed.
         panel.setSettings({ ...SETTINGS, collapseDetails: true });
 
-        expect(rowIds()).toEqual(['group:a', 'a:0', 'a:1', 'b:0']);
-        expect(toggle.getAttribute('aria-label')).toBe('Hide details');
+        expect(rowIds()).toEqual(['group:a', 'b:0']);
+        expect(toggle.getAttribute('aria-label')).toBe('Show details');
+        expect(callbacks.onCollapseChange).not.toHaveBeenCalled();
         panel.destroy();
     });
 

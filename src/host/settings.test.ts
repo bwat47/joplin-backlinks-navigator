@@ -203,10 +203,14 @@ describe('settings loading', () => {
 
 describe('setting change classification', () => {
     it('treats panel-only settings as editor-affecting without requiring an indicator refresh', () => {
-        for (const key of [KEY_PANEL_WIDTH, KEY_PANEL_MAX_HEIGHT, KEY_SHOW_BACKLINK_HEADING, KEY_COLLAPSE_DETAILS]) {
+        for (const key of [KEY_PANEL_WIDTH, KEY_PANEL_MAX_HEIGHT, KEY_SHOW_BACKLINK_HEADING]) {
             expect(isEditorAffectingSettingChanged([key])).toBe(true);
             expect(isIndicatorAffectingSettingChanged([key])).toBe(false);
         }
+    });
+
+    it('does not push the collapse choice, which the toggling editor already applied', () => {
+        expect(isEditorAffectingSettingChanged([KEY_COLLAPSE_DETAILS])).toBe(false);
     });
 
     it('treats indicator visibility and ignore lists as affecting both editor and indicator', () => {

@@ -11,6 +11,7 @@ import {
     applyContentScriptSettings,
     createSettingsExtension,
     DEFAULT_CONTENT_SCRIPT_SETTINGS,
+    getContentScriptSettings,
 } from './editor/pluginSettings';
 import { PanelController } from './panelController';
 
@@ -194,6 +195,19 @@ describe('PanelController', () => {
         await vi.advanceTimersByTimeAsync(0);
 
         expect(h.postMessage).toHaveBeenCalledWith({ type: 'setCollapseDetails', collapsed: true });
+        expect(document.querySelector(`[data-row-id="${OTHER_NOTE}:0"]`)).toBeNull();
+    });
+
+    it('applies the collapse choice to this editor, so the next panel opens the same way', async () => {
+        const h = harness({ in: [backlink(0), backlink(1)] });
+        await h.open();
+
+        document.querySelector<HTMLButtonElement>('.backlinks-navigator-collapse-toggle')!.click();
+        h.controller.toggle(); // close
+        await h.open();
+
+        expect(getContentScriptSettings(h.view.state).panel.collapseDetails).toBe(true);
+        expect(document.querySelector(`[data-row-id="group:${OTHER_NOTE}"]`)).not.toBeNull();
         expect(document.querySelector(`[data-row-id="${OTHER_NOTE}:0"]`)).toBeNull();
     });
 

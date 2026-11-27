@@ -6,7 +6,7 @@ import type { AlternateOpenMode, MessageOf } from '../messages';
 import type { LinkDirection, LinkItem, PanelSettings } from '../types';
 import { request } from './bridge';
 import { scrollToPendingTarget, type PendingScroll } from './editor/pendingScroll';
-import { getContentScriptSettings } from './editor/pluginSettings';
+import { applyContentScriptSettings, getContentScriptSettings } from './editor/pluginSettings';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 
 type LinkLoadMessage = MessageOf<'getBacklinks' | 'getOutgoingLinks'>;
@@ -126,6 +126,7 @@ export class PanelController {
                     this.close(reason === 'escape');
                 },
                 onCollapseChange: (collapsed) => {
+                    this.applyCollapse(collapsed);
                     void this.rememberCollapse(collapsed);
                 },
             },
@@ -182,10 +183,13 @@ export class PanelController {
         }
     }
 
-    /**
-     * Stores the compact/detailed choice as a setting. The host's settings push then updates every
-     * editor, so the next panel opens the same way; an open panel keeps its own choice regardless.
-     */
+    /** Applies the compact/detailed choice to this editor, so its next panel opens the same way. */
+    private applyCollapse(collapseDetails: boolean): void {
+        const settings = getContentScriptSettings(this.view.state);
+        applyContentScriptSettings(this.view, { ...settings, panel: { ...settings.panel, collapseDetails } });
+    }
+
+    /** Stores the compact/detailed choice as a setting, so it survives a restart. */
     private async rememberCollapse(collapsed: boolean): Promise<void> {
         try {
             await request(this.context, { type: 'setCollapseDetails', collapsed });

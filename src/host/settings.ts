@@ -376,8 +376,9 @@ export async function setIgnoredNotebookIdsSetting(ids: Iterable<string>): Promi
 }
 
 /**
- * Remembers the panel's compact/detailed choice. Writing it fires `onChange`, which pushes the
- * updated settings to every editor, so the next panel opens the same way.
+ * Remembers the panel's compact/detailed choice for the next startup. The editor that toggled it
+ * already applied it locally, so the change isn't pushed to editors (see
+ * `EDITOR_AFFECTING_SETTING_KEYS`).
  */
 export async function setCollapseDetailsSetting(collapsed: boolean): Promise<void> {
     await joplin.settings.setValue(SETTING_COLLAPSE_DETAILS, collapsed);
@@ -408,11 +409,12 @@ const INDICATOR_AFFECTING_SETTING_KEYS = new Set([
     SETTING_IGNORED_NOTEBOOK_IDS,
 ]);
 
+// `collapseDetails` is left out: the editor that toggles it applies it to itself, and pushing it back
+// could race a later toggle with a stale value.
 const EDITOR_AFFECTING_SETTING_KEYS = new Set([
     SETTING_PANEL_WIDTH,
     SETTING_PANEL_MAX_HEIGHT,
     SETTING_SHOW_BACKLINK_HEADING,
-    SETTING_COLLAPSE_DETAILS,
     ...INDICATOR_AFFECTING_SETTING_KEYS,
 ]);
 
