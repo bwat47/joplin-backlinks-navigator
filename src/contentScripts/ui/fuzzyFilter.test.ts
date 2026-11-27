@@ -9,7 +9,6 @@ function backlink(id: string, title: string, occurrenceIndex = 0, noteId = id): 
         id,
         noteId,
         occurrenceIndex,
-        occurrenceCount: 1,
         title,
         notebookName: '',
         section: '',

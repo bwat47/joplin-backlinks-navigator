@@ -10,7 +10,6 @@ const backlink = (noteId: string, occurrenceIndex: number): LinkItem => ({
     id: `${noteId}:${occurrenceIndex}`,
     noteId,
     occurrenceIndex,
-    occurrenceCount: 2,
     title: `Note ${noteId}`,
     notebookName: 'Notebook',
     section: '',

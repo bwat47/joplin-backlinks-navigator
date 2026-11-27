@@ -78,7 +78,6 @@ describe('findBacklinks', () => {
                 id: 'note-a:0',
                 noteId: 'note-a',
                 occurrenceIndex: 0,
-                occurrenceCount: 1,
                 title: 'Alpha',
                 notebookName: 'Projects',
                 section: 'Context',
@@ -90,7 +89,6 @@ describe('findBacklinks', () => {
                 id: 'note-z:0',
                 noteId: 'note-z',
                 occurrenceIndex: 0,
-                occurrenceCount: 2,
                 title: 'Zulu',
                 notebookName: 'Projects',
                 section: 'References',
@@ -102,7 +100,6 @@ describe('findBacklinks', () => {
                 id: 'note-z:1',
                 noteId: 'note-z',
                 occurrenceIndex: 1,
-                occurrenceCount: 2,
                 title: 'Zulu',
                 notebookName: 'Projects',
                 section: 'Follow-up',
@@ -170,7 +167,6 @@ describe('findBacklinks', () => {
                 id: 'note-a:0',
                 noteId: 'note-a',
                 occurrenceIndex: 0,
-                occurrenceCount: 1,
                 title: 'Alpha',
                 notebookName: 'Projects',
                 section: '',
@@ -256,7 +252,6 @@ describe('findBacklinks', () => {
         expect(result.map((row) => row.snippet)).toEqual(['First', 'Second']);
         expect(result.map((row) => row.occurrenceIndex)).toEqual([0, 1]);
         expect(result.map((row) => row.navigationTarget?.text)).toEqual([first, second]);
-        expect(result.every((row) => row.occurrenceCount === 2)).toBe(true);
     });
 
     it('resolves navigation targets in the editor text when the stored body uses CRLF', async () => {

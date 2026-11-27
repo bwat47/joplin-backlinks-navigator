@@ -106,14 +106,12 @@ export async function findBacklinks(
         async ({ note, parsed, occurrences }) => {
             const contexts = extractOccurrenceContexts(parsed, occurrences);
             const notebookName = await resolveNotebookName(repository, note.parent_id, notebookCache);
-            const occurrenceCount = contexts.length;
 
             return contexts.map(({ occurrence, snippet, section }, occurrenceIndex): Backlink => ({
                 direction: 'in',
                 id: `${note.id}:${occurrenceIndex}`,
                 noteId: note.id,
                 occurrenceIndex,
-                occurrenceCount,
                 title: note.title,
                 notebookName,
                 section,

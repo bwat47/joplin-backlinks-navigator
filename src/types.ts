@@ -40,8 +40,6 @@ export interface Backlink extends LinkItemBase {
     direction: 'in';
     /** Zero-based index of this occurrence among the linking note's links here. */
     occurrenceIndex: number;
-    /** Number of links the linking note has to the current note. */
-    occurrenceCount: number;
 }
 
 /**

@@ -141,8 +141,8 @@ Both tabs use `LinkItem`, a union discriminated by `direction`. The shared field
 notebook, section, snippet) are what the panel renders; each variant adds only what its direction
 has:
 
-- `Backlink` (`in`): a link from another note to the current note, with `occurrenceIndex` and
-  `occurrenceCount` locating the occurrence in its source note.
+- `Backlink` (`in`): a link from another note to the current note, with `occurrenceIndex` locating
+  the occurrence in its source note.
 - `OutgoingLink` (`out`): a link from the current note to another note, with the `anchor` it
   targets.
 

@@ -48,7 +48,6 @@ function backlink(occurrenceIndex: number): Backlink {
         direction: 'in',
         id: `${OTHER_NOTE}:${occurrenceIndex}`,
         occurrenceIndex,
-        occurrenceCount: 2,
         navigationTarget: createNavigationTarget(parseMarkdownBody(BACKLINK_BODY), { from, to }),
     };
 }

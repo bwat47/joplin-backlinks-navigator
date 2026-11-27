@@ -183,7 +183,6 @@ describe('backlinksNavigator panel integration', () => {
                         id: 'source',
                         noteId: 'source',
                         occurrenceIndex: 0,
-                        occurrenceCount: 1,
                         title: 'Source',
                         notebookName: '',
                         section: '',
