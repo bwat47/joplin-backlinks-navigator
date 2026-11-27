@@ -199,7 +199,8 @@ Collapsing hides nested rows and all context previews (snippets and headings), l
 one-line-per-note list. Every row in it opens its note without scrolling, even a note's only
 link: with no context shown, rows that look alike shouldn't land in different places. Expanding shows nested occurrences/anchors and context snippets on every
 row; the `showBacklinkHeading` setting adds the nearest heading above each backlink when expanded.
-The toggle reports the choice to the host, which stores it in the hidden
+The toggle (or Alt+Up / Alt+Down, which leave Alt+Left/Right to macOS word-wise caret movement in
+the filter) reports the choice to the host, which stores it in the hidden
 `collapseDetails` setting; the resulting settings push updates every editor, so the next popup
 opens the same way. An open popup ignores pushed `collapseDetails` values, since a push can lag
 behind a later toggle, and the host handles setting changes in order so the last push is current.

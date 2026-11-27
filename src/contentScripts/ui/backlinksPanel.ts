@@ -41,6 +41,9 @@ const EXPAND_ICON_SVG =
 const COLLAPSE_ICON_SVG =
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg>';
 
+// macOS names the Alt key Option (⌥); the tooltip uses the platform's own name for it.
+const ALT_KEY_LABEL = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌥' : 'Alt+';
+
 /**
  * Floating panel UI listing the links related to the current note, split into two tabs:
  * inbound backlinks (`in`) and outbound links (`out`).
@@ -293,9 +296,11 @@ export class BacklinksPanel {
     private updateCollapseToggle(): void {
         const collapsed = this.settings.collapseDetails;
         const label = collapsed ? 'Show details' : 'Hide details';
+        const arrow = collapsed ? '↓' : '↑';
         this.collapseToggle.innerHTML = collapsed ? EXPAND_ICON_SVG : COLLAPSE_ICON_SVG;
-        this.collapseToggle.title = label;
+        this.collapseToggle.title = `${label} (${ALT_KEY_LABEL}${arrow})`;
         this.collapseToggle.setAttribute('aria-label', label);
+        this.collapseToggle.setAttribute('aria-keyshortcuts', collapsed ? 'Alt+ArrowDown' : 'Alt+ArrowUp');
     }
 
     private createTabButton(direction: LinkDirection): HTMLButtonElement {
@@ -446,6 +451,14 @@ export class BacklinksPanel {
     }
 
     private handleKeyDown(event: KeyboardEvent): void {
+        // Alt+Down shows details and Alt+Up hides them, as Alt+Down opens and Alt+Up closes a
+        // dropdown. Alt+Left/Right would take over word-by-word caret movement on macOS (⌥←/→);
+        // Up/Down already belong to the list, so their Alt variants cost the filter nothing.
+        if (event.altKey && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+            event.preventDefault();
+            this.setCollapsed(event.key === 'ArrowUp');
+            return;
+        }
         switch (event.key) {
             case 'ArrowDown':
                 event.preventDefault();

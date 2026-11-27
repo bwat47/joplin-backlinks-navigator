@@ -380,6 +380,28 @@ describe('BacklinksPanel grouping', () => {
         panel.destroy();
     });
 
+    it('hides details with Alt+Up and shows them with Alt+Down, without moving the selection', () => {
+        const { panel, callbacks } = createPanelHarness();
+        panel.setLinks('in', LINKS);
+        const toggle = document.querySelector<HTMLButtonElement>('.backlinks-navigator-collapse-toggle')!;
+        expect(toggle.title).toBe('Hide details (Alt+↑)');
+        expect(toggle.getAttribute('aria-keyshortcuts')).toBe('Alt+ArrowUp');
+
+        pressKey('ArrowUp', { altKey: true });
+        expect(rowIds()).toEqual(['group:a', 'b:0']);
+        expect(selectedRowId()).toBe('group:a');
+        expect(toggle.title).toBe('Show details (Alt+↓)');
+        expect(toggle.getAttribute('aria-keyshortcuts')).toBe('Alt+ArrowDown');
+
+        // Repeating the key in its current direction does nothing.
+        pressKey('ArrowUp', { altKey: true });
+        pressKey('ArrowDown', { altKey: true });
+        expect(rowIds()).toEqual(['group:a', 'a:0', 'a:1', 'b:0']);
+        expect(selectedRowId()).toBe('group:a');
+        expect(vi.mocked(callbacks.onCollapseChange).mock.calls).toEqual([[true], [false]]);
+        panel.destroy();
+    });
+
     it('keeps its own collapse choice when a stale settings push arrives after quick toggles', () => {
         const { panel } = createPanelHarness();
         panel.setLinks('in', LINKS);
