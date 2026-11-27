@@ -458,16 +458,24 @@ export async function loadDebugSetting(): Promise<boolean> {
 /** Setting key for the debug toggle, exposed so the host can watch for changes. */
 export const DEBUG_SETTING_KEY = SETTING_DEBUG;
 
-const EDITOR_AFFECTING_SETTING_KEYS = new Set([
-    SETTING_PANEL_WIDTH,
-    SETTING_PANEL_MAX_HEIGHT,
+const INDICATOR_AFFECTING_SETTING_KEYS = new Set([
     SETTING_SHOW_INDICATOR,
     SETTING_IGNORED_BACKLINK_NOTE_IDS,
     SETTING_IGNORED_NOTEBOOK_IDS,
+]);
+
+const EDITOR_AFFECTING_SETTING_KEYS = new Set([
+    SETTING_PANEL_WIDTH,
+    SETTING_PANEL_MAX_HEIGHT,
     SETTING_SHOW_BACKLINK_HEADING,
     SETTING_COLLAPSE_GROUPS,
+    ...INDICATOR_AFFECTING_SETTING_KEYS,
 ]);
 
 export function isEditorAffectingSettingChanged(keys: readonly string[]): boolean {
     return keys.some((key) => EDITOR_AFFECTING_SETTING_KEYS.has(key));
+}
+
+export function isIndicatorAffectingSettingChanged(keys: readonly string[]): boolean {
+    return keys.some((key) => INDICATOR_AFFECTING_SETTING_KEYS.has(key));
 }

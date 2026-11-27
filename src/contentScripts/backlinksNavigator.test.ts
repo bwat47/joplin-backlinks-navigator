@@ -3,7 +3,7 @@ import { EditorView } from '@codemirror/view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CodeMirrorControl, ContentScriptContext } from 'api/types';
-import { EDITOR_COMMAND_TOGGLE_PANEL } from '../commandIds';
+import { EDITOR_COMMAND_TOGGLE_PANEL, EDITOR_COMMAND_UPDATE_SETTINGS } from '../commandIds';
 import type { IndicatorState, LinksResponse, MessageOf, Protocol } from '../messages';
 import { DEFAULT_PANEL_DIMENSIONS } from '../types';
 import backlinksNavigator from './backlinksNavigator';
@@ -202,6 +202,31 @@ describe('backlinksNavigator panel integration', () => {
         runCommand(EDITOR_COMMAND_TOGGLE_PANEL, false);
         expect(indicator?.style.display).toBe('');
         expect(indicator?.getAttribute('aria-label')).toBe('Linked from 1 note, links to 1 note');
+        view.destroy();
+    });
+
+    it('skips refreshing the indicator on settings updates when refreshIndicator is false', async () => {
+        const { postMessage, runCommand, view } = createHarness(() =>
+            Promise.resolve({ enabled: true, ok: true, counts: INDICATOR_COUNTS })
+        );
+        await flushPromises();
+        await vi.advanceTimersByTimeAsync(INDICATOR_DEBOUNCE_MS);
+        const initialIndicatorCalls = postMessage.mock.calls.filter(
+            ([message]) => message.type === 'getIndicatorState'
+        ).length;
+        expect(initialIndicatorCalls).toBe(1);
+
+        runCommand(
+            EDITOR_COMMAND_UPDATE_SETTINGS,
+            { ...SETTINGS, panel: { ...SETTINGS.panel, collapseGroups: true } },
+            false
+        );
+        await vi.advanceTimersByTimeAsync(INDICATOR_DEBOUNCE_MS);
+        expect(postMessage.mock.calls.filter(([message]) => message.type === 'getIndicatorState')).toHaveLength(1);
+
+        runCommand(EDITOR_COMMAND_UPDATE_SETTINGS, SETTINGS, true);
+        await vi.advanceTimersByTimeAsync(INDICATOR_DEBOUNCE_MS);
+        expect(postMessage.mock.calls.filter(([message]) => message.type === 'getIndicatorState')).toHaveLength(2);
         view.destroy();
     });
 });

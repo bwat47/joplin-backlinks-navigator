@@ -72,7 +72,7 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                 indicator.scheduleRefresh();
             };
 
-            const applySettingsUpdate = (settings: ContentScriptSettings): void => {
+            const applySettingsUpdate = (settings: ContentScriptSettings, refreshIndicator = true): void => {
                 applyContentScriptSettings(view, settings);
                 panel.setSettings(settings.panel);
                 if (!settings.showIndicator) {
@@ -80,7 +80,9 @@ export default function backlinksNavigator(context: ContentScriptContext): Markd
                     return;
                 }
                 indicator.sync();
-                indicator.scheduleRefresh();
+                if (refreshIndicator) {
+                    indicator.scheduleRefresh();
+                }
             };
 
             if (noteIdFacet) {

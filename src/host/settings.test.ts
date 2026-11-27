@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import joplin from 'api';
 import {
+    isEditorAffectingSettingChanged,
+    isIndicatorAffectingSettingChanged,
     loadContentScriptSettings,
     loadIgnoredBacklinkNoteIdsSetting,
     loadIgnoredNotebookIdsSetting,
@@ -263,5 +265,26 @@ describe('settings loading', () => {
         await setIgnoredNotebookIdsSetting(new Set<string>());
 
         expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_IGNORED_NOTEBOOK_IDS, '');
+    });
+});
+
+describe('setting change classification', () => {
+    it('treats panel-only settings as editor-affecting without requiring an indicator refresh', () => {
+        for (const key of [KEY_PANEL_WIDTH, KEY_PANEL_MAX_HEIGHT, KEY_SHOW_BACKLINK_HEADING, KEY_COLLAPSE_GROUPS]) {
+            expect(isEditorAffectingSettingChanged([key])).toBe(true);
+            expect(isIndicatorAffectingSettingChanged([key])).toBe(false);
+        }
+    });
+
+    it('treats indicator visibility and ignore lists as affecting both editor and indicator', () => {
+        for (const key of ['backlinksNavigator.showIndicator', KEY_IGNORED_NOTE_IDS, KEY_IGNORED_NOTEBOOK_IDS]) {
+            expect(isEditorAffectingSettingChanged([key])).toBe(true);
+            expect(isIndicatorAffectingSettingChanged([key])).toBe(true);
+        }
+    });
+
+    it('ignores unrelated settings', () => {
+        expect(isEditorAffectingSettingChanged(['backlinksNavigator.debug'])).toBe(false);
+        expect(isIndicatorAffectingSettingChanged(['backlinksNavigator.debug'])).toBe(false);
     });
 });
