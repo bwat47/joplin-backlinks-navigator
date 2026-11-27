@@ -36,7 +36,7 @@ Click a backlink to open the note that links to the current note, or click an ou
 
 When a note links to the current note more than once, its backlinks are grouped under one entry for that note, showing how many links it has. Click an individual backlink to scroll to that specific link after switching notes, or click the note's entry to just open the note. Outgoing links to several headings or anchors in the same note are grouped the same way, with the note's own snippet on its entry.
 
-Use the show/hide details button at the end of the tab bar to switch between a compact one-line-per-note list (hiding individual links and context previews) and the expanded view with nested links and snippets. The choice is remembered. The counts on the tabs and the editor indicator are the number of linked notes, so they stay the same either way.
+Use the show/hide details button at the end of the tab bar to switch between a compact one-line-per-note list (hiding individual links and context previews, where clicking a note just opens it) and the expanded view with nested links and snippets. The choice is remembered. The counts on the tabs and the editor indicator are the number of linked notes, so they stay the same either way.
 
 Any outgoing links referencing an anchor (pointing to a markdown heading or html anchor) will scroll to that heading or anchor on note switch.
 

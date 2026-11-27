@@ -75,13 +75,13 @@ describe('linkForRow', () => {
     it('opens a single link as itself', () => {
         const [row] = buildPanelRows([backlink('a', 0)], false);
 
-        expect(linkForRow(row!)).toEqual(backlink('a', 0));
+        expect(linkForRow(row!, false)).toEqual(backlink('a', 0));
     });
 
     it('opens a backlink group’s note without scrolling to an occurrence', () => {
         const [header] = buildPanelRows([backlink('a', 0), backlink('a', 1)], true);
 
-        const link = linkForRow(header!);
+        const link = linkForRow(header!, false);
 
         expect(link).toMatchObject({ noteId: 'a', direction: 'in' });
         expect(link.navigationTarget).toBeUndefined();
@@ -90,7 +90,25 @@ describe('linkForRow', () => {
     it('opens an outgoing group’s note without an anchor', () => {
         const [header] = buildPanelRows([outgoing('a', 'setup'), outgoing('a', 'usage')], true);
 
-        const link = linkForRow(header!);
+        const link = linkForRow(header!, false);
+
+        expect(link).toMatchObject({ noteId: 'a', anchor: '' });
+        expect(link.navigationTarget).toBeUndefined();
+    });
+
+    it('opens a single backlink’s note without scrolling in compact view', () => {
+        const [row] = buildPanelRows([backlink('a', 0)], true);
+
+        const link = linkForRow(row!, true);
+
+        expect(link).toMatchObject({ noteId: 'a', direction: 'in' });
+        expect(link.navigationTarget).toBeUndefined();
+    });
+
+    it('opens a single anchored outgoing link’s note without the anchor in compact view', () => {
+        const [row] = buildPanelRows([{ ...outgoing('a', 'setup'), navigationTarget: TARGET }], true);
+
+        const link = linkForRow(row!, true);
 
         expect(link).toMatchObject({ noteId: 'a', anchor: '' });
         expect(link.navigationTarget).toBeUndefined();

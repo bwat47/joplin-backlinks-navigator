@@ -198,8 +198,8 @@ export class PanelController {
      * Where to scroll once the selected row's note loads: the host-resolved navigation target, if
      * the row has one. For a backlink that's the link occurrence pointing back to the current note;
      * for an anchored outgoing link it's the heading or HTML anchor the anchor names. Rows without
-     * a target (unanchored or unresolved outgoing links, and group headers, which stand for the
-     * note as a whole) just open the note.
+     * a target (unanchored or unresolved outgoing links, and group headers and compact-view rows,
+     * which stand for the note as a whole) just open the note.
      */
     private pendingScrollFor(link: LinkItem): PendingScroll | null {
         if (!link.navigationTarget) {

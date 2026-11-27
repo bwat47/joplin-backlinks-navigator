@@ -498,7 +498,7 @@ export class BacklinksPanel {
         }
         const row = this.rows.find((candidate) => candidate.id === this.selectedId);
         if (row) {
-            const link = linkForRow(row);
+            const link = linkForRow(row, this.settings.collapseDetails);
             if (useCtrlEnterBehavior) {
                 this.refocusInputAfter(this.onCtrlEnterSelect(link));
             } else {
@@ -510,7 +510,7 @@ export class BacklinksPanel {
     private handleListClick(event: MouseEvent): void {
         const row = this.findRowForMouseEvent(event);
         if (row) {
-            const link = linkForRow(row);
+            const link = linkForRow(row, this.settings.collapseDetails);
             this.selectedId = row.id;
             this.updateSelection();
             if (event.ctrlKey) {
@@ -530,7 +530,7 @@ export class BacklinksPanel {
         if (row) {
             this.selectedId = row.id;
             this.updateSelection();
-            this.refocusInputAfter(this.onMiddleClickSelect(linkForRow(row)));
+            this.refocusInputAfter(this.onMiddleClickSelect(linkForRow(row, this.settings.collapseDetails)));
         }
     }
 

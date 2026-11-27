@@ -81,13 +81,24 @@ export function countLinkedNotes(items: readonly LinkItem[]): number {
 }
 
 /**
- * The link a row opens. A group header stands for its note as a whole, so it opens the note
- * without scrolling to an occurrence (no navigation target) or heading (no anchor).
+ * The note as a whole, without scrolling to an occurrence (no navigation target) or heading
+ * (no anchor).
  */
-export function linkForRow(row: PanelRow): LinkItem {
-    if (row.kind === 'link') {
-        return row.link;
-    }
-    const { navigationTarget: _navigationTarget, ...rest } = row.items[0];
+function wholeNoteLink(link: LinkItem): LinkItem {
+    const { navigationTarget: _navigationTarget, ...rest } = link;
     return rest.direction === 'out' ? { ...rest, anchor: '' } : rest;
+}
+
+/**
+ * The link a row opens. A group header stands for its note as a whole, so it opens the note
+ * without scrolling. In compact view every row does: rows there show only a note's title, so
+ * opening some at an occurrence or anchor and others at the top would differ invisibly.
+ *
+ * @param collapsed - Whether the panel is in compact view.
+ */
+export function linkForRow(row: PanelRow, collapsed: boolean): LinkItem {
+    if (row.kind === 'group') {
+        return wholeNoteLink(row.items[0]);
+    }
+    return collapsed ? wholeNoteLink(row.link) : row.link;
 }

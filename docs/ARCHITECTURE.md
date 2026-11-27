@@ -15,8 +15,8 @@ scrolls beneath it. It does not use Joplin's panel or webview API.
 4. The host searches or parses note bodies, resolves note metadata, and returns `LinkItem` rows.
 5. The content script filters, groups by linked note, displays, and keyboard-navigates those rows.
 6. Selecting a row asks the host to open the note. Ordinary current-window selections also try to
-   scroll to the matched reference or anchor when the row has a navigation target; a group header
-   stands for its note as a whole and has none. Alternate gestures open the note without pending
+   scroll to the matched reference or anchor when the row has a navigation target; a group header,
+   and every row in compact view, stands for its note as a whole and has none. Alternate gestures open the note without pending
    scrolling or highlighting.
 
 ## Main Pieces
@@ -196,7 +196,8 @@ Grouping is display only: the host still returns one `LinkItem` per occurrence o
 
 One expand/collapse details choice applies to both tabs; there is no per-group state.
 Collapsing hides nested rows and all context previews (snippets and headings), leaving a uniform
-one-line-per-note list. Expanding shows nested occurrences/anchors and context snippets on every
+one-line-per-note list. Every row in it opens its note without scrolling, even a note's only
+link: with no context shown, rows that look alike shouldn't land in different places. Expanding shows nested occurrences/anchors and context snippets on every
 row; the `showBacklinkHeading` setting adds the nearest heading above each backlink when expanded.
 The toggle reports the choice to the host, which stores it in the hidden
 `collapseDetails` setting; the resulting settings push updates every editor, so the next popup
@@ -231,8 +232,8 @@ results that went stale while the note sat open. Those rows also refresh the bad
 
 For ordinary current-window selections, both directions can carry a pending scroll, recorded by
 the content script before navigation and applied after the next note id change: it places the
-cursor, scrolls the target into view, and highlights it briefly. Alternate gestures bypass pending
-scrolling and highlighting. The host opens a new window or Note Tabs tab by note id alone, ignoring
+cursor, scrolls the target into view, and highlights it briefly. Alternate gestures and compact
+view (see [Grouping](#grouping)) bypass pending scrolling and highlighting. The host opens a new window or Note Tabs tab by note id alone, ignoring
 the anchor in those modes.
 
 - Backlinks carry the host-resolved range of the exact rendered Markdown-link use in the source

@@ -412,6 +412,22 @@ describe('BacklinksPanel grouping', () => {
         panel.destroy();
     });
 
+    it('opens a single link’s note without scrolling in compact view', () => {
+        const { panel, callbacks } = createPanelHarness(false, { ...SETTINGS, collapseDetails: true });
+        panel.setLinks('in', [
+            {
+                ...occurrence('b', 0),
+                navigationTarget: { from: 0, to: 1, text: 'x', contextBefore: '', contextAfter: '' },
+            },
+        ]);
+
+        document.querySelector('[data-row-id="b:0"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+        expect(callbacks.onSelect).toHaveBeenCalledWith(expect.objectContaining({ noteId: 'b' }));
+        expect(vi.mocked(callbacks.onSelect).mock.calls[0]![0].navigationTarget).toBeUndefined();
+        panel.destroy();
+    });
+
     describe('outgoing groups', () => {
         const destination = (anchor: string): LinkItem => ({
             direction: 'out',
