@@ -363,6 +363,23 @@ describe('BacklinksPanel grouping', () => {
         panel.destroy();
     });
 
+    it('skips re-rendering rows when echoed settings do not change row display', () => {
+        const { panel } = createPanelHarness();
+        panel.setLinks('in', LINKS);
+
+        document.querySelector<HTMLButtonElement>('.backlinks-navigator-collapse-toggle')!.click();
+        const headerAfterToggle = document.querySelector('[data-row-id="group:a"]');
+
+        // Simulate the host echoing the persisted collapseDetails setting back via onChange.
+        panel.setSettings({ ...SETTINGS, collapseDetails: true });
+        expect(document.querySelector('[data-row-id="group:a"]')).toBe(headerAfterToggle);
+
+        // Changing a row-affecting setting still re-renders.
+        panel.setSettings({ ...SETTINGS, collapseDetails: false });
+        expect(rowIds()).toEqual(['group:a', 'a:0', 'a:1', 'b:0']);
+        panel.destroy();
+    });
+
     it('opens a header’s note without an occurrence to scroll to', () => {
         const { panel, callbacks } = createPanelHarness();
         panel.setLinks('in', [

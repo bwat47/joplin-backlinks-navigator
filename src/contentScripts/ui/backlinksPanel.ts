@@ -261,10 +261,15 @@ export class BacklinksPanel {
     }
 
     public setSettings(settings: PanelSettings): void {
+        const rowsAffected =
+            settings.collapseDetails !== this.settings.collapseDetails ||
+            settings.showBacklinkHeading !== this.settings.showBacklinkHeading;
         this.settings = settings;
         ensurePanelStyles(this.view, this.settings);
-        // Re-derive the visible rows: the collapse choice and backlink heading setting shape them.
-        this.applyFilter(this.input.value);
+        if (rowsAffected) {
+            // Re-derive the visible rows: the collapse choice and backlink heading setting shape them.
+            this.applyFilter(this.input.value);
+        }
     }
 
     /**
