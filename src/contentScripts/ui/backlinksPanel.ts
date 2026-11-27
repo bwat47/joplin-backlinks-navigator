@@ -287,7 +287,6 @@ export class BacklinksPanel {
         this.collapseToggle.innerHTML = collapsed ? EXPAND_ICON_SVG : COLLAPSE_ICON_SVG;
         this.collapseToggle.title = label;
         this.collapseToggle.setAttribute('aria-label', label);
-        this.collapseToggle.setAttribute('aria-pressed', String(collapsed));
     }
 
     private createTabButton(direction: LinkDirection): HTMLButtonElement {
@@ -604,7 +603,6 @@ export class BacklinksPanel {
             // Every row of a group shares its note, so the first stands in for the header.
             const first = row.items[0]!;
             item.classList.add('is-group');
-            item.setAttribute('aria-expanded', String(!this.settings.collapseDetails));
             item.appendChild(this.createItemHeader(first, row.items.length));
             appendGroupDetails(item, first, this.settings);
             markTrashed(item, first);
