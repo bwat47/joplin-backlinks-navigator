@@ -57,6 +57,10 @@ When details are expanded, outgoing links referencing an anchor (pointing to a m
 
 - Scrolling to a specific backlink occurrence after note switch only works on desktop. It does not work when opening the note in a new window or pinning with Note Tabs.
 
+## Demo notebook
+
+The [demo notebook](demo/README.md) contains 36 everyday notes with cross-notebook links, repeated references, and heading and HTML anchors. Import its Markdown directory into a test profile to explore the plugin or follow the included manual checks.
+
 ## Building
 
 Requires Node 22 or later.
