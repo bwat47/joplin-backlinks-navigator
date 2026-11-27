@@ -4,18 +4,18 @@
  * Uses fuzzysort for Sublime Text-like fuzzy matching against note titles.
  */
 
-import fuzzysort, { type KeyResult } from 'fuzzysort';
+import fuzzysort from 'fuzzysort';
 
 import type { LinkItem } from '../../types';
 
 /** Minimum match score (0-1); 0 accepts any match. */
 const FUZZY_THRESHOLD = 0;
-const FUZZY_LIMIT = 200;
 
 /**
  * Filters and ranks links by fuzzy match score against their title.
  *
- * When query is empty, returns the links in their original (title-sorted) order.
+ * When query is empty, returns the links in their original (title-sorted) order. Matches aren't
+ * capped: the unfiltered list isn't either, and a cap counting rows would cut a note's group short.
  */
 export function fuzzyFilter(query: string, links: LinkItem[]): LinkItem[] {
     const normalized = query.trim();
@@ -26,38 +26,18 @@ export function fuzzyFilter(query: string, links: LinkItem[]): LinkItem[] {
 
     const results = fuzzysort.go(normalized, links, {
         key: 'title',
-        limit: FUZZY_LIMIT,
+        // fuzzysort keeps only 10 results unless told otherwise.
+        limit: Infinity,
         threshold: FUZZY_THRESHOLD,
     });
 
-    return results
-        .map((result, index) => ({ result, index }))
-        .sort((a, b) => compareFuzzyResults(a, b))
-        .map(({ result }) => result.obj);
-}
-
-function compareFuzzyResults(
-    a: { result: KeyResult<LinkItem>; index: number },
-    b: { result: KeyResult<LinkItem>; index: number }
-): number {
-    const scoreDifference = b.result.score - a.result.score;
-
-    if (scoreDifference !== 0) {
-        return scoreDifference;
-    }
-
-    const aLink = a.result.obj;
-    const bLink = b.result.obj;
-
-    if (aLink.direction === 'in' && bLink.direction === 'in' && aLink.noteId === bLink.noteId) {
-        const occurrenceDifference = aLink.occurrenceIndex - bLink.occurrenceIndex;
-
-        if (occurrenceDifference !== 0) {
-            return occurrenceDifference;
-        }
-    }
-
-    return a.index - b.index;
+    // fuzzysort doesn't keep the input order among equal scores, so ties fall back to it here. The
+    // host already sorted it (title, note, then occurrence or anchor), and every row of a note
+    // shares its title and so its score, so a note's rows stay in order.
+    const inputIndex = new Map(links.map((link, index) => [link, index]));
+    return [...results]
+        .sort((a, b) => b.score - a.score || inputIndex.get(a.obj)! - inputIndex.get(b.obj)!)
+        .map((result) => result.obj);
 }
 
 /**

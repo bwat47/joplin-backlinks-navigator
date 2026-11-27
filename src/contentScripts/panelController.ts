@@ -6,7 +6,7 @@ import type { AlternateOpenMode, MessageOf } from '../messages';
 import type { LinkDirection, LinkItem, PanelSettings } from '../types';
 import { request } from './bridge';
 import { scrollToPendingTarget, type PendingScroll } from './editor/pendingScroll';
-import { getContentScriptSettings } from './editor/pluginSettings';
+import { applyContentScriptSettings, getContentScriptSettings } from './editor/pluginSettings';
 import { BacklinksPanel, type PanelCloseReason } from './ui/backlinksPanel';
 
 type LinkLoadMessage = MessageOf<'getBacklinks' | 'getOutgoingLinks'>;
@@ -125,6 +125,10 @@ export class PanelController {
                 onClose: (reason: PanelCloseReason) => {
                     this.close(reason === 'escape');
                 },
+                onCollapseChange: (collapsed) => {
+                    this.applyCollapse(collapsed);
+                    void this.rememberCollapse(collapsed);
+                },
             },
             getContentScriptSettings(this.view.state).panel,
             isMobile
@@ -179,19 +183,30 @@ export class PanelController {
         }
     }
 
+    /** Applies the compact/detailed choice to this editor, so its next panel opens the same way. */
+    private applyCollapse(collapseDetails: boolean): void {
+        const settings = getContentScriptSettings(this.view.state);
+        applyContentScriptSettings(this.view, { ...settings, panel: { ...settings.panel, collapseDetails } });
+    }
+
+    /** Stores the compact/detailed choice as a setting, so it survives a restart. */
+    private async rememberCollapse(collapsed: boolean): Promise<void> {
+        try {
+            await request(this.context, { type: 'setCollapseDetails', collapsed });
+        } catch (error) {
+            logger.warn('Failed to remember the panel collapse choice', error);
+        }
+    }
+
     /**
      * Where to scroll once the selected row's note loads: the host-resolved navigation target, if
      * the row has one. For a backlink that's the link occurrence pointing back to the current note;
      * for an anchored outgoing link it's the heading or HTML anchor the anchor names. Rows without
-     * a target (unanchored or unresolved outgoing links) just open the note. In title-only mode
-     * backlinks are collapsed to one row per note rather than a specific occurrence, so they don't
-     * scroll either.
+     * a target (unanchored or unresolved outgoing links, and group headers and compact-view rows,
+     * which stand for the note as a whole) just open the note.
      */
     private pendingScrollFor(link: LinkItem): PendingScroll | null {
         if (!link.navigationTarget) {
-            return null;
-        }
-        if (link.direction === 'in' && getContentScriptSettings(this.view.state).panel.preview.in === 'title') {
             return null;
         }
         return { targetNoteId: link.noteId, navigationTarget: link.navigationTarget };

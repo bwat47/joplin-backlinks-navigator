@@ -26,7 +26,7 @@ export type AlternateOpenMode = 'ctrlClick' | 'ctrlEnter' | 'middleClick';
 export interface Protocol {
     /** Request the list of backlink occurrences that link to `noteId`. */
     getBacklinks: { request: { noteId: string }; response: LinksResponse<Backlink> };
-    /** Request the list of distinct notes that `noteId` links to. */
+    /** Request the list of distinct destinations (note + optional anchor) that `noteId` links to. */
     getOutgoingLinks: { request: { noteId: string }; response: LinksResponse<OutgoingLink> };
     /**
      * Sent when a note loads to drive the top-right indicator. The host checks the
@@ -47,6 +47,11 @@ export interface Protocol {
      * the correct mobile flag.
      */
     openPanel: { request: object; response: void };
+    /**
+     * Remember the panel's compact/detailed choice for the next startup. The toggling editor has
+     * already applied it, so the host stores it without pushing settings back.
+     */
+    setCollapseDetails: { request: { collapsed: boolean }; response: void };
 }
 
 export type MessageOf<K extends keyof Protocol> = { [P in K]: { type: P } & Protocol[P]['request'] }[K];
@@ -67,9 +72,7 @@ export type LinksResponse<T extends LinkItem = LinkItem> = { ok: true; links: T[
  *
  * `enabled` is false when the indicator setting is off (no search was performed). Otherwise `ok`
  * says whether counting succeeded and, if so, the state carries {@link LinkCounts}. The badge shows
- * numbers, so the host counts links rather than resolving full rows for them. Both backlink tallies
- * are sent because the display policy that chooses between them depends on the content script's
- * current preview settings.
+ * numbers, so the host counts linked notes rather than resolving full rows for them.
  */
 export type IndicatorState =
     | { enabled: false }

@@ -14,13 +14,14 @@ A Joplin plugin for viewing and navigating backlinks and outgoing links in the M
 
 - Shows notes that link to the current note
 - Shows notes linked from the current note
-- (Backlinks) Can show each link occurrence when a note links more than once, and scroll to occurance on navigation
-- (Outgoing links) Links pointing to a specific anchor - a heading, or an explicit HTML anchor such as `<a id="in3b65">` - will show as a unique occurance, and scroll to that anchor on navigation
+- (Backlinks) Shows each link occurrence when a note links more than once, grouped under that note, and scrolls to the occurrence on navigation
+- (Outgoing links) Links pointing to a specific anchor - a heading, or an explicit HTML anchor such as `<a id="in3b65">` - show as their own entry grouped under the linked note, and scroll to that anchor on navigation
+- Switch between compact and detailed views from the panel; the choice is remembered
 - Supports reference style note links
 - Opens related notes from a compact floating panel in the markdown editor
 - Filters links by note title
 - Shows notebook, section, and link context when available
-- Optionally shows a link count indicator in the editor (which can also be used to open the panel)
+- Optionally shows a linked-note count indicator in the editor (which can also be used to open the panel)
 - Works on desktop and mobile
     - Note: Scrolling to specific link locations on note switch has limitations on mobile (only works for outgoing links, no highlight effect).
 
@@ -33,9 +34,11 @@ Open the links panel from the note toolbar button (editor toolbar on mobile), ed
 
 Click a backlink to open the note that links to the current note, or click an outgoing link to open the note linked from the current note.
 
-If backlink context preview is enabled, it will show each link occurrence when a note links more than once, and clicking a backlink will scroll to the specific link occurance after switching notes. If backlink context preview is set to Note title only, it will only show one occurance for each backlink, and will not scroll after switching notes.
+When a note links to the current note more than once, its backlinks are grouped under one entry for that note, showing how many links it has. Click an individual backlink to scroll to that specific link after switching notes, or click the note's entry to just open the note. Outgoing links to several headings or anchors in the same note are grouped the same way.
 
-Any outgoing links referencing an anchor (pointing to a markdown heading or html anchor) will scroll to that heading or anchor on note switch.
+Use the show/hide details button at the end of the tab bar (or Alt+↑ to hide and Alt+↓ to show details; ⌥↑ / ⌥↓ on macOS) to switch between a compact one-line-per-note list (hiding individual links and context previews, where clicking a note just opens it) and the expanded view with nested links and snippets. The choice is remembered. The counts on the tabs and the editor indicator are the number of linked notes, so they stay the same either way.
+
+When details are expanded, outgoing links referencing an anchor (pointing to a markdown heading or html anchor) will scroll to that heading or anchor on note switch.
 
 ## Settings
 
@@ -47,10 +50,7 @@ Any outgoing links referencing an anchor (pointing to a markdown heading or html
 - Ctrl-click link behavior - open in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
 - Ctrl-Enter link behavior - open the selected link in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
 - Middle click link behavior - open the selected link in a new window or in a Note Tabs tab (requires the Note Tabs plugin)
-- Backlink context preview
-    - Snippet shows preview text from the line containing the backlink. Nearest heading displays the heading nearest to the backlink.
-- Outgoing link context preview
-    - Snippet shows preview text from the beginning of the linked note (or if the link has an anchor, the text below that heading, or the line the HTML anchor sits on).
+- Show nearest heading for backlinks - display the nearest heading above each backlink when panel details are expanded
 - Enable debug logging
 
 ## Limitations

@@ -27,6 +27,7 @@ import { createMessageHandler } from './host/messageHandler';
 import {
     DEBUG_SETTING_KEY,
     isEditorAffectingSettingChanged,
+    isIndicatorAffectingSettingChanged,
     loadContentScriptSettings,
     loadDebugSetting,
     registerSettings,
@@ -81,12 +82,12 @@ async function registerCommands(repository: LinkRepository, isMobile: boolean): 
     });
 }
 
-async function pushContentScriptSettings(): Promise<void> {
+async function pushContentScriptSettings(refreshIndicator: boolean): Promise<void> {
     const settings = await loadContentScriptSettings();
     try {
         await joplin.commands.execute('editor.execCommand', {
             name: EDITOR_COMMAND_UPDATE_SETTINGS,
-            args: [settings],
+            args: [settings, refreshIndicator],
         });
     } catch (error) {
         logger.warn('Failed to push updated content script settings', error);
@@ -118,7 +119,7 @@ async function handleSettingsChange(keys: string[]): Promise<void> {
             await applyDebugSetting();
         }
         if (isEditorAffectingSettingChanged(keys)) {
-            await pushContentScriptSettings();
+            await pushContentScriptSettings(isIndicatorAffectingSettingChanged(keys));
         }
     } catch (error) {
         logger.error('Failed to apply setting change', error);

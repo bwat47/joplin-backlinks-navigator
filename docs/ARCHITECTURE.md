@@ -13,10 +13,11 @@ scrolls beneath it. It does not use Joplin's panel or webview API.
 2. The user opens the popup through the command, toolbar button, menu item, or indicator badge.
 3. The popup asks the plugin host for backlinks and outgoing links.
 4. The host searches or parses note bodies, resolves note metadata, and returns `LinkItem` rows.
-5. The content script filters, displays, and keyboard-navigates those rows.
+5. The content script filters, groups by linked note, displays, and keyboard-navigates those rows.
 6. Selecting a row asks the host to open the note. Ordinary current-window selections also try to
-   scroll to the matched reference or anchor when the row has a navigation target, except for
-   title-only backlinks. Alternate gestures open the note without pending scrolling or highlighting.
+   scroll to the matched reference or anchor when the row has a navigation target; a group header,
+   and every row in compact view, stands for its note as a whole and has none. Alternate gestures open the note without pending
+   scrolling or highlighting.
 
 ## Main Pieces
 
@@ -101,11 +102,13 @@ scrolls beneath it. It does not use Joplin's panel or webview API.
 ### UI
 
 - `src/contentScripts/ui/backlinksPanel.ts` renders the floating two-tab popup, filter input,
-  keyboard navigation, loading/empty/error states, and row previews.
+  expand/collapse toggle, keyboard navigation, loading/empty/error states, and row previews.
 - `src/contentScripts/ui/backlinkIndicator.ts` renders the optional editor-corner badge showing
-  inbound and outbound counts.
-- `src/contentScripts/linkDisplay.ts` contains the shared display policy used by both the popup and
-  the indicator. In title-only backlink mode, inbound rows are collapsed to one row per source note.
+  inbound and outbound linked-note counts.
+- `src/contentScripts/linkGroups.ts` holds the grouping rules shared by the popup and the
+  indicator: `buildPanelRows` turns link rows into visible panel rows, `countLinkedNotes` counts
+  linked notes for the tab counts and the badge, and `linkForRow` gives the link a row opens. See
+  [Grouping](#grouping).
 - `src/contentScripts/ui/fuzzyFilter.ts` handles popup filtering.
 - `src/contentScripts/ui/editorOverlay.ts` mounts both floating elements into the editor scroll
   container's parent, keeps them clear of the scrollbar, and injects their stylesheets. The popup
@@ -130,6 +133,7 @@ normalized once, on the host, when they are loaded.
 - `openNote` opens a target note, using the configured current-window/new-window/Note Tabs behavior.
   Ctrl-click, Ctrl-Enter, and middle-click each have an independent alternate-navigation setting.
 - `openPanel` runs the host command that opens the popup.
+- `setCollapseDetails` stores the popup's compact/detailed choice as a setting.
 
 ## Link Model
 
@@ -137,8 +141,8 @@ Both tabs use `LinkItem`, a union discriminated by `direction`. The shared field
 notebook, section, snippet) are what the panel renders; each variant adds only what its direction
 has:
 
-- `Backlink` (`in`): a link from another note to the current note, with `occurrenceIndex` and
-  `occurrenceCount` locating the occurrence in its source note.
+- `Backlink` (`in`): a link from another note to the current note, with `occurrenceIndex` locating
+  the occurrence in its source note.
 - `OutgoingLink` (`out`): a link from the current note to another note, with the `anchor` it
   targets.
 
@@ -177,6 +181,33 @@ The heading index also bounds anchored-section previews, supplies backlink secti
 editor navigation the exact source range to highlight; the HTML-anchor index likewise provides the
 source range editor navigation highlights for non-heading anchors.
 
+## Grouping
+
+Both tabs group their rows by linked note. A note with several rows — backlink occurrences, or
+outgoing whole-note and anchored destinations — gets a header showing its title, notebook, and
+link count, with the links nested beneath it. A note with a single link stays one ordinary row.
+An outgoing whole-note destination is not nested: the header already opens the note without
+scrolling, so only the note's anchored destinations appear beneath it, though the header's count
+still includes it. When expanded,
+an outgoing header previews the note's opening (`OutgoingLink.noteOpening`, carried on every
+outgoing row because a note may be linked only through its anchors). A backlink header has no
+snippet: its context is in the occurrences beneath it.
+Grouping is display only: the host still returns one `LinkItem` per occurrence or destination.
+
+One expand/collapse details choice applies to both tabs; there is no per-group state.
+Collapsing hides nested rows and all context previews (snippets and headings), leaving a uniform
+one-line-per-note list. Every row in it opens its note without scrolling, even a note's only
+link: with no context shown, rows that look alike shouldn't land in different places. Expanding shows nested occurrences/anchors and context snippets on every
+row; the `showBacklinkHeading` setting adds the nearest heading above each backlink when expanded.
+The toggle (or Alt+Up / Alt+Down, which leave Alt+Left/Right to macOS word-wise caret movement in
+the filter) applies the choice to the editor's own settings facet, so its next popup opens the same
+way, and reports it to the host, which stores it in the hidden `collapseDetails` setting for the
+next startup. That setting isn't pushed back to editors: the toggling editor already has it, and a
+push could lag behind a later toggle. Other open editors pick it up with their next settings push.
+
+Counts are linked notes rather than rows — the tab counts and the badge alike — so they don't
+change when panel details are expanded or collapsed, and don't depend on any display setting.
+
 ## Indicator Counts
 
 The badge renders two numbers, so the host counts links for it instead of resolving `LinkItem`
@@ -190,27 +221,25 @@ permanent deletion or a transient API failure. A link to a _trashed_ note is not
 broken: it still opens, so both the panel (which labels it "Trash") and the count keep it. Trashed
 notes never appear as backlinks, because Joplin's search does not return them.
 
-`LinkCounts` carries both `backlinkOccurrences` and `backlinkNotes` because the choice between them
-is display policy: title-only backlink mode collapses occurrences to one row per source note. That
-policy lives in `linkDisplay.ts` and is applied by the content script, which owns the current
-preview settings — `getDisplayCounts` for the badge, `getDisplayLinks`/`getDisplayLinkCount` for the
-panel list and tab counts, all deriving from one predicate so they cannot disagree.
+`LinkCounts` holds the number of distinct linking notes and linked notes, matching the panel's
+groups (see [Grouping](#grouping)). Counting backlinks still parses each candidate to confirm it
+really links here, and counts each note once.
 
 Opening the panel still fetches full rows for both directions, deliberately: the panel must not show
 results that went stale while the note sat open. Those rows also refresh the badge's cached counts
-(`toBacklinkCounts`), so clicking the indicator brings it up to date.
+(`countLinkedNotes`), so clicking the indicator brings it up to date.
 
 ## Navigation Model
 
 For ordinary current-window selections, both directions can carry a pending scroll, recorded by
 the content script before navigation and applied after the next note id change: it places the
-cursor, scrolls the target into view, and highlights it briefly. Alternate gestures bypass pending
-scrolling and highlighting. The host opens a new window or Note Tabs tab by note id alone, ignoring
+cursor, scrolls the target into view, and highlights it briefly. Alternate gestures and compact
+view (see [Grouping](#grouping)) bypass pending scrolling and highlighting. The host opens a new window or Note Tabs tab by note id alone, ignoring
 the anchor in those modes.
 
 - Backlinks carry the host-resolved range of the exact rendered Markdown-link use in the source
-  note. This also highlights reference-style uses instead of their definitions. Title-only
-  backlink previews collapse occurrences into one row per source note, so those rows don't scroll.
+  note. This also highlights reference-style uses instead of their definitions. A group header
+  stands for its note rather than one occurrence, so selecting it opens the note without scrolling.
 - Outgoing links to an anchor scroll to the heading that anchor names, or to the explicit HTML
   anchor (`<a id="…">`) it points at. The anchor is also passed to the host, which opens
   `:/<id>#<anchor>` so Joplin's own navigation agrees.

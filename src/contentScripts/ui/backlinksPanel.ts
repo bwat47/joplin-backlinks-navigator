@@ -1,7 +1,7 @@
 import type { EditorView } from '@codemirror/view';
 
 import type { LinkDirection, LinkItem, PanelSettings } from '../../types';
-import { getDisplayLinkCount, getDisplayLinks } from '../linkDisplay';
+import { buildPanelRows, countLinkedNotes, linkForRow, type PanelRow } from '../linkGroups';
 import { EditorOverlay, ensureOverlayStyles } from './editorOverlay';
 import { fuzzyFilter, highlightMatch } from './fuzzyFilter';
 import { createPanelCss } from './panelTheme';
@@ -20,6 +20,8 @@ export interface PanelCallbacks {
     onCtrlEnterSelect: SelectCallback;
     onMiddleClickSelect: SelectCallback;
     onClose: (reason: PanelCloseReason) => void;
+    /** Called when the user toggles panel details, so the choice can be remembered. */
+    onCollapseChange: (collapsed: boolean) => void;
 }
 
 interface TabModel {
@@ -33,6 +35,15 @@ const TAB_LABELS: Record<LinkDirection, string> = {
     out: 'Outgoing Links',
 };
 
+// Lucide-style "chevrons" glyphs: pointing apart to show details, together to hide them.
+const EXPAND_ICON_SVG =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>';
+const COLLAPSE_ICON_SVG =
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg>';
+
+// macOS names the Alt key Option (⌥); the tooltip uses the platform's own name for it.
+const ALT_KEY_LABEL = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌥' : 'Alt+';
+
 /**
  * Floating panel UI listing the links related to the current note, split into two tabs:
  * inbound backlinks (`in`) and outbound links (`out`).
@@ -42,9 +53,12 @@ const TAB_LABELS: Record<LinkDirection, string> = {
  * responds. The active tab is auto-selected from the resolved counts (backlinks if any exist,
  * otherwise outgoing) until the user manually switches.
  *
- * Each entry shows the linked note's title, its parent notebook, and a snippet of the line
- * containing the link. Selecting an entry invokes `onSelect`, which the content script forwards
- * to the host for navigation (using the entry's `direction` to decide the behavior).
+ * Rows are grouped by linked note (see `linkGroups.ts`): a note with several backlink occurrences
+ * or outgoing destinations gets a header showing its title, notebook, and link count, with its
+ * links nested beneath. One toggle switches between compact (one title-only row per note) and
+ * detailed (nested links and context snippets) views; the choice is reported through
+ * `onCollapseChange` so it is remembered, and there is no per-group state. Selecting a row invokes
+ * `onSelect`, which the content script forwards to the host for navigation.
  */
 export class BacklinksPanel {
     private readonly view: EditorView;
@@ -54,6 +68,8 @@ export class BacklinksPanel {
     private readonly tabBar: HTMLDivElement;
 
     private readonly tabButtons: Record<LinkDirection, HTMLButtonElement>;
+
+    private readonly collapseToggle: HTMLButtonElement;
 
     private readonly input: HTMLInputElement;
 
@@ -68,7 +84,7 @@ export class BacklinksPanel {
 
     private userSwitchedTab = false;
 
-    private filtered: LinkItem[] = [];
+    private rows: PanelRow[] = [];
 
     private selectedId: string | null = null;
 
@@ -87,6 +103,8 @@ export class BacklinksPanel {
     private readonly onMiddleClickSelect: SelectCallback;
 
     private readonly onClose: (reason: PanelCloseReason) => void;
+
+    private readonly onCollapseChange: (collapsed: boolean) => void;
 
     private readonly handleInputListener: () => void;
 
@@ -118,6 +136,7 @@ export class BacklinksPanel {
         this.onCtrlEnterSelect = callbacks.onCtrlEnterSelect;
         this.onMiddleClickSelect = callbacks.onMiddleClickSelect;
         this.onClose = callbacks.onClose;
+        this.onCollapseChange = callbacks.onCollapseChange;
         this.settings = settings;
 
         this.container = document.createElement('div');
@@ -134,8 +153,12 @@ export class BacklinksPanel {
             in: this.createTabButton('in'),
             out: this.createTabButton('out'),
         };
+        this.collapseToggle = document.createElement('button');
+        this.collapseToggle.type = 'button';
+        this.collapseToggle.className = 'backlinks-navigator-collapse-toggle';
         this.tabBar.appendChild(this.tabButtons.in);
         this.tabBar.appendChild(this.tabButtons.out);
+        this.tabBar.appendChild(this.collapseToggle);
         this.container.appendChild(this.tabBar);
 
         this.input = document.createElement('input');
@@ -186,12 +209,13 @@ export class BacklinksPanel {
         this.input.value = '';
         this.filterText = '';
         this.selectedId = null;
-        this.filtered = [];
+        this.rows = [];
         this.activeTab = 'in';
         this.userSwitchedTab = false;
         this.tabs.in = { items: [], state: 'loading', error: '' };
         this.tabs.out = { items: [], state: 'loading', error: '' };
         this.updateTabButtons();
+        this.updateCollapseToggle();
         this.render();
         requestAnimationFrame(() => {
             if (this.isOpen()) {
@@ -228,10 +252,7 @@ export class BacklinksPanel {
         this.tabBar.removeEventListener('click', this.handleTabClickListener);
         this.view.dom.ownerDocument.removeEventListener('mousedown', this.handleDocumentMouseDownListener, true);
 
-        if (this.filterDebounceTimer !== null) {
-            clearTimeout(this.filterDebounceTimer);
-            this.filterDebounceTimer = null;
-        }
+        this.clearFilterDebounce();
         this.overlay.destroy();
     }
 
@@ -239,22 +260,42 @@ export class BacklinksPanel {
         return this.overlay.isMounted();
     }
 
+    /** Applies settings pushed by the host. */
     public setSettings(settings: PanelSettings): void {
+        const rowsAffected =
+            settings.showBacklinkHeading !== this.settings.showBacklinkHeading ||
+            settings.collapseDetails !== this.settings.collapseDetails;
         this.settings = settings;
         ensurePanelStyles(this.view, this.settings);
-        // Re-derive counts and the visible list: the backlink preview mode can change whether
-        // occurrences are collapsed to one row per note (see displayItems).
-        this.updateTabButtons();
-        this.applyFilter(this.input.value);
+        this.updateCollapseToggle();
+        if (rowsAffected) {
+            this.applyFilter(this.input.value);
+        }
     }
 
     /**
-     * The items to display for a tab. Backlinks in title-only mode are collapsed to one row per
-     * linked note: with no snippet to tell occurrences apart, repeating the same title adds nothing.
-     * Items arrive sorted by title then occurrence, so the kept row is each note's first occurrence.
+     * Toggles between compact (title-only) and detailed (nested links + snippets) views, reporting
+     * the choice so it is remembered. The selection follows its note: a hidden nested row hands it
+     * to the note's header.
      */
-    private displayItems(direction: LinkDirection): LinkItem[] {
-        return getDisplayLinks(this.tabs[direction].items, direction, this.settings.preview[direction]);
+    private setCollapsed(collapsed: boolean): void {
+        if (collapsed === this.settings.collapseDetails) {
+            return;
+        }
+        this.settings = { ...this.settings, collapseDetails: collapsed };
+        this.updateCollapseToggle();
+        this.applyFilter(this.input.value);
+        this.onCollapseChange(collapsed);
+    }
+
+    private updateCollapseToggle(): void {
+        const collapsed = this.settings.collapseDetails;
+        const label = collapsed ? 'Show details' : 'Hide details';
+        const arrow = collapsed ? '↓' : '↑';
+        this.collapseToggle.innerHTML = collapsed ? EXPAND_ICON_SVG : COLLAPSE_ICON_SVG;
+        this.collapseToggle.title = `${label} (${ALT_KEY_LABEL}${arrow})`;
+        this.collapseToggle.setAttribute('aria-label', label);
+        this.collapseToggle.setAttribute('aria-keyshortcuts', collapsed ? 'Alt+ArrowDown' : 'Alt+ArrowUp');
     }
 
     private createTabButton(direction: LinkDirection): HTMLButtonElement {
@@ -303,19 +344,12 @@ export class BacklinksPanel {
         }
         const inResolved = this.tabs.in.state !== 'loading';
         const outResolved = this.tabs.out.state !== 'loading';
-        const inCount =
-            this.tabs.in.state === 'ready'
-                ? getDisplayLinkCount(this.tabs.in.items, 'in', this.settings.preview.in)
-                : 0;
-        const outCount =
-            this.tabs.out.state === 'ready'
-                ? getDisplayLinkCount(this.tabs.out.items, 'out', this.settings.preview.out)
-                : 0;
 
-        if (inResolved && inCount > 0) {
+        // A tab that isn't ready (loading or failed) holds no items.
+        if (this.tabs.in.items.length > 0) {
             return 'in';
         }
-        if (outResolved && outCount > 0) {
+        if (this.tabs.out.items.length > 0) {
             return 'out';
         }
         if (inResolved && outResolved) {
@@ -331,19 +365,26 @@ export class BacklinksPanel {
             button.classList.toggle('is-active', direction === this.activeTab);
             const countEl = button.querySelector<HTMLSpanElement>('.backlinks-navigator-tab-count');
             if (countEl) {
-                countEl.textContent =
-                    tab.state === 'ready'
-                        ? String(getDisplayLinkCount(tab.items, direction, this.settings.preview[direction]))
-                        : '';
+                // Linked notes rather than rows, so the count doesn't change as groups expand or collapse.
+                countEl.textContent = tab.state === 'ready' ? String(countLinkedNotes(tab.items)) : '';
             }
         });
     }
 
     private handleTabClick(event: MouseEvent): void {
         const target = event.target as HTMLElement | null;
+        if (target?.closest('.backlinks-navigator-collapse-toggle')) {
+            this.setCollapsed(!this.settings.collapseDetails);
+            this.input.focus();
+            return;
+        }
         const button = target?.closest<HTMLButtonElement>('.backlinks-navigator-tab');
         const direction = button?.dataset.tab as LinkDirection | undefined;
-        if (!direction || direction === this.activeTab) {
+        if (!direction) {
+            return;
+        }
+        if (direction === this.activeTab) {
+            this.input.focus();
             return;
         }
         this.switchTab(direction);
@@ -365,10 +406,15 @@ export class BacklinksPanel {
         this.overlay.mount();
     }
 
-    private scheduleFilterUpdate(): void {
+    private clearFilterDebounce(): void {
         if (this.filterDebounceTimer !== null) {
             clearTimeout(this.filterDebounceTimer);
+            this.filterDebounceTimer = null;
         }
+    }
+
+    private scheduleFilterUpdate(): void {
+        this.clearFilterDebounce();
         this.filterDebounceTimer = window.setTimeout(() => {
             this.filterDebounceTimer = null;
             this.applyFilter(this.input.value);
@@ -377,8 +423,6 @@ export class BacklinksPanel {
 
     private flushPendingFilter(): void {
         if (this.filterDebounceTimer !== null) {
-            clearTimeout(this.filterDebounceTimer);
-            this.filterDebounceTimer = null;
             this.applyFilter(this.input.value);
         }
     }
@@ -387,22 +431,40 @@ export class BacklinksPanel {
         return this.tabs[this.activeTab];
     }
 
+    /**
+     * Rebuilds the visible rows from the active tab's links and the filter. Changing the filter
+     * query selects the top match; otherwise (e.g. toggling details) the selection stays on the
+     * same row, or moves to the first row of the same note if a nested row was hidden.
+     */
     private applyFilter(filterText: string): void {
-        this.filterText = filterText.trim();
+        this.clearFilterDebounce();
+        const nextFilterText = filterText.trim();
+        const filterChanged = nextFilterText !== this.filterText;
+        this.filterText = nextFilterText;
         const model = this.activeModel;
-        this.filtered = model.state === 'ready' ? fuzzyFilter(this.filterText, this.displayItems(this.activeTab)) : [];
+        const previousNoteId = this.rows.find((row) => row.id === this.selectedId)?.noteId;
+        const links = model.state === 'ready' ? fuzzyFilter(this.filterText, model.items) : [];
+        this.rows = buildPanelRows(links, this.settings.collapseDetails);
 
-        if (this.filtered.length === 0) {
-            this.selectedId = null;
-        } else if (!this.selectedId || !this.filtered.some((b) => b.id === this.selectedId)) {
-            // This branch only runs for a nonempty filtered list.
-            this.selectedId = this.filtered[0]!.id;
+        if (filterChanged) {
+            this.selectedId = this.rows[0]?.id ?? null;
+        } else if (!this.rows.some((row) => row.id === this.selectedId)) {
+            const fallback = this.rows.find((row) => row.noteId === previousNoteId) ?? this.rows[0];
+            this.selectedId = fallback?.id ?? null;
         }
 
         this.render();
     }
 
     private handleKeyDown(event: KeyboardEvent): void {
+        // Alt+Down shows details and Alt+Up hides them, as Alt+Down opens and Alt+Up closes a
+        // dropdown. Alt+Left/Right would take over word-by-word caret movement on macOS (⌥←/→);
+        // Up/Down already belong to the list, so their Alt variants cost the filter nothing.
+        if (event.altKey && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+            event.preventDefault();
+            this.setCollapsed(event.key === 'ArrowUp');
+            return;
+        }
         switch (event.key) {
             case 'ArrowDown':
                 event.preventDefault();
@@ -425,6 +487,7 @@ export class BacklinksPanel {
                 break;
             case 'Enter':
                 event.preventDefault();
+                this.flushPendingFilter();
                 this.confirmSelection(event.ctrlKey);
                 break;
             case 'Escape':
@@ -437,14 +500,14 @@ export class BacklinksPanel {
     }
 
     private moveSelection(delta: number): void {
-        if (!this.filtered.length) {
+        if (!this.rows.length) {
             return;
         }
-        const currentIndex = this.filtered.findIndex((b) => b.id === this.selectedId);
-        const count = this.filtered.length;
+        const currentIndex = this.rows.findIndex((row) => row.id === this.selectedId);
+        const count = this.rows.length;
         // Double modulo wraps any delta, including negative ones, into the nonempty list.
         const nextIndex = currentIndex >= 0 ? (((currentIndex + delta) % count) + count) % count : 0;
-        this.selectedId = this.filtered[nextIndex]!.id;
+        this.selectedId = this.rows[nextIndex]!.id;
         this.updateSelection();
         this.scrollActiveItemIntoView();
     }
@@ -453,8 +516,9 @@ export class BacklinksPanel {
         if (!this.selectedId) {
             return;
         }
-        const link = this.filtered.find((b) => b.id === this.selectedId);
-        if (link) {
+        const row = this.rows.find((candidate) => candidate.id === this.selectedId);
+        if (row) {
+            const link = linkForRow(row, this.settings.collapseDetails);
             if (useCtrlEnterBehavior) {
                 this.refocusInputAfter(this.onCtrlEnterSelect(link));
             } else {
@@ -464,9 +528,10 @@ export class BacklinksPanel {
     }
 
     private handleListClick(event: MouseEvent): void {
-        const link = this.findLinkForMouseEvent(event);
-        if (link) {
-            this.selectedId = link.id;
+        const row = this.findRowForMouseEvent(event);
+        if (row) {
+            const link = linkForRow(row, this.settings.collapseDetails);
+            this.selectedId = row.id;
             this.updateSelection();
             if (event.ctrlKey) {
                 this.refocusInputAfter(this.onCtrlClickSelect(link));
@@ -481,11 +546,11 @@ export class BacklinksPanel {
             return;
         }
 
-        const link = this.findLinkForMouseEvent(event);
-        if (link) {
-            this.selectedId = link.id;
+        const row = this.findRowForMouseEvent(event);
+        if (row) {
+            this.selectedId = row.id;
             this.updateSelection();
-            this.refocusInputAfter(this.onMiddleClickSelect(link));
+            this.refocusInputAfter(this.onMiddleClickSelect(linkForRow(row, this.settings.collapseDetails)));
         }
     }
 
@@ -498,16 +563,16 @@ export class BacklinksPanel {
     private handleListMouseDown(event: MouseEvent): void {
         if (event.button === 1) {
             event.preventDefault();
-            if (this.findLinkForMouseEvent(event)) {
+            if (this.findRowForMouseEvent(event)) {
                 this.input.blur();
             }
         }
     }
 
-    private findLinkForMouseEvent(event: MouseEvent): LinkItem | undefined {
+    private findRowForMouseEvent(event: MouseEvent): PanelRow | undefined {
         const target = event.target as HTMLElement | null;
-        const id = target?.closest<HTMLLIElement>('.backlinks-navigator-item')?.dataset.linkId;
-        return id ? this.filtered.find((link) => link.id === id) : undefined;
+        const id = target?.closest<HTMLLIElement>('.backlinks-navigator-item')?.dataset.rowId;
+        return id ? this.rows.find((row) => row.id === id) : undefined;
     }
 
     private refocusInputAfter(result: Promise<void> | void): void {
@@ -532,7 +597,7 @@ export class BacklinksPanel {
             this.renderMessage(model.error || `Failed to load ${noun}`);
             return;
         }
-        if (!this.filtered.length) {
+        if (!this.rows.length) {
             const empty = this.activeTab === 'in' ? 'No backlinks found' : 'No outgoing links';
             this.renderMessage(this.filterText ? `No matching ${noun}` : empty);
             return;
@@ -551,24 +616,44 @@ export class BacklinksPanel {
 
     private renderItems(): void {
         const fragment = document.createDocumentFragment();
-        for (const link of this.filtered) {
-            fragment.appendChild(this.createItem(link));
+        for (const row of this.rows) {
+            fragment.appendChild(this.createItem(row));
         }
         this.list.replaceChildren(fragment);
     }
 
-    private createItem(link: LinkItem): HTMLLIElement {
+    private createItem(row: PanelRow): HTMLLIElement {
         const item = document.createElement('li');
         item.className = 'backlinks-navigator-item';
-        item.dataset.linkId = link.id;
-        if (link.id === this.selectedId) {
-            item.classList.add('is-selected');
-        }
-        const isTrashed = link.direction === 'out' && link.isTrashed;
-        if (isTrashed) {
-            item.classList.add('is-trashed');
+        item.dataset.rowId = row.id;
+        item.classList.toggle('is-selected', row.id === this.selectedId);
+
+        if (row.kind === 'group') {
+            // Every row of a group shares its note, so the first stands in for the header.
+            const [first] = row.items;
+            item.appendChild(this.createItemHeader(first, row.items.length));
+            appendGroupDetails(item, first, this.settings);
+            markTrashed(item, first);
+            return item;
         }
 
+        const { link } = row;
+        markTrashed(item, link);
+        if (row.nested) {
+            item.classList.add('is-nested');
+            appendLinkDetails(item, link, this.settings, true);
+            return item;
+        }
+        item.appendChild(this.createItemHeader(link));
+        appendLinkDetails(item, link, this.settings, false);
+        return item;
+    }
+
+    /**
+     * The title line shared by group headers and unnested rows: the note's title (with filter
+     * matches highlighted), its notebook, and — for a group of several — how many links it holds.
+     */
+    private createItemHeader(link: LinkItem, linkCount?: number): HTMLDivElement {
         const header = document.createElement('div');
         header.className = 'backlinks-navigator-item-header';
 
@@ -577,58 +662,29 @@ export class BacklinksPanel {
         title.appendChild(highlightMatch(link.title, this.filterText));
         header.appendChild(title);
 
-        const occurrenceLabel = this.formatOccurrenceLabel(link);
-        const location = isTrashed ? 'Trash' : link.notebookName;
-        const metadata = [location, occurrenceLabel].filter(Boolean).join(' - ');
-
-        if (metadata) {
+        const location = link.direction === 'out' && link.isTrashed ? 'Trash' : link.notebookName;
+        if (location) {
             const notebook = document.createElement('span');
             notebook.className = 'backlinks-navigator-item-notebook';
-            notebook.textContent = metadata;
+            notebook.textContent = location;
             header.appendChild(notebook);
         }
 
-        item.appendChild(header);
-
-        const previewMode = this.settings.preview[link.direction];
-        const showSnippet = previewMode === 'titleSnippet' || previewMode === 'titleSnippetHeading';
-        // An outgoing row that targets a heading anchor always names the heading: it shares its
-        // title with the row for the note itself, so the heading is what tells them apart.
-        const showHeading = previewMode === 'titleSnippetHeading' || (link.direction === 'out' && Boolean(link.anchor));
-
-        if (showHeading && link.section) {
-            const section = document.createElement('span');
-            section.className = 'backlinks-navigator-item-section';
-            section.textContent = `§ ${link.section}`;
-            item.appendChild(section);
+        if (linkCount !== undefined) {
+            const count = document.createElement('span');
+            count.className = 'backlinks-navigator-item-count';
+            count.textContent = String(linkCount);
+            count.title = formatGroupCountTooltip(link.direction, linkCount);
+            header.appendChild(count);
         }
 
-        if (showSnippet && link.snippet) {
-            const snippet = document.createElement('span');
-            snippet.className = 'backlinks-navigator-item-snippet';
-            snippet.textContent = link.snippet;
-            item.appendChild(snippet);
-        }
-
-        return item;
-    }
-
-    private formatOccurrenceLabel(link: LinkItem): string {
-        if (link.direction !== 'in' || link.occurrenceCount <= 1) {
-            return '';
-        }
-        // Title-only backlinks are collapsed to one row per note, so a per-occurrence index
-        // (e.g. "1/3") would be misleading; the row stands for the note, not one occurrence.
-        if (this.settings.preview.in === 'title') {
-            return '';
-        }
-        return `${link.occurrenceIndex + 1}/${link.occurrenceCount}`;
+        return header;
     }
 
     private updateSelection(): void {
         const items = this.list.querySelectorAll<HTMLLIElement>('.backlinks-navigator-item');
         items.forEach((item) => {
-            item.classList.toggle('is-selected', item.dataset.linkId === this.selectedId);
+            item.classList.toggle('is-selected', item.dataset.rowId === this.selectedId);
         });
     }
 
@@ -666,4 +722,61 @@ function ensurePanelStyles(view: EditorView, settings: PanelSettings): void {
     const dimensions = settings.dimensions;
     const signature = [dimensions.width, dimensions.maxHeightPercentage].join('|');
     ensureOverlayStyles(view, PANEL_STYLE_ID, () => createPanelCss(dimensions), signature);
+}
+
+/** Marks a row whose outgoing target note is in the trash. */
+function markTrashed(item: HTMLLIElement, link: LinkItem): void {
+    item.classList.toggle('is-trashed', link.direction === 'out' && link.isTrashed);
+}
+
+/**
+ * Appends a group header's context line when details are expanded. An outgoing header stands for
+ * the target note as a whole, so it previews the note's opening. A backlink header doesn't: its
+ * source note's context is in the occurrences nested beneath it, and repeating one would mislead.
+ */
+function appendGroupDetails(item: HTMLLIElement, link: LinkItem, settings: PanelSettings): void {
+    if (!settings.collapseDetails && link.direction === 'out' && link.noteOpening) {
+        appendDetailLine(item, 'backlinks-navigator-item-snippet', link.noteOpening);
+    }
+}
+
+/**
+ * Appends a link's context lines when details are expanded. When collapsed, single-link rows stay
+ * title-only so the entire list is a uniform one-line-per-note view.
+ *
+ * When expanded, every row shows its snippet, outgoing anchors always name their heading, and
+ * backlinks show their nearest heading when enabled. A nested backlink whose snippet is empty
+ * (e.g. a bare `[](:/id)` line) falls back to its heading, then to its position, rather than
+ * rendering an empty row.
+ */
+function appendLinkDetails(item: HTMLLIElement, link: LinkItem, settings: PanelSettings, nested: boolean): void {
+    if (settings.collapseDetails) {
+        return;
+    }
+    // An outgoing row that targets an anchor always names it: it shares its title with the row for
+    // the note itself, so the heading is what tells them apart.
+    const showSection =
+        (link.direction === 'in' && settings.showBacklinkHeading) || (link.direction === 'out' && Boolean(link.anchor));
+    const hasSnippet = Boolean(link.snippet);
+
+    if (link.section && (showSection || (nested && !hasSnippet))) {
+        appendDetailLine(item, 'backlinks-navigator-item-section', `§ ${link.section}`);
+    } else if (nested && !hasSnippet && link.direction === 'in') {
+        appendDetailLine(item, 'backlinks-navigator-item-snippet', `Link ${link.occurrenceIndex + 1}`);
+    }
+    if (hasSnippet) {
+        appendDetailLine(item, 'backlinks-navigator-item-snippet', link.snippet);
+    }
+}
+
+/** Tooltip for a group's count, which always covers two or more links. */
+function formatGroupCountTooltip(direction: LinkDirection, count: number): string {
+    return `${count} ${direction === 'in' ? 'backlinks' : 'links'}`;
+}
+
+function appendDetailLine(item: HTMLLIElement, className: string, text: string): void {
+    const line = document.createElement('span');
+    line.className = className;
+    line.textContent = text;
+    item.appendChild(line);
 }

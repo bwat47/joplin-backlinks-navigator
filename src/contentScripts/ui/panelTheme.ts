@@ -112,6 +112,36 @@ export function createPanelCss(dimensions: PanelDimensions): string {
     opacity: 0.85;
 }
 
+/* Toggles compact vs. detailed panel rows; sits at the end of the tab bar. */
+.backlinks-navigator-collapse-toggle {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background-color: transparent;
+    color: var(--joplin-color-faded, #7c8b9e);
+    cursor: pointer;
+    outline: none;
+}
+
+.backlinks-navigator-collapse-toggle:hover {
+    color: var(--joplin-color, #32373f);
+    background-color: color-mix(in srgb, var(--joplin-selected-color, #e5e5e5) 40%, transparent);
+}
+
+.backlinks-navigator-collapse-toggle svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 .backlinks-navigator-input {
     padding: 8px;
     border: none;
@@ -239,6 +269,37 @@ export function createPanelCss(dimensions: PanelDimensions): string {
     opacity: 0.85;
 }
 
+/* How many links a grouped note holds. */
+.backlinks-navigator-item-count {
+    flex: 0 0 auto;
+    align-self: center;
+    min-width: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    box-sizing: border-box;
+    background-color: color-mix(in srgb, var(--joplin-color-faded, #7c8b9e) 22%, transparent);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 17px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+/* A link nested under its note's group header, with a guide line tying it to the header. */
+.backlinks-navigator-item.is-nested {
+    position: relative;
+    padding: 5px 12px 5px 26px;
+}
+
+.backlinks-navigator-item.is-nested::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 14px;
+    border-left: 1px solid var(--joplin-divider-color, #dddddd);
+}
+
 .backlinks-navigator-item-section {
     white-space: nowrap;
     overflow: hidden;
@@ -293,6 +354,18 @@ export function createPanelCss(dimensions: PanelDimensions): string {
 .backlinks-navigator-panel.is-mobile .backlinks-navigator-item {
     padding: 14px 16px;
     gap: 4px;
+}
+
+.backlinks-navigator-panel.is-mobile .backlinks-navigator-item.is-nested {
+    padding: 10px 16px 10px 32px;
+}
+
+.backlinks-navigator-panel.is-mobile .backlinks-navigator-item.is-nested::before {
+    left: 18px;
+}
+
+.backlinks-navigator-panel.is-mobile .backlinks-navigator-collapse-toggle {
+    padding: 0 14px;
 }
 
 .backlinks-navigator-panel.is-mobile .backlinks-navigator-input {

@@ -1,5 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 
+import type { LinkCounts } from '../../types';
 import { EditorOverlay, ensureOverlayStyles } from './editorOverlay';
 import { createIndicatorCss } from './panelTheme';
 
@@ -18,16 +19,10 @@ const ARROW_OUT_SVG =
     '<line x1="5" y1="12" x2="19" y2="12"/><path d="m12 5 7 7-7 7"/>' +
     '</svg>';
 
-/** Counts of links related to the current note, by direction. */
-export interface IndicatorCounts {
-    backlinks: number;
-    outgoing: number;
-}
-
 /**
  * Small clickable badge mounted in the top-right of the editor that signals the current
- * note has links. Shows, per direction, a directional arrow and the count of backlinks
- * (inbound) and outgoing links (outbound); clicking it opens the panel.
+ * note has links. Shows, per direction, a directional arrow and the number of linked notes:
+ * notes linking here (inbound) and notes linked to (outbound); clicking it opens the panel.
  *
  * Mounted as a floating overlay in the editor's scroll DOM (not via CodeMirror's full-width
  * Panel API), positioned to mirror the backlinks panel.
@@ -80,7 +75,7 @@ export class BacklinkIndicator {
     }
 
     /** Shows the indicator with the given link counts, hiding the side that has none. */
-    public show(counts: IndicatorCounts): void {
+    public show(counts: LinkCounts): void {
         this.mount();
         this.overlay.syncEditorFont();
 
@@ -144,14 +139,18 @@ function createDirection(modifier: string, iconSvg: string): { root: HTMLSpanEle
     return { root, countEl };
 }
 
-/** Builds a human-readable summary like "3 backlinks, 5 outgoing links" (omitting a zero side). */
-function describeCounts(counts: IndicatorCounts): string {
+function formatNoteCount(count: number): string {
+    return `${count} note${count === 1 ? '' : 's'}`;
+}
+
+/** Builds a human-readable summary like "Linked from 3 notes, links to 5 notes" (omitting a zero side). */
+function describeCounts(counts: LinkCounts): string {
     const parts: string[] = [];
     if (counts.backlinks > 0) {
-        parts.push(`${counts.backlinks} backlink${counts.backlinks === 1 ? '' : 's'}`);
+        parts.push(`Linked from ${formatNoteCount(counts.backlinks)}`);
     }
     if (counts.outgoing > 0) {
-        parts.push(`${counts.outgoing} outgoing link${counts.outgoing === 1 ? '' : 's'}`);
+        parts.push(`${parts.length ? 'links' : 'Links'} to ${formatNoteCount(counts.outgoing)}`);
     }
     return parts.join(', ');
 }

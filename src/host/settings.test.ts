@@ -2,13 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import joplin from 'api';
 import {
+    isEditorAffectingSettingChanged,
+    isIndicatorAffectingSettingChanged,
     loadContentScriptSettings,
     loadIgnoredBacklinkNoteIdsSetting,
     loadIgnoredNotebookIdsSetting,
     loadMiddleClickBehaviorSetting,
     normalizeBacklinkOpenBehavior,
     normalizeIgnoredIdList,
-    normalizeLinkPreviewMode,
     setIgnoredNotebookIdsSetting,
 } from './settings';
 
@@ -27,8 +28,8 @@ const mockSettings = vi.mocked(joplin.settings);
 
 const KEY_PANEL_WIDTH = 'backlinksNavigator.panelWidth';
 const KEY_PANEL_MAX_HEIGHT = 'backlinksNavigator.panelMaxHeightPercentage';
-const KEY_BACKLINK_PREVIEW = 'backlinksNavigator.backlinkPreviewMode';
-const KEY_OUTGOING_PREVIEW = 'backlinksNavigator.outgoingPreviewMode';
+const KEY_SHOW_BACKLINK_HEADING = 'backlinksNavigator.showBacklinkHeading';
+const KEY_COLLAPSE_DETAILS = 'backlinksNavigator.collapseDetails';
 const KEY_IGNORED_NOTE_IDS = 'backlinksNavigator.ignoredBacklinkNoteIds';
 const KEY_IGNORED_NOTEBOOK_IDS = 'backlinksNavigator.ignoredNotebookIds';
 const KEY_MIDDLE_CLICK_BEHAVIOR = 'backlinksNavigator.middleClickBehavior';
@@ -42,37 +43,6 @@ describe('settings normalization', () => {
     it('falls back to new window for invalid backlink open behaviors', () => {
         expect(normalizeBacklinkOpenBehavior('current')).toEqual({ value: 'newWindow', changed: true });
         expect(normalizeBacklinkOpenBehavior(undefined)).toEqual({ value: 'newWindow', changed: true });
-    });
-
-    it('accepts supported link preview modes', () => {
-        expect(normalizeLinkPreviewMode('title', 'titleSnippet')).toEqual({ value: 'title', changed: false });
-        expect(normalizeLinkPreviewMode('titleSnippet', 'title')).toEqual({
-            value: 'titleSnippet',
-            changed: false,
-        });
-        expect(normalizeLinkPreviewMode('titleSnippetHeading', 'title')).toEqual({
-            value: 'titleSnippetHeading',
-            changed: false,
-        });
-    });
-
-    it('rejects the nearest-heading mode when headings are disallowed (outgoing links)', () => {
-        expect(normalizeLinkPreviewMode('titleSnippetHeading', 'title', { allowHeading: false })).toEqual({
-            value: 'title',
-            changed: true,
-        });
-        expect(normalizeLinkPreviewMode('titleSnippet', 'title', { allowHeading: false })).toEqual({
-            value: 'titleSnippet',
-            changed: false,
-        });
-    });
-
-    it('falls back to the provided default for invalid link preview modes', () => {
-        expect(normalizeLinkPreviewMode('snippet', 'titleSnippet')).toEqual({
-            value: 'titleSnippet',
-            changed: true,
-        });
-        expect(normalizeLinkPreviewMode(undefined, 'title')).toEqual({ value: 'title', changed: true });
     });
 
     it('parses comma-separated ignored ids', () => {
@@ -108,15 +78,16 @@ describe('settings loading', () => {
         mockSettings.values.mockResolvedValue({
             [KEY_PANEL_WIDTH]: 400,
             [KEY_PANEL_MAX_HEIGHT]: 60,
-            [KEY_BACKLINK_PREVIEW]: 'titleSnippetHeading',
-            [KEY_OUTGOING_PREVIEW]: 'title',
+            [KEY_SHOW_BACKLINK_HEADING]: true,
+            [KEY_COLLAPSE_DETAILS]: true,
         });
         mockSettings.value.mockResolvedValue(true);
 
         await expect(loadContentScriptSettings()).resolves.toEqual({
             panel: {
                 dimensions: { width: 400, maxHeightPercentage: 60 },
-                preview: { in: 'titleSnippetHeading', out: 'title' },
+                showBacklinkHeading: true,
+                collapseDetails: true,
             },
             showIndicator: true,
         });
@@ -127,32 +98,32 @@ describe('settings loading', () => {
         mockSettings.values.mockResolvedValue({
             [KEY_PANEL_WIDTH]: 9999,
             [KEY_PANEL_MAX_HEIGHT]: 'tall',
-            [KEY_BACKLINK_PREVIEW]: 'nope',
-            // Valid for backlinks, but the nearest-heading mode is not offered for outgoing links.
-            [KEY_OUTGOING_PREVIEW]: 'titleSnippetHeading',
+            [KEY_SHOW_BACKLINK_HEADING]: 'always',
+            [KEY_COLLAPSE_DETAILS]: 'yes',
         });
         mockSettings.value.mockResolvedValue(false);
 
         await expect(loadContentScriptSettings()).resolves.toEqual({
             panel: {
                 dimensions: { width: 640, maxHeightPercentage: 75 },
-                preview: { in: 'titleSnippet', out: 'titleSnippet' },
+                showBacklinkHeading: false,
+                collapseDetails: false,
             },
             showIndicator: false,
         });
 
         expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_PANEL_WIDTH, 640);
         expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_PANEL_MAX_HEIGHT, 75);
-        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_BACKLINK_PREVIEW, 'titleSnippet');
-        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_OUTGOING_PREVIEW, 'titleSnippet');
+        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_SHOW_BACKLINK_HEADING, false);
+        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_COLLAPSE_DETAILS, false);
     });
 
     it('still resolves panel settings when persisting a correction fails', async () => {
         mockSettings.values.mockResolvedValue({
             [KEY_PANEL_WIDTH]: 10,
             [KEY_PANEL_MAX_HEIGHT]: 60,
-            [KEY_BACKLINK_PREVIEW]: 'titleSnippet',
-            [KEY_OUTGOING_PREVIEW]: 'titleSnippet',
+            [KEY_SHOW_BACKLINK_HEADING]: false,
+            [KEY_COLLAPSE_DETAILS]: false,
         });
         mockSettings.value.mockResolvedValue(false);
         mockSettings.setValue.mockRejectedValue(new Error('settings are read-only'));
@@ -227,5 +198,30 @@ describe('settings loading', () => {
         await setIgnoredNotebookIdsSetting(new Set<string>());
 
         expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_IGNORED_NOTEBOOK_IDS, '');
+    });
+});
+
+describe('setting change classification', () => {
+    it('treats panel-only settings as editor-affecting without requiring an indicator refresh', () => {
+        for (const key of [KEY_PANEL_WIDTH, KEY_PANEL_MAX_HEIGHT, KEY_SHOW_BACKLINK_HEADING]) {
+            expect(isEditorAffectingSettingChanged([key])).toBe(true);
+            expect(isIndicatorAffectingSettingChanged([key])).toBe(false);
+        }
+    });
+
+    it('does not push the collapse choice, which the toggling editor already applied', () => {
+        expect(isEditorAffectingSettingChanged([KEY_COLLAPSE_DETAILS])).toBe(false);
+    });
+
+    it('treats indicator visibility and ignore lists as affecting both editor and indicator', () => {
+        for (const key of ['backlinksNavigator.showIndicator', KEY_IGNORED_NOTE_IDS, KEY_IGNORED_NOTEBOOK_IDS]) {
+            expect(isEditorAffectingSettingChanged([key])).toBe(true);
+            expect(isIndicatorAffectingSettingChanged([key])).toBe(true);
+        }
+    });
+
+    it('ignores unrelated settings', () => {
+        expect(isEditorAffectingSettingChanged(['backlinksNavigator.debug'])).toBe(false);
+        expect(isIndicatorAffectingSettingChanged(['backlinksNavigator.debug'])).toBe(false);
     });
 });

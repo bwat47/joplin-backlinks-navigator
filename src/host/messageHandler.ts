@@ -20,6 +20,7 @@ import {
     loadIgnoredBacklinkNoteIdsSetting,
     loadIgnoredNotebookIdsSetting,
     loadShowIndicatorSetting,
+    setCollapseDetailsSetting,
 } from './settings';
 
 /**
@@ -75,11 +76,7 @@ async function loadIndicatorState(
         return {
             enabled: true,
             ok: true,
-            counts: {
-                backlinkOccurrences: backlinks.occurrences,
-                backlinkNotes: backlinks.notes,
-                outgoing,
-            },
+            counts: { backlinks, outgoing },
         };
     } catch (error) {
         logger.error('Failed to count links for the indicator', { noteId, error });
@@ -118,6 +115,7 @@ export function createMessageHandler(repository: LinkRepository): (message: unkn
         openPanel: async () => {
             await joplin.commands.execute(COMMAND_SHOW_BACKLINKS);
         },
+        setCollapseDetails: (message) => setCollapseDetailsSetting(message.collapsed),
     };
 
     // Indexing `handlers` by `message.type` gives a union of handlers that the message union can't be

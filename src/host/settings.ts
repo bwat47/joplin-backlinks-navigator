@@ -21,13 +21,7 @@ import {
     normalizePanelHeightPercentage,
     normalizePanelWidth,
 } from '../panelDimensions';
-import {
-    DEFAULT_LINK_PREVIEW_SETTINGS,
-    type BacklinkOpenBehavior,
-    type ContentScriptSettings,
-    type LinkPreviewMode,
-    type PanelSettings,
-} from '../types';
+import type { BacklinkOpenBehavior, ContentScriptSettings, PanelSettings } from '../types';
 
 const SECTION_ID = 'backlinksNavigator';
 const SETTING_PANEL_WIDTH = 'backlinksNavigator.panelWidth';
@@ -38,23 +32,13 @@ const SETTING_IGNORED_NOTEBOOK_IDS = 'backlinksNavigator.ignoredNotebookIds';
 const SETTING_CTRL_CLICK_BEHAVIOR = 'backlinksNavigator.ctrlClickBehavior';
 const SETTING_CTRL_ENTER_BEHAVIOR = 'backlinksNavigator.ctrlEnterBehavior';
 const SETTING_MIDDLE_CLICK_BEHAVIOR = 'backlinksNavigator.middleClickBehavior';
-const SETTING_BACKLINK_PREVIEW_MODE = 'backlinksNavigator.backlinkPreviewMode';
-const SETTING_OUTGOING_PREVIEW_MODE = 'backlinksNavigator.outgoingPreviewMode';
+const SETTING_SHOW_BACKLINK_HEADING = 'backlinksNavigator.showBacklinkHeading';
+const SETTING_COLLAPSE_DETAILS = 'backlinksNavigator.collapseDetails';
 const SETTING_DEBUG = 'backlinksNavigator.debug';
 const DEFAULT_BACKLINK_OPEN_BEHAVIOR: BacklinkOpenBehavior = 'newWindow';
 const BACKLINK_OPEN_BEHAVIOR_OPTIONS: Record<BacklinkOpenBehavior, string> = {
     newWindow: 'Open note in new window',
     newTab: 'Open note in Note Tabs tab',
-};
-const LINK_PREVIEW_MODE_OPTIONS: Record<LinkPreviewMode, string> = {
-    title: 'Note Title',
-    titleSnippet: 'Note Title + Snippet',
-    titleSnippetHeading: 'Note Title + Snippet + Nearest Heading',
-};
-// Outgoing links preview the linked note's opening, which has no enclosing heading to show.
-const OUTGOING_LINK_PREVIEW_MODE_OPTIONS: Record<'title' | 'titleSnippet', string> = {
-    title: 'Note Title',
-    titleSnippet: 'Note Title + Snippet',
 };
 
 /**
@@ -77,28 +61,6 @@ export function normalizeBacklinkOpenBehavior(value: unknown): { value: Backlink
     }
 
     return { value: DEFAULT_BACKLINK_OPEN_BEHAVIOR, changed: true };
-}
-
-/**
- * Type guard for a valid {@link LinkPreviewMode}.
- *
- * @param allowHeading - Whether `'titleSnippetHeading'` is accepted (outgoing links have no
- *   enclosing heading to show, so that mode is rejected for them).
- */
-function isLinkPreviewMode(value: unknown, allowHeading: boolean): value is LinkPreviewMode {
-    return value === 'title' || value === 'titleSnippet' || (allowHeading && value === 'titleSnippetHeading');
-}
-
-export function normalizeLinkPreviewMode(
-    value: unknown,
-    defaultValue: LinkPreviewMode,
-    options: { allowHeading?: boolean } = {}
-): { value: LinkPreviewMode; changed: boolean } {
-    if (isLinkPreviewMode(value, options.allowHeading ?? true)) {
-        return { value, changed: false };
-    }
-
-    return { value: defaultValue, changed: true };
 }
 
 /**
@@ -246,26 +208,19 @@ export async function registerSettings(): Promise<void> {
                 '[Desktop Only] Choose where middle-click opens a link. Opening in a new tab requires the Note Tabs plugin.',
             options: BACKLINK_OPEN_BEHAVIOR_OPTIONS,
         },
-        [SETTING_BACKLINK_PREVIEW_MODE]: {
-            value: DEFAULT_LINK_PREVIEW_SETTINGS.in,
-            type: SettingItemType.String,
-            isEnum: true,
+        [SETTING_SHOW_BACKLINK_HEADING]: {
+            value: false,
+            type: SettingItemType.Bool,
             public: true,
             section: SECTION_ID,
-            label: 'Backlink context preview',
-            description: 'Choose how much context to show for backlinks in the panel.',
-            options: LINK_PREVIEW_MODE_OPTIONS,
+            label: 'Show nearest heading for backlinks',
+            description: 'Display the nearest heading above each backlink when panel details are expanded.',
         },
-        [SETTING_OUTGOING_PREVIEW_MODE]: {
-            value: DEFAULT_LINK_PREVIEW_SETTINGS.out,
-            type: SettingItemType.String,
-            isEnum: true,
-            public: true,
-            section: SECTION_ID,
-            label: 'Outgoing link context preview',
-            description:
-                'Choose how much context to show for outgoing links in the panel. The snippet previews the opening of the linked note.',
-            options: OUTGOING_LINK_PREVIEW_MODE_OPTIONS,
+        [SETTING_COLLAPSE_DETAILS]: {
+            value: false,
+            type: SettingItemType.Bool,
+            public: false,
+            label: 'Collapse panel details',
         },
         [SETTING_DEBUG]: {
             value: false,
@@ -335,11 +290,11 @@ async function loadPanelSettings(): Promise<PanelSettings> {
     const values = await joplin.settings.values([
         SETTING_PANEL_WIDTH,
         SETTING_PANEL_MAX_HEIGHT,
-        SETTING_BACKLINK_PREVIEW_MODE,
-        SETTING_OUTGOING_PREVIEW_MODE,
+        SETTING_SHOW_BACKLINK_HEADING,
+        SETTING_COLLAPSE_DETAILS,
     ]);
 
-    const [width, heightPercentage, backlinkPreview, outgoingPreview] = await Promise.all([
+    const [width, heightPercentage, showBacklinkHeading, collapseDetails] = await Promise.all([
         normalizeStoredSetting(SETTING_PANEL_WIDTH, values[SETTING_PANEL_WIDTH], normalizePanelWidth, 'panel width'),
         normalizeStoredSetting(
             SETTING_PANEL_MAX_HEIGHT,
@@ -348,17 +303,16 @@ async function loadPanelSettings(): Promise<PanelSettings> {
             'panel max height'
         ),
         normalizeStoredSetting(
-            SETTING_BACKLINK_PREVIEW_MODE,
-            values[SETTING_BACKLINK_PREVIEW_MODE],
-            (value) => normalizeLinkPreviewMode(value, DEFAULT_LINK_PREVIEW_SETTINGS.in),
-            'backlink context preview'
+            SETTING_SHOW_BACKLINK_HEADING,
+            values[SETTING_SHOW_BACKLINK_HEADING],
+            (value) => normalizeBooleanSetting(value, false),
+            'show nearest heading for backlinks'
         ),
         normalizeStoredSetting(
-            SETTING_OUTGOING_PREVIEW_MODE,
-            values[SETTING_OUTGOING_PREVIEW_MODE],
-            // Outgoing rows preview the linked note's opening, so the nearest-heading mode is not offered.
-            (value) => normalizeLinkPreviewMode(value, DEFAULT_LINK_PREVIEW_SETTINGS.out, { allowHeading: false }),
-            'outgoing link context preview'
+            SETTING_COLLAPSE_DETAILS,
+            values[SETTING_COLLAPSE_DETAILS],
+            (value) => normalizeBooleanSetting(value, false),
+            'collapse panel details'
         ),
     ]);
 
@@ -367,10 +321,8 @@ async function loadPanelSettings(): Promise<PanelSettings> {
             width,
             maxHeightPercentage: heightPercentage,
         },
-        preview: {
-            in: backlinkPreview,
-            out: outgoingPreview,
-        },
+        showBacklinkHeading,
+        collapseDetails,
     };
 }
 
@@ -423,6 +375,15 @@ export async function setIgnoredNotebookIdsSetting(ids: Iterable<string>): Promi
     await joplin.settings.setValue(SETTING_IGNORED_NOTEBOOK_IDS, serializeIgnoredIdList([...ids]));
 }
 
+/**
+ * Remembers the panel's compact/detailed choice for the next startup. The editor that toggled it
+ * already applied it locally, so the change isn't pushed to editors (see
+ * `EDITOR_AFFECTING_SETTING_KEYS`).
+ */
+export async function setCollapseDetailsSetting(collapsed: boolean): Promise<void> {
+    await joplin.settings.setValue(SETTING_COLLAPSE_DETAILS, collapsed);
+}
+
 export async function loadCtrlClickBehaviorSetting(): Promise<BacklinkOpenBehavior> {
     return loadNormalizedSetting(SETTING_CTRL_CLICK_BEHAVIOR, normalizeBacklinkOpenBehavior, 'Ctrl-click behavior');
 }
@@ -442,16 +403,25 @@ export async function loadDebugSetting(): Promise<boolean> {
 /** Setting key for the debug toggle, exposed so the host can watch for changes. */
 export const DEBUG_SETTING_KEY = SETTING_DEBUG;
 
-const EDITOR_AFFECTING_SETTING_KEYS = new Set([
-    SETTING_PANEL_WIDTH,
-    SETTING_PANEL_MAX_HEIGHT,
+const INDICATOR_AFFECTING_SETTING_KEYS = new Set([
     SETTING_SHOW_INDICATOR,
     SETTING_IGNORED_BACKLINK_NOTE_IDS,
     SETTING_IGNORED_NOTEBOOK_IDS,
-    SETTING_BACKLINK_PREVIEW_MODE,
-    SETTING_OUTGOING_PREVIEW_MODE,
+]);
+
+// `collapseDetails` is left out: the editor that toggles it applies it to itself, and pushing it back
+// could race a later toggle with a stale value.
+const EDITOR_AFFECTING_SETTING_KEYS = new Set([
+    SETTING_PANEL_WIDTH,
+    SETTING_PANEL_MAX_HEIGHT,
+    SETTING_SHOW_BACKLINK_HEADING,
+    ...INDICATOR_AFFECTING_SETTING_KEYS,
 ]);
 
 export function isEditorAffectingSettingChanged(keys: readonly string[]): boolean {
     return keys.some((key) => EDITOR_AFFECTING_SETTING_KEYS.has(key));
+}
+
+export function isIndicatorAffectingSettingChanged(keys: readonly string[]): boolean {
+    return keys.some((key) => INDICATOR_AFFECTING_SETTING_KEYS.has(key));
 }

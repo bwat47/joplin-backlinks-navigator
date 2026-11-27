@@ -54,6 +54,7 @@ describe('findOutgoingLinks', () => {
                 notebookName: 'Projects',
                 section: '',
                 snippet: 'Alpha opening line.',
+                noteOpening: 'Alpha opening line.',
                 isTrashed: false,
             },
             {
@@ -65,6 +66,7 @@ describe('findOutgoingLinks', () => {
                 notebookName: 'Archive',
                 section: '',
                 snippet: 'Beta opening line.',
+                noteOpening: 'Beta opening line.',
                 isTrashed: false,
             },
         ]);
@@ -103,6 +105,7 @@ describe('findOutgoingLinks', () => {
                 notebookName: 'Projects',
                 section: '',
                 snippet: 'Alpha opening line.',
+                noteOpening: 'Alpha opening line.',
                 isTrashed: false,
             },
         ]);
@@ -140,6 +143,7 @@ describe('findOutgoingLinks', () => {
                 notebookName: '',
                 section: '',
                 snippet: 'Alpha opening line.',
+                noteOpening: 'Alpha opening line.',
                 isTrashed: true,
             },
         ]);
@@ -210,6 +214,7 @@ describe('findOutgoingLinks', () => {
                 notebookName: 'Projects',
                 section: '',
                 snippet: 'Alpha opening line.',
+                noteOpening: 'Alpha opening line.',
                 isTrashed: false,
             },
             {
@@ -222,6 +227,7 @@ describe('findOutgoingLinks', () => {
                 // Anchor no longer names a heading: show the raw slug and the note's opening.
                 section: 'removed-heading',
                 snippet: 'Alpha opening line.',
+                noteOpening: 'Alpha opening line.',
                 isTrashed: false,
             },
             {
@@ -237,6 +243,7 @@ describe('findOutgoingLinks', () => {
                 notebookName: 'Projects',
                 section: 'Setup',
                 snippet: 'Run the installer.',
+                noteOpening: 'Alpha opening line.',
                 isTrashed: false,
             },
         ]);
@@ -276,6 +283,7 @@ describe('findOutgoingLinks', () => {
                 notebookName: 'Projects',
                 section: '',
                 snippet: 'Alpha opening line.',
+                noteOpening: 'Alpha opening line.',
                 isTrashed: false,
             },
             {
@@ -294,6 +302,7 @@ describe('findOutgoingLinks', () => {
                 // The HTML anchor's own text labels the row; the anchor's line is previewed.
                 section: 'The MERN stack',
                 snippet: 'The MERN stack is a full-stack framework.',
+                noteOpening: 'Alpha opening line.',
                 isTrashed: false,
             },
             {
@@ -306,6 +315,7 @@ describe('findOutgoingLinks', () => {
                 // Resolves to neither heading nor HTML anchor: raw slug + note opening.
                 section: 'no-such-anchor',
                 snippet: 'Alpha opening line.',
+                noteOpening: 'Alpha opening line.',
                 isTrashed: false,
             },
         ]);
@@ -346,6 +356,7 @@ describe('findOutgoingLinks', () => {
                 notebookName: 'Projects',
                 section: '日本語',
                 snippet: '日本語の内容。',
+                noteOpening: '日本語の内容。',
                 isTrashed: false,
             },
         ]);
@@ -476,7 +487,8 @@ describe('countOutgoingLinks', () => {
         mockDataGet.mockReset();
     });
 
-    // Four links across three destinations (Alpha, Alpha#intro, Beta) plus one broken target.
+    // Four links across three destinations (Alpha, Alpha#intro, Beta) in two target notes, plus one
+    // broken target.
     const SOURCE_BODY =
         `See [Beta](:/${NOTE_B}) and [Alpha](:/${NOTE_A}).\n` +
         `Again [Beta](:/${NOTE_B}), plus [Alpha intro](:/${NOTE_A}#intro).\n` +
@@ -504,15 +516,16 @@ describe('countOutgoingLinks', () => {
         });
     };
 
-    it('counts distinct destinations without fetching target bodies or notebooks', async () => {
+    it('counts distinct target notes without fetching target bodies or notebooks', async () => {
         mockNotes();
 
-        await expect(countOutgoingLinks(repository, SOURCE_NOTE_ID)).resolves.toBe(3);
+        // Alpha's whole-note and anchored destinations count as one note.
+        await expect(countOutgoingLinks(repository, SOURCE_NOTE_ID)).resolves.toBe(2);
 
         const targetRequests = mockDataGet.mock.calls.filter(
             (call) => call[0][0] === 'notes' && call[0][1] !== SOURCE_NOTE_ID
         );
-        // One lookup per distinct target note (Alpha is reused for its anchored destination).
+        // One lookup per distinct target note, including the broken one.
         expect(targetRequests).toHaveLength(3);
         for (const call of targetRequests) {
             expect(call[1]?.fields).not.toContain('body');
@@ -526,7 +539,7 @@ describe('countOutgoingLinks', () => {
         const rows = await findOutgoingLinks(repository, SOURCE_NOTE_ID);
         const count = await countOutgoingLinks(repository, SOURCE_NOTE_ID);
 
-        expect(count).toBe(rows.length);
+        expect(count).toBe(new Set(rows.map((row) => row.noteId)).size);
     });
 
     it('omits ignored target notes', async () => {

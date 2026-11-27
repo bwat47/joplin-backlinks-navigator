@@ -6,7 +6,7 @@ import type { IndicatorState } from '../messages';
 import { EMPTY_LINK_COUNTS, type LinkCounts, type LinkDirection, type LinkItem } from '../types';
 import { request } from './bridge';
 import { getContentScriptSettings } from './editor/pluginSettings';
-import { getDisplayCounts, toBacklinkCounts } from './linkDisplay';
+import { countLinkedNotes } from './linkGroups';
 import { BacklinkIndicator } from './ui/backlinkIndicator';
 
 const INDICATOR_DEBOUNCE_MS = 350;
@@ -50,10 +50,8 @@ export class IndicatorController {
         if (!this.enabled) {
             return;
         }
-        this.counts =
-            direction === 'in'
-                ? { ...this.counts, ...toBacklinkCounts(links) }
-                : { ...this.counts, outgoing: links.length };
+        const count = countLinkedNotes(links);
+        this.counts = direction === 'in' ? { ...this.counts, backlinks: count } : { ...this.counts, outgoing: count };
     }
 
     /**
@@ -70,9 +68,8 @@ export class IndicatorController {
             this.badge.hide();
             return;
         }
-        const counts = getDisplayCounts(this.counts, settings.panel.preview);
-        if (counts.backlinks + counts.outgoing > 0) {
-            this.badge.show(counts);
+        if (this.counts.backlinks + this.counts.outgoing > 0) {
+            this.badge.show(this.counts);
         } else {
             this.badge.hide();
         }

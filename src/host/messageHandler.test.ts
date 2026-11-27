@@ -9,7 +9,12 @@ import { createMessageHandler } from './messageHandler';
 import { openNote } from './navigation';
 import { expandIgnoredFolderIds } from './noteMetadata';
 import { countOutgoingLinks, findOutgoingLinks } from './outgoingLinksService';
-import { loadIgnoredBacklinkNoteIdsSetting, loadIgnoredNotebookIdsSetting, loadShowIndicatorSetting } from './settings';
+import {
+    loadIgnoredBacklinkNoteIdsSetting,
+    loadIgnoredNotebookIdsSetting,
+    loadShowIndicatorSetting,
+    setCollapseDetailsSetting,
+} from './settings';
 
 vi.mock('api', () => ({
     __esModule: true,
@@ -20,6 +25,7 @@ vi.mock('./settings', () => ({
     loadIgnoredBacklinkNoteIdsSetting: vi.fn(),
     loadIgnoredNotebookIdsSetting: vi.fn(),
     loadShowIndicatorSetting: vi.fn(),
+    setCollapseDetailsSetting: vi.fn(),
 }));
 vi.mock('./backlinksService', () => ({ countBacklinks: vi.fn(), findBacklinks: vi.fn() }));
 vi.mock('./outgoingLinksService', () => ({ countOutgoingLinks: vi.fn(), findOutgoingLinks: vi.fn() }));
@@ -136,7 +142,7 @@ describe('createMessageHandler', () => {
 
     it('counts both directions for the indicator from one filter load', async () => {
         vi.mocked(loadShowIndicatorSetting).mockResolvedValue(true);
-        vi.mocked(countBacklinks).mockResolvedValue({ occurrences: 5, notes: 3 });
+        vi.mocked(countBacklinks).mockResolvedValue(3);
         vi.mocked(countOutgoingLinks).mockResolvedValue(2);
 
         const response = await createMessageHandler(repository)({ type: 'getIndicatorState', noteId: NOTE_ID });
@@ -144,14 +150,14 @@ describe('createMessageHandler', () => {
         expect(response).toEqual({
             enabled: true,
             ok: true,
-            counts: { backlinkOccurrences: 5, backlinkNotes: 3, outgoing: 2 },
+            counts: { backlinks: 3, outgoing: 2 },
         });
         expect(expandIgnoredFolderIds).toHaveBeenCalledTimes(1);
     });
 
     it('reports a failed count as an enabled indicator that is not ok', async () => {
         vi.mocked(loadShowIndicatorSetting).mockResolvedValue(true);
-        vi.mocked(countBacklinks).mockResolvedValue({ occurrences: 1, notes: 1 });
+        vi.mocked(countBacklinks).mockResolvedValue(1);
         vi.mocked(countOutgoingLinks).mockRejectedValue(new Error('boom'));
 
         const response = await createMessageHandler(repository)({ type: 'getIndicatorState', noteId: NOTE_ID });
@@ -171,5 +177,11 @@ describe('createMessageHandler', () => {
         await createMessageHandler(repository)({ type: 'openPanel' });
 
         expect(joplin.commands.execute).toHaveBeenCalledWith(COMMAND_SHOW_BACKLINKS);
+    });
+
+    it('remembers the panel collapse choice', async () => {
+        await createMessageHandler(repository)({ type: 'setCollapseDetails', collapsed: true });
+
+        expect(setCollapseDetailsSetting).toHaveBeenCalledWith(true);
     });
 });
