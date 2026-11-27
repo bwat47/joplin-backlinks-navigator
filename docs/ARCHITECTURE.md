@@ -187,7 +187,8 @@ Both tabs group their rows by linked note. A note with several rows — backlink
 outgoing whole-note and anchored destinations — gets a header showing its title, notebook, and
 link count, with the links nested beneath it. A note with a single link stays one ordinary row.
 An outgoing whole-note destination is not nested: the header already opens the note without
-scrolling, so only the note's anchored destinations appear (and count) beneath it. When expanded,
+scrolling, so only the note's anchored destinations appear (and count) beneath it. A header with a
+single anchor beneath it shows no count, since "1" would read as the note's only link. When expanded,
 an outgoing header previews the note's opening (`OutgoingLink.noteOpening`, carried on every
 outgoing row because a note may be linked only through its anchors). A backlink header has no
 snippet: its context is in the occurrences beneath it.

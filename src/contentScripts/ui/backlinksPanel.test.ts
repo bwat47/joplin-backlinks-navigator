@@ -446,14 +446,11 @@ describe('BacklinksPanel grouping', () => {
             panel.destroy();
         });
 
-        it('uses singular anchor tooltip when a mixed outgoing group has one anchor', () => {
+        it('omits the count when a mixed outgoing group has one anchor', () => {
             const panel = showOutgoing(SETTINGS, [destination(''), destination('setup')]);
 
-            const count = document.querySelector<HTMLSpanElement>(
-                '[data-row-id="group:a"] .backlinks-navigator-item-count'
-            )!;
-            expect(count.textContent).toBe('1');
-            expect(count.title).toBe('1 anchor');
+            expect(rowIds()).toEqual(['group:a', 'a#setup']);
+            expect(document.querySelector('[data-row-id="group:a"] .backlinks-navigator-item-count')).toBeNull();
             panel.destroy();
         });
 
