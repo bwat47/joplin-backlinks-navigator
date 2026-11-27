@@ -218,8 +218,8 @@ broken: it still opens, so both the panel (which labels it "Trash") and the coun
 notes never appear as backlinks, because Joplin's search does not return them.
 
 `LinkCounts` holds the number of distinct linking notes and linked notes, matching the panel's
-groups (see [Grouping](#grouping)). Counting backlinks still parses each candidate, to confirm it
-really links here, but stops at one per note.
+groups (see [Grouping](#grouping)). Counting backlinks still parses each candidate to confirm it
+really links here, and counts each note once.
 
 Opening the panel still fetches full rows for both directions, deliberately: the panel must not show
 results that went stale while the note sat open. Those rows also refresh the badge's cached counts
