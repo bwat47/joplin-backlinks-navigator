@@ -380,7 +380,11 @@ export class BacklinksPanel {
         }
         const button = target?.closest<HTMLButtonElement>('.backlinks-navigator-tab');
         const direction = button?.dataset.tab as LinkDirection | undefined;
-        if (!direction || direction === this.activeTab) {
+        if (!direction) {
+            return;
+        }
+        if (direction === this.activeTab) {
+            this.input.focus();
             return;
         }
         this.switchTab(direction);

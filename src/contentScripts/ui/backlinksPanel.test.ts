@@ -420,6 +420,19 @@ describe('BacklinksPanel grouping', () => {
         }
     });
 
+    it('keeps the filter focused when clicking the already-active tab', () => {
+        const { panel } = createPanelHarness();
+        panel.setLinks('in', LINKS);
+        const input = document.querySelector<HTMLInputElement>('.backlinks-navigator-input')!;
+        const activeTab = document.querySelector<HTMLButtonElement>('[data-tab="in"]')!;
+
+        activeTab.focus();
+        activeTab.click();
+
+        expect(document.activeElement).toBe(input);
+        panel.destroy();
+    });
+
     it('follows a pushed collapse choice without reporting it as a toggle', () => {
         const { panel, callbacks } = createPanelHarness();
         panel.setLinks('in', LINKS);
