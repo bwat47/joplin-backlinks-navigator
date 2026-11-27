@@ -9,7 +9,7 @@ import type { LinkItem } from '../types';
  *   one link is shown as one unnested `link` row instead of a header with a single child.
  */
 export type PanelRow =
-    | { kind: 'group'; id: string; noteId: string; items: LinkItem[] }
+    | { kind: 'group'; id: string; noteId: string; items: [LinkItem, ...LinkItem[]] }
     | { kind: 'link'; id: string; noteId: string; link: LinkItem; nested: boolean };
 
 /**
@@ -56,7 +56,12 @@ export function buildPanelRows(items: readonly LinkItem[], collapsed: boolean): 
             rows.push({ kind: 'link', id: first.id, noteId: first.noteId, link: first, nested: false });
             continue;
         }
-        const nested = group.filter(isNestedLink);
+        const [firstNested, ...restNested] = group.filter(isNestedLink);
+        if (!firstNested) {
+            rows.push({ kind: 'link', id: first.id, noteId: first.noteId, link: first, nested: false });
+            continue;
+        }
+        const nested: [LinkItem, ...LinkItem[]] = [firstNested, ...restNested];
         rows.push({ kind: 'group', id: `group:${first.noteId}`, noteId: first.noteId, items: nested });
         if (!collapsed) {
             for (const link of nested) {
@@ -83,8 +88,6 @@ export function linkForRow(row: PanelRow): LinkItem {
     if (row.kind === 'link') {
         return row.link;
     }
-    // A group always nests at least one link: a note has at most one whole-note destination, and
-    // grouping needs two rows. See buildPanelRows.
-    const { navigationTarget: _navigationTarget, ...rest } = row.items[0]!;
+    const { navigationTarget: _navigationTarget, ...rest } = row.items[0];
     return rest.direction === 'out' ? { ...rest, anchor: '' } : rest;
 }

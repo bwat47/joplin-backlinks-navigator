@@ -606,7 +606,7 @@ export class BacklinksPanel {
 
         if (row.kind === 'group') {
             // Every row of a group shares its note, so the first stands in for the header.
-            const first = row.items[0]!;
+            const [first] = row.items;
             item.classList.add('is-group');
             item.appendChild(this.createItemHeader(first, row.items.length));
             appendGroupDetails(item, first, this.settings);
