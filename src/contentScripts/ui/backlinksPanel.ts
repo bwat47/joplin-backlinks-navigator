@@ -483,6 +483,7 @@ export class BacklinksPanel {
                 break;
             case 'Enter':
                 event.preventDefault();
+                this.flushPendingFilter();
                 this.confirmSelection(event.ctrlKey);
                 break;
             case 'Escape':

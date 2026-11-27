@@ -420,6 +420,24 @@ describe('BacklinksPanel grouping', () => {
         }
     });
 
+    it('flushes a pending filter debounce before confirming with Enter', () => {
+        vi.useFakeTimers();
+        try {
+            const { panel, callbacks } = createPanelHarness();
+            panel.setLinks('in', LINKS);
+            const input = document.querySelector<HTMLInputElement>('.backlinks-navigator-input')!;
+            input.value = 'Note b';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+
+            pressKey('Enter');
+
+            expect(callbacks.onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'b:0', noteId: 'b' }));
+            panel.destroy();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('keeps the filter focused when clicking the already-active tab', () => {
         const { panel } = createPanelHarness();
         panel.setLinks('in', LINKS);
