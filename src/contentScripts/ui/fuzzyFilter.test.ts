@@ -48,6 +48,14 @@ describe('fuzzyFilter', () => {
         ]);
     });
 
+    it('keeps every matching row, however many one note has', () => {
+        const occurrences = Array.from({ length: 250 }, (_, index) =>
+            backlink(`source:${index}`, 'Source Note', index, 'source')
+        );
+
+        expect(fuzzyFilter('source', occurrences)).toHaveLength(250);
+    });
+
     it('returns no results when the query cannot match any title', () => {
         expect(fuzzyFilter('zzzzzz', backlinks)).toEqual([]);
     });

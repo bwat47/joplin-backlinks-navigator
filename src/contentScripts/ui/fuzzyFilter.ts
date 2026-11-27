@@ -10,12 +10,12 @@ import type { LinkItem } from '../../types';
 
 /** Minimum match score (0-1); 0 accepts any match. */
 const FUZZY_THRESHOLD = 0;
-const FUZZY_LIMIT = 200;
 
 /**
  * Filters and ranks links by fuzzy match score against their title.
  *
- * When query is empty, returns the links in their original (title-sorted) order.
+ * When query is empty, returns the links in their original (title-sorted) order. Matches aren't
+ * capped: the unfiltered list isn't either, and a cap counting rows would cut a note's group short.
  */
 export function fuzzyFilter(query: string, links: LinkItem[]): LinkItem[] {
     const normalized = query.trim();
@@ -26,7 +26,8 @@ export function fuzzyFilter(query: string, links: LinkItem[]): LinkItem[] {
 
     const results = fuzzysort.go(normalized, links, {
         key: 'title',
-        limit: FUZZY_LIMIT,
+        // fuzzysort keeps only 10 results unless told otherwise.
+        limit: Infinity,
         threshold: FUZZY_THRESHOLD,
     });
 
