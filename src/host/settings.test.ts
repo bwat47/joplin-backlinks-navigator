@@ -30,8 +30,6 @@ const KEY_PANEL_WIDTH = 'backlinksNavigator.panelWidth';
 const KEY_PANEL_MAX_HEIGHT = 'backlinksNavigator.panelMaxHeightPercentage';
 const KEY_SHOW_BACKLINK_HEADING = 'backlinksNavigator.showBacklinkHeading';
 const KEY_COLLAPSE_DETAILS = 'backlinksNavigator.collapseDetails';
-const KEY_LEGACY_BACKLINK_PREVIEW = 'backlinksNavigator.backlinkPreviewMode';
-const KEY_SETTINGS_VERSION = 'backlinksNavigator.settingsVersion';
 const KEY_IGNORED_NOTE_IDS = 'backlinksNavigator.ignoredBacklinkNoteIds';
 const KEY_IGNORED_NOTEBOOK_IDS = 'backlinksNavigator.ignoredNotebookIds';
 const KEY_MIDDLE_CLICK_BEHAVIOR = 'backlinksNavigator.middleClickBehavior';
@@ -82,8 +80,6 @@ describe('settings loading', () => {
             [KEY_PANEL_MAX_HEIGHT]: 60,
             [KEY_SHOW_BACKLINK_HEADING]: true,
             [KEY_COLLAPSE_DETAILS]: true,
-            [KEY_LEGACY_BACKLINK_PREVIEW]: '',
-            [KEY_SETTINGS_VERSION]: 1,
         });
         mockSettings.value.mockResolvedValue(true);
 
@@ -104,8 +100,6 @@ describe('settings loading', () => {
             [KEY_PANEL_MAX_HEIGHT]: 'tall',
             [KEY_SHOW_BACKLINK_HEADING]: 'always',
             [KEY_COLLAPSE_DETAILS]: 'yes',
-            [KEY_LEGACY_BACKLINK_PREVIEW]: '',
-            [KEY_SETTINGS_VERSION]: 1,
         });
         mockSettings.value.mockResolvedValue(false);
 
@@ -124,73 +118,12 @@ describe('settings loading', () => {
         expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_COLLAPSE_DETAILS, false);
     });
 
-    const storedPanelSettings = (overrides: Record<string, unknown>): Record<string, unknown> => ({
-        [KEY_PANEL_WIDTH]: 400,
-        [KEY_PANEL_MAX_HEIGHT]: 60,
-        [KEY_SHOW_BACKLINK_HEADING]: false,
-        [KEY_COLLAPSE_DETAILS]: false,
-        [KEY_LEGACY_BACKLINK_PREVIEW]: 'title',
-        [KEY_SETTINGS_VERSION]: 0,
-        ...overrides,
-    });
-
-    it('collapses panel details once for a pre-1.6 title-only backlink preview', async () => {
-        mockSettings.values.mockResolvedValue(storedPanelSettings({}));
-        mockSettings.value.mockResolvedValue(false);
-
-        const settings = await loadContentScriptSettings();
-
-        expect(settings.panel.collapseDetails).toBe(true);
-        expect(settings.panel.showBacklinkHeading).toBe(false);
-        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_COLLAPSE_DETAILS, true);
-        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_SETTINGS_VERSION, 1);
-        expect(mockSettings.setValue).toHaveBeenCalledTimes(2);
-    });
-
-    it('enables nearest backlink heading once for a pre-1.6 nearest-heading preview', async () => {
-        mockSettings.values.mockResolvedValue(
-            storedPanelSettings({ [KEY_LEGACY_BACKLINK_PREVIEW]: 'titleSnippetHeading' })
-        );
-        mockSettings.value.mockResolvedValue(false);
-
-        const settings = await loadContentScriptSettings();
-
-        expect(settings.panel.showBacklinkHeading).toBe(true);
-        expect(settings.panel.collapseDetails).toBe(false);
-        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_SHOW_BACKLINK_HEADING, true);
-        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_SETTINGS_VERSION, 1);
-        expect(mockSettings.setValue).toHaveBeenCalledTimes(2);
-    });
-
-    it('leaves migrated choices alone once migrated', async () => {
-        mockSettings.values.mockResolvedValue(storedPanelSettings({ [KEY_SETTINGS_VERSION]: 1 }));
-        mockSettings.value.mockResolvedValue(false);
-
-        const settings = await loadContentScriptSettings();
-
-        expect(settings.panel).toMatchObject({ showBacklinkHeading: false, collapseDetails: false });
-        expect(mockSettings.setValue).not.toHaveBeenCalled();
-    });
-
-    it('only records the version when there is nothing to migrate', async () => {
-        mockSettings.values.mockResolvedValue(storedPanelSettings({ [KEY_LEGACY_BACKLINK_PREVIEW]: 'titleSnippet' }));
-        mockSettings.value.mockResolvedValue(false);
-
-        const settings = await loadContentScriptSettings();
-
-        expect(settings.panel.collapseDetails).toBe(false);
-        expect(settings.panel.showBacklinkHeading).toBe(false);
-        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_SETTINGS_VERSION, 1);
-        expect(mockSettings.setValue).toHaveBeenCalledTimes(1);
-    });
-
     it('still resolves panel settings when persisting a correction fails', async () => {
         mockSettings.values.mockResolvedValue({
             [KEY_PANEL_WIDTH]: 10,
             [KEY_PANEL_MAX_HEIGHT]: 60,
             [KEY_SHOW_BACKLINK_HEADING]: false,
             [KEY_COLLAPSE_DETAILS]: false,
-            [KEY_LEGACY_BACKLINK_PREVIEW]: '',
         });
         mockSettings.value.mockResolvedValue(false);
         mockSettings.setValue.mockRejectedValue(new Error('settings are read-only'));

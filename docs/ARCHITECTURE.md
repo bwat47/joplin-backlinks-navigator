@@ -199,10 +199,7 @@ one-line-per-note list. Expanding shows nested occurrences/anchors and context s
 row; the `showBacklinkHeading` setting adds the nearest heading above each backlink when expanded.
 The toggle reports the choice to the host, which stores it in the hidden
 `collapseDetails` setting; the resulting settings push updates every editor, so the next popup
-opens the same way. Before 1.6, `backlinkPreviewMode` controlled both title-only compact rows and
-nearest headings; a one-time migration (`migrateSettings`, gated by a hidden settings-version
-setting) maps `'title'` to collapsed details and `'titleSnippetHeading'` to `showBacklinkHeading`,
-after which those choices are the user's alone.
+opens the same way.
 
 Counts are linked notes rather than rows — the tab counts and the badge alike — so they don't
 change when panel details are expanded or collapsed, and don't depend on any display setting.
