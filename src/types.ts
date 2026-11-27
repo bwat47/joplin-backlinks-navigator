@@ -24,7 +24,7 @@ interface LinkItemBase {
     title: string;
     /** Title of the linked note's parent notebook. */
     notebookName: string;
-    /** Label shown under the title when the preview mode or the row asks for one; empty if none. */
+    /** Section or anchor label shown when panel details are expanded (and enabled for backlinks); empty if none. */
     section: string;
     /** Cleaned prose preview (no link URLs/markdown). */
     snippet: string;
