@@ -342,38 +342,24 @@ describe('BacklinksPanel grouping', () => {
         panel.destroy();
     });
 
-    it('collapses and expands with Alt+Left and Alt+Right only', () => {
-        const { panel, callbacks } = createPanelHarness();
-        panel.setLinks('in', LINKS);
-
-        pressKey('ArrowLeft');
-        expect(callbacks.onCollapseChange).not.toHaveBeenCalled();
-        pressKey('ArrowLeft', { altKey: true });
-        expect(rowIds()).toEqual(['group:a', 'b:0']);
-        pressKey('ArrowLeft', { altKey: true });
-        pressKey('ArrowRight', { altKey: true });
-        expect(rowIds()).toEqual(['group:a', 'a:0', 'a:1', 'b:0']);
-        expect(vi.mocked(callbacks.onCollapseChange).mock.calls).toEqual([[true], [false]]);
-        panel.destroy();
-    });
-
-    it('keeps the details toggle visible for single-link rows and ignores Alt+arrows when empty', () => {
+    it('keeps the details toggle visible and hides/restores snippets on single-link rows', () => {
         const { panel, callbacks } = createPanelHarness();
         const toggle = document.querySelector<HTMLButtonElement>('.backlinks-navigator-collapse-toggle')!;
 
-        // Empty/loading: button stays in the tab bar (no layout shift), Alt+arrows are a no-op
+        // Empty/loading: button stays in the tab bar (no layout shift)
         expect(toggle.hidden).toBe(false);
-        pressKey('ArrowLeft', { altKey: true });
-        expect(callbacks.onCollapseChange).not.toHaveBeenCalled();
 
-        // Single-link note: Alt+Left hides its snippet, Alt+Right restores it
         panel.setLinks('in', [occurrence('b', 0)]);
         expect(document.querySelector('[data-row-id="b:0"] .backlinks-navigator-item-snippet')?.textContent).toBe(
             'occurrence 0'
         );
-        pressKey('ArrowLeft', { altKey: true });
-        expect(callbacks.onCollapseChange).toHaveBeenCalledWith(true);
+        toggle.click();
         expect(document.querySelector('[data-row-id="b:0"] .backlinks-navigator-item-snippet')).toBeNull();
+        toggle.click();
+        expect(document.querySelector('[data-row-id="b:0"] .backlinks-navigator-item-snippet')?.textContent).toBe(
+            'occurrence 0'
+        );
+        expect(vi.mocked(callbacks.onCollapseChange).mock.calls).toEqual([[true], [false]]);
         panel.destroy();
     });
 

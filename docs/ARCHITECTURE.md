@@ -197,7 +197,7 @@ One expand/collapse details choice applies to both tabs; there is no per-group s
 Collapsing hides nested rows and all context previews (snippets and headings), leaving a uniform
 one-line-per-note list. Expanding shows nested occurrences/anchors and context snippets on every
 row; the `showBacklinkHeading` setting adds the nearest heading above each backlink when expanded.
-The toggle (or Alt+Left / Alt+Right) reports the choice to the host, which stores it in the hidden
+The toggle reports the choice to the host, which stores it in the hidden
 `collapseDetails` setting; the resulting settings push updates every editor, so the next popup
 opens the same way. Before 1.6, `backlinkPreviewMode` controlled both title-only compact rows and
 nearest headings; a one-time migration (`migrateSettings`, gated by a hidden settings-version

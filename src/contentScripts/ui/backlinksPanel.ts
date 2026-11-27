@@ -283,7 +283,7 @@ export class BacklinksPanel {
 
     private updateCollapseToggle(): void {
         const collapsed = this.settings.collapseDetails;
-        const label = collapsed ? 'Show details (Alt+Right)' : 'Hide details (Alt+Left)';
+        const label = collapsed ? 'Show details' : 'Hide details';
         this.collapseToggle.innerHTML = collapsed ? EXPAND_ICON_SVG : COLLAPSE_ICON_SVG;
         this.collapseToggle.title = label;
         this.collapseToggle.setAttribute('aria-label', label);
@@ -465,14 +465,6 @@ export class BacklinksPanel {
             case 'Escape':
                 event.preventDefault();
                 this.onClose('escape');
-                break;
-            case 'ArrowLeft':
-            case 'ArrowRight':
-                // Plain arrows move the filter's caret; Alt+arrows hide or show details.
-                if (event.altKey && this.rows.length > 0) {
-                    event.preventDefault();
-                    this.setCollapsed(event.key === 'ArrowLeft');
-                }
                 break;
             default:
                 break;
