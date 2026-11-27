@@ -34,7 +34,7 @@ Open the links panel from the note toolbar button (editor toolbar on mobile), ed
 
 Click a backlink to open the note that links to the current note, or click an outgoing link to open the note linked from the current note.
 
-When a note links to the current note more than once, its backlinks are grouped under one entry for that note, showing how many links it has. Click an individual backlink to scroll to that specific link after switching notes, or click the note's entry to just open the note. Outgoing links to several headings or anchors in the same note are grouped the same way, with the note's own snippet on its entry.
+When a note links to the current note more than once, its backlinks are grouped under one entry for that note, showing how many links it has. Click an individual backlink to scroll to that specific link after switching notes, or click the note's entry to just open the note. Outgoing links to several headings or anchors in the same note are grouped the same way.
 
 Use the show/hide details button at the end of the tab bar (or Alt+↑ to hide and Alt+↓ to show details; ⌥↑ / ⌥↓ on macOS) to switch between a compact one-line-per-note list (hiding individual links and context previews, where clicking a note just opens it) and the expanded view with nested links and snippets. The choice is remembered. The counts on the tabs and the editor indicator are the number of linked notes, so they stay the same either way.
 
