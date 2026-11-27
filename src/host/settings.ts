@@ -55,7 +55,7 @@ function normalizeBooleanSetting(value: unknown, defaultValue: boolean): { value
     return { value: defaultValue, changed: true };
 }
 
-export function normalizeBacklinkOpenBehavior(value: unknown): { value: BacklinkOpenBehavior; changed: boolean } {
+function normalizeBacklinkOpenBehavior(value: unknown): { value: BacklinkOpenBehavior; changed: boolean } {
     if (value === 'newWindow' || value === 'newTab') {
         return { value, changed: false };
     }
@@ -70,7 +70,7 @@ export function normalizeBacklinkOpenBehavior(value: unknown): { value: Backlink
  * @returns The accepted ids, lowercased, and whether anything was corrected. A `changed` result is
  *   written back by {@link normalizeStoredSetting} so a malformed value self-heals.
  */
-export function normalizeIgnoredIdList(value: unknown): { value: string[]; changed: boolean } {
+function normalizeIgnoredIdList(value: unknown): { value: string[]; changed: boolean } {
     if (typeof value !== 'string') {
         return { value: [], changed: true };
     }

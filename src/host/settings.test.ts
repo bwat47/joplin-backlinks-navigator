@@ -8,8 +8,6 @@ import {
     loadIgnoredBacklinkNoteIdsSetting,
     loadIgnoredNotebookIdsSetting,
     loadMiddleClickBehaviorSetting,
-    normalizeBacklinkOpenBehavior,
-    normalizeIgnoredIdList,
     setIgnoredNotebookIdsSetting,
 } from './settings';
 
@@ -33,38 +31,6 @@ const KEY_COLLAPSE_DETAILS = 'backlinksNavigator.collapseDetails';
 const KEY_IGNORED_NOTE_IDS = 'backlinksNavigator.ignoredBacklinkNoteIds';
 const KEY_IGNORED_NOTEBOOK_IDS = 'backlinksNavigator.ignoredNotebookIds';
 const KEY_MIDDLE_CLICK_BEHAVIOR = 'backlinksNavigator.middleClickBehavior';
-
-describe('settings normalization', () => {
-    it('accepts supported backlink open behaviors', () => {
-        expect(normalizeBacklinkOpenBehavior('newWindow')).toEqual({ value: 'newWindow', changed: false });
-        expect(normalizeBacklinkOpenBehavior('newTab')).toEqual({ value: 'newTab', changed: false });
-    });
-
-    it('falls back to new window for invalid backlink open behaviors', () => {
-        expect(normalizeBacklinkOpenBehavior('current')).toEqual({ value: 'newWindow', changed: true });
-        expect(normalizeBacklinkOpenBehavior(undefined)).toEqual({ value: 'newWindow', changed: true });
-    });
-
-    it('parses comma-separated ignored ids', () => {
-        expect(normalizeIgnoredIdList('bb12adaa3c704ff3bf09c0d7f7ad0c38, 14270a1ea65546319c1ed3db0e362c37')).toEqual({
-            value: ['bb12adaa3c704ff3bf09c0d7f7ad0c38', '14270a1ea65546319c1ed3db0e362c37'],
-            changed: false,
-        });
-    });
-
-    it('drops invalid and duplicate ignored ids', () => {
-        expect(
-            normalizeIgnoredIdList('BB12ADAA3C704FF3BF09C0D7F7AD0C38, invalid, bb12adaa3c704ff3bf09c0d7f7ad0c38,')
-        ).toEqual({
-            value: ['bb12adaa3c704ff3bf09c0d7f7ad0c38'],
-            changed: true,
-        });
-    });
-
-    it('treats an empty ignored id setting as valid', () => {
-        expect(normalizeIgnoredIdList('  ')).toEqual({ value: [], changed: false });
-    });
-});
 
 describe('settings loading', () => {
     beforeEach(() => {
@@ -141,9 +107,19 @@ describe('settings loading', () => {
         expect(mockSettings.setValue).not.toHaveBeenCalled();
     });
 
+    it.each(['current', undefined])(
+        'falls back to newWindow and self-heals invalid backlink open behavior (%j)',
+        async (stored) => {
+            mockSettings.value.mockResolvedValue(stored);
+
+            await expect(loadMiddleClickBehaviorSetting()).resolves.toBe('newWindow');
+            expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_MIDDLE_CLICK_BEHAVIOR, 'newWindow');
+        }
+    );
+
     it('parses ignored note ids into a set, self-healing them back to a comma-separated string', async () => {
         mockSettings.value.mockResolvedValue(
-            'BB12ADAA3C704FF3BF09C0D7F7AD0C38, invalid, bb12adaa3c704ff3bf09c0d7f7ad0c38'
+            'BB12ADAA3C704FF3BF09C0D7F7AD0C38, invalid, bb12adaa3c704ff3bf09c0d7f7ad0c38,'
         );
 
         await expect(loadIgnoredBacklinkNoteIdsSetting()).resolves.toEqual(
@@ -159,6 +135,13 @@ describe('settings loading', () => {
         await expect(loadIgnoredBacklinkNoteIdsSetting()).resolves.toEqual(
             new Set(['bb12adaa3c704ff3bf09c0d7f7ad0c38', '14270a1ea65546319c1ed3db0e362c37'])
         );
+        expect(mockSettings.setValue).not.toHaveBeenCalled();
+    });
+
+    it('treats a whitespace-only ignored id setting as valid', async () => {
+        mockSettings.value.mockResolvedValue('  ');
+
+        await expect(loadIgnoredBacklinkNoteIdsSetting()).resolves.toEqual(new Set());
         expect(mockSettings.setValue).not.toHaveBeenCalled();
     });
 

@@ -1,11 +1,8 @@
 import { EditorSelection, EditorState } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
 import { describe, expect, it } from 'vitest';
 
-import {
-    referenceHighlightExtension,
-    referenceHighlightField,
-    setReferenceHighlightEffect,
-} from './referenceHighlight';
+import { referenceHighlightExtension, setReferenceHighlightEffect } from './referenceHighlight';
 
 function createState(doc = 'Before [Target](:/note-id) after'): EditorState {
     return EditorState.create({
@@ -16,9 +13,13 @@ function createState(doc = 'Before [Target](:/note-id) after'): EditorState {
 
 function highlightRanges(state: EditorState): { from: number; to: number }[] {
     const ranges: { from: number; to: number }[] = [];
-    state.field(referenceHighlightField).between(0, state.doc.length, (from, to) => {
-        ranges.push({ from, to });
-    });
+    for (const provider of state.facet(EditorView.decorations)) {
+        if (typeof provider !== 'function') {
+            provider.between(0, state.doc.length, (from, to) => {
+                ranges.push({ from, to });
+            });
+        }
+    }
     return ranges;
 }
 

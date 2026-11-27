@@ -6,7 +6,7 @@ import logger from '../../logger';
 import { DEFAULT_PANEL_DIMENSIONS, type ContentScriptSettings } from '../../types';
 import { request } from '../bridge';
 
-export const DEFAULT_CONTENT_SCRIPT_SETTINGS: ContentScriptSettings = {
+const DEFAULT_CONTENT_SCRIPT_SETTINGS: ContentScriptSettings = {
     panel: {
         dimensions: { ...DEFAULT_PANEL_DIMENSIONS },
         showBacklinkHeading: false,

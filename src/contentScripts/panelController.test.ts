@@ -7,12 +7,7 @@ import { parseMarkdownBody } from '../markdown/markdownParser';
 import type { LinksResponse, MessageOf, Protocol } from '../messages';
 import { createNavigationTarget } from '../navigationTarget';
 import type { Backlink, LinkItem, OutgoingLink } from '../types';
-import {
-    applyContentScriptSettings,
-    createSettingsExtension,
-    DEFAULT_CONTENT_SCRIPT_SETTINGS,
-    getContentScriptSettings,
-} from './editor/pluginSettings';
+import { createSettingsExtension, getContentScriptSettings } from './editor/pluginSettings';
 import { PanelController } from './panelController';
 
 const CURRENT_NOTE = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -74,7 +69,6 @@ function harness(links: { in?: LinkItem[]; out?: LinkItem[] } = {}, respond?: Li
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const view = new EditorView({ parent, state: EditorState.create({ extensions: [createSettingsExtension()] }) });
-    applyContentScriptSettings(view, DEFAULT_CONTENT_SCRIPT_SETTINGS);
     let noteId: string | null = CURRENT_NOTE;
     const postMessage = vi.fn((message: MessageOf<keyof Protocol>): Promise<unknown> => {
         if (message.type === 'getBacklinks' || message.type === 'getOutgoingLinks') {

@@ -70,7 +70,7 @@ function decodeMarkdownEntity(entity: string): string {
 }
 
 /** Applies CommonMark backslash and entity unescaping to source text. */
-export function unescapeMarkdownText(value: string): string {
+function unescapeMarkdownText(value: string): string {
     return value.replace(MARKDOWN_ESCAPE_RE, '$1').replace(MARKDOWN_ENTITY_RE, decodeMarkdownEntity);
 }
 

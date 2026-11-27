@@ -2,7 +2,7 @@ import { assert, describe, expect, it } from 'vitest';
 
 import { findHtmlAnchorById, parseHtmlAnchors } from './htmlAnchors';
 import { extractNoteLinks, linkNeedle } from './linkExtraction';
-import { findHeadingByAnchor, findSection, parseMarkdownHeadings, slugifyHeading } from './markdownHeadings';
+import { findHeadingByAnchor, findSection, parseMarkdownHeadings } from './markdownHeadings';
 import { parseMarkdownBody } from './markdownParser';
 import {
     extractNoteOpening,
@@ -112,26 +112,6 @@ describe('extractSectionOpening', () => {
     });
 });
 
-describe('slugifyHeading', () => {
-    it('lowercases, drops punctuation, and hyphenates spaces', () => {
-        expect(slugifyHeading('Getting Started with MERN Stack')).toBe('getting-started-with-mern-stack');
-        expect(slugifyHeading('What is it, really?')).toBe('what-is-it-really');
-    });
-
-    it('keeps underscores and hyphens in rendered text', () => {
-        expect(slugifyHeading('snake_case and kebab-case')).toBe('snake_case-and-kebab-case');
-    });
-
-    it('matches uslug on emoji and non-Latin scripts, as Joplin renders them', () => {
-        expect(slugifyHeading('✅ Features')).toBe('white_check_mark-features');
-        expect(slugifyHeading('日本語')).toBe('日本語');
-    });
-
-    it('returns an empty slug for headings with no slugifiable characters', () => {
-        expect(slugifyHeading('!!!')).toBe('');
-    });
-});
-
 describe('parseMarkdownHeadings', () => {
     it('returns ATX and Setext headings with rendered text and source ranges', () => {
         const body = '## ATX\n\nSetext *Heading*\n---';
@@ -185,6 +165,14 @@ describe('parseMarkdownHeadings', () => {
             text: 'A & bold link code  HTML ✅ 日本語',
             anchor: 'a-bold-link-code-html-white_check_mark-日本語',
         });
+    });
+
+    it('keeps underscores and hyphens while dropping punctuation in slugs', () => {
+        const body = '## What is snake_case and kebab-case, really?';
+
+        expect(parseMarkdownHeadings(parseMarkdownBody(body))[0]?.anchor).toBe(
+            'what-is-snake_case-and-kebab-case-really'
+        );
     });
 
     it('keeps unsluggable headings in the index for section boundaries', () => {

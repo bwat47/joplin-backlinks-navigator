@@ -22,7 +22,7 @@ export interface MarkdownHeading {
 }
 
 /** Builds a heading anchor using Joplin's `uslug` fork. */
-export function slugifyHeading(text: string): string {
+function slugifyHeading(text: string): string {
     return uslug(text);
 }
 

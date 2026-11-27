@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseMarkdownBody } from './markdownParser';
-import { referenceDefinitions, renderHtmlText, unescapeMarkdownText } from './markdownText';
+import { referenceDefinitions, renderHtmlText } from './markdownText';
 
 const ID = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
@@ -22,19 +22,22 @@ describe('referenceDefinitions', () => {
 
         expect(referenceDefinitions(parsed)).toBe(referenceDefinitions(parsed));
     });
-});
+    it('decodes CommonMark escapes and strict HTML5 entities in link destinations', () => {
+        const parsed = parseMarkdownBody('[a]: <one\\*two &amp; &#x65E5;&#26412;>');
 
-describe('unescapeMarkdownText', () => {
-    it('decodes CommonMark escapes and strict HTML5 entities', () => {
-        expect(unescapeMarkdownText('one\\*two &amp; &#x65E5;&#26412;')).toBe('one*two & 日本');
+        expect(referenceDefinitions(parsed).get('A')).toBe('one*two & 日本');
     });
 
-    it('preserves unknown, unterminated, and invalid numeric entities', () => {
-        expect(unescapeMarkdownText('&unknown; &amp &#0; &#xD800; &#x80;')).toBe('&unknown; &amp &#0; &#xD800; &#x80;');
+    it('preserves unknown, unterminated, and invalid numeric entities in link destinations', () => {
+        const parsed = parseMarkdownBody('[a]: <&unknown; &amp &#0; &#xD800; &#x80;>');
+
+        expect(referenceDefinitions(parsed).get('A')).toBe('&unknown; &amp &#0; &#xD800; &#x80;');
     });
 
-    it('only removes backslashes before escapable ASCII punctuation', () => {
-        expect(unescapeMarkdownText('\\) \\a \\\\')).toBe(') \\a \\');
+    it('only removes backslashes before escapable ASCII punctuation in link destinations', () => {
+        const parsed = parseMarkdownBody('[a]: <\\) \\a \\\\/>');
+
+        expect(referenceDefinitions(parsed).get('A')).toBe(') \\a \\/');
     });
 });
 

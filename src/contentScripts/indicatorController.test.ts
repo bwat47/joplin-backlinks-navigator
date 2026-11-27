@@ -5,11 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ContentScriptContext } from 'api/types';
 import type { IndicatorState, MessageOf, Protocol } from '../messages';
 import { EMPTY_LINK_COUNTS, type LinkItem } from '../types';
-import {
-    applyContentScriptSettings,
-    createSettingsExtension,
-    DEFAULT_CONTENT_SCRIPT_SETTINGS,
-} from './editor/pluginSettings';
+import { applyContentScriptSettings, createSettingsExtension, getContentScriptSettings } from './editor/pluginSettings';
 import { IndicatorController } from './indicatorController';
 
 const COUNTS = { backlinks: 3, outgoing: 4 };
@@ -42,7 +38,7 @@ function harness(response: () => Promise<IndicatorState | undefined> = () => Pro
     const parent = document.createElement('div');
     document.body.appendChild(parent);
     const view = new EditorView({ parent, state: EditorState.create({ extensions: [createSettingsExtension()] }) });
-    applyContentScriptSettings(view, { ...DEFAULT_CONTENT_SCRIPT_SETTINGS, showIndicator: true });
+    applyContentScriptSettings(view, { ...getContentScriptSettings(view.state), showIndicator: true });
     let noteId: string | null = 'note-a';
     let panelOpen = false;
     const postMessage = vi.fn((message: MessageOf<keyof Protocol>) =>
@@ -227,7 +223,7 @@ describe('IndicatorController', () => {
         const response = deferred<IndicatorState>();
         const h = harness(() => response.promise);
         await h.refresh();
-        applyContentScriptSettings(h.view, { ...DEFAULT_CONTENT_SCRIPT_SETTINGS, showIndicator: false });
+        applyContentScriptSettings(h.view, { ...getContentScriptSettings(h.view.state), showIndicator: false });
         h.controller.reset();
         response.resolve(ENABLED);
         await vi.advanceTimersByTimeAsync(0);

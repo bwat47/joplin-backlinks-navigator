@@ -9,7 +9,7 @@ const referenceHighlightMark = Decoration.mark({
     class: 'backlinks-navigator-reference-highlight',
 });
 
-export const referenceHighlightField = StateField.define<DecorationSet>({
+const referenceHighlightField = StateField.define<DecorationSet>({
     create() {
         return Decoration.none;
     },
