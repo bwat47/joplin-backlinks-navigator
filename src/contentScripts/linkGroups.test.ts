@@ -56,7 +56,8 @@ describe('buildPanelRows', () => {
         const rows = buildPanelRows([outgoing('a', ''), outgoing('a', 'setup')], false);
 
         expect(describeRows(rows)).toEqual(['group:a', '  a#setup']);
-        expect(rows[0]).toMatchObject({ kind: 'group', items: [outgoing('a', 'setup')] });
+        // The header still holds every link, so its count includes the whole-note one.
+        expect(rows[0]).toMatchObject({ kind: 'group', items: [outgoing('a', ''), outgoing('a', 'setup')] });
     });
 
     it('returns no rows for no links', () => {

@@ -4,7 +4,8 @@ import type { LinkItem } from '../types';
  * One visible panel row.
  *
  * - `group`: the header of a note with several rows (backlink occurrences or outgoing
- *   destinations). Selecting it opens the note as a whole. `items` are the links nested under it.
+ *   destinations). Selecting it opens the note as a whole. `items` are all of the note's links,
+ *   including an outgoing whole-note link, which gets no nested row of its own.
  * - `link`: a single link. `nested` rows sit under their note's group header; a note with only
  *   one link is shown as one unnested `link` row instead of a header with a single child.
  */
@@ -33,7 +34,7 @@ function groupLinksByNote(items: readonly LinkItem[]): [LinkItem, ...LinkItem[]]
 /**
  * Whether a link gets a nested row under its note's header. An outgoing link to the note as a
  * whole doesn't: selecting the header already opens the note without scrolling, so the row would
- * repeat it. The header's count therefore counts only the nested links (e.g. distinct anchors).
+ * repeat it. The header's count still includes it, as it counts every link to the note.
  */
 function isNestedLink(link: LinkItem): boolean {
     return link.direction === 'in' || link.anchor !== '';
@@ -49,17 +50,14 @@ export function buildPanelRows(items: readonly LinkItem[], collapsed: boolean): 
     const rows: PanelRow[] = [];
     for (const group of groupLinksByNote(items)) {
         const [first] = group;
-        const [firstNested, ...restNested] = group.filter(isNestedLink);
-        // A group of several always nests a link (each outgoing note has at most one whole-note
-        // row); the `!firstNested` check only narrows the tuple.
-        if (group.length === 1 || !firstNested) {
+        if (group.length === 1) {
             rows.push({ kind: 'link', id: first.id, noteId: first.noteId, link: first, nested: false });
             continue;
         }
-        const nested: [LinkItem, ...LinkItem[]] = [firstNested, ...restNested];
-        rows.push({ kind: 'group', id: `group:${first.noteId}`, noteId: first.noteId, items: nested });
+        rows.push({ kind: 'group', id: `group:${first.noteId}`, noteId: first.noteId, items: group });
         if (!collapsed) {
-            for (const link of nested) {
+            // A group of several always nests a link: an outgoing note has at most one whole-note row.
+            for (const link of group.filter(isNestedLink)) {
                 rows.push({ kind: 'link', id: link.id, noteId: link.noteId, link, nested: true });
             }
         }

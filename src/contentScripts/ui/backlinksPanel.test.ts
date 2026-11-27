@@ -466,24 +466,26 @@ describe('BacklinksPanel grouping', () => {
             return panel;
         };
 
-        it('nests only the anchors, counting them in the header', () => {
+        it('nests only the anchors, counting every link in the header', () => {
             const panel = showOutgoing(SETTINGS, [destination(''), destination('setup'), destination('usage')]);
 
             // The header opens the note itself, so the whole-note destination gets no row of its own.
             expect(rowIds()).toEqual(['group:a', 'a#setup', 'a#usage']);
             const header = document.querySelector('[data-row-id="group:a"]')!;
             const count = header.querySelector<HTMLSpanElement>('.backlinks-navigator-item-count')!;
-            expect(count.textContent).toBe('2');
-            expect(count.title).toBe('2 anchors');
+            expect(count.textContent).toBe('3');
+            expect(count.title).toBe('3 links');
             expect(document.querySelector('[data-row-id="a#setup"]')?.textContent).toBe('§ Heading setupSection setup');
             panel.destroy();
         });
 
-        it('omits the count when a mixed outgoing group has one anchor', () => {
+        it('counts the whole-note link when a mixed outgoing group has one anchor', () => {
             const panel = showOutgoing(SETTINGS, [destination(''), destination('setup')]);
 
             expect(rowIds()).toEqual(['group:a', 'a#setup']);
-            expect(document.querySelector('[data-row-id="group:a"] .backlinks-navigator-item-count')).toBeNull();
+            expect(document.querySelector('[data-row-id="group:a"] .backlinks-navigator-item-count')?.textContent).toBe(
+                '2'
+            );
             panel.destroy();
         });
 

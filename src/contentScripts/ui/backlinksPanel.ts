@@ -621,10 +621,7 @@ export class BacklinksPanel {
             // Every row of a group shares its note, so the first stands in for the header.
             const [first] = row.items;
             item.classList.add('is-group');
-            // A lone nested row speaks for itself (it's an outgoing note's only anchor, under the
-            // header for the note as a whole), and a "1" would read as the note's only link.
-            const count = row.items.length > 1 ? row.items.length : undefined;
-            item.appendChild(this.createItemHeader(first, count));
+            item.appendChild(this.createItemHeader(first, row.items.length));
             appendGroupDetails(item, first, this.settings);
             markTrashed(item, first);
             return item;
@@ -762,9 +759,9 @@ function appendLinkDetails(item: HTMLLIElement, link: LinkItem, settings: PanelS
     }
 }
 
-/** Tooltip for a group's count, which is only shown for two or more links. */
+/** Tooltip for a group's count, which always covers two or more links. */
 function formatGroupCountTooltip(direction: LinkDirection, count: number): string {
-    return `${count} ${direction === 'in' ? 'backlinks' : 'anchors'}`;
+    return `${count} ${direction === 'in' ? 'backlinks' : 'links'}`;
 }
 
 function appendDetailLine(item: HTMLLIElement, className: string, text: string): void {
