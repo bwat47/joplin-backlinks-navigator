@@ -260,14 +260,18 @@ export class BacklinksPanel {
         return this.overlay.isMounted();
     }
 
+    /**
+     * Applies settings pushed by the host. The panel keeps its own `collapseDetails`: once open, only
+     * its toggle changes it, and a push can carry a stale value from before a later toggle was
+     * stored, which would briefly flip the view back. The panel is recreated from the current
+     * settings on every open, so the stored choice still applies next time.
+     */
     public setSettings(settings: PanelSettings): void {
-        const rowsAffected =
-            settings.collapseDetails !== this.settings.collapseDetails ||
-            settings.showBacklinkHeading !== this.settings.showBacklinkHeading;
-        this.settings = settings;
+        const rowsAffected = settings.showBacklinkHeading !== this.settings.showBacklinkHeading;
+        this.settings = { ...settings, collapseDetails: this.settings.collapseDetails };
         ensurePanelStyles(this.view, this.settings);
         if (rowsAffected) {
-            // Re-derive the visible rows: the collapse choice and backlink heading setting shape them.
+            // Re-derive the visible rows: the backlink heading setting shapes them.
             this.applyFilter(this.input.value);
         }
     }

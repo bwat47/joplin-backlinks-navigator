@@ -199,7 +199,8 @@ one-line-per-note list. Expanding shows nested occurrences/anchors and context s
 row; the `showBacklinkHeading` setting adds the nearest heading above each backlink when expanded.
 The toggle reports the choice to the host, which stores it in the hidden
 `collapseDetails` setting; the resulting settings push updates every editor, so the next popup
-opens the same way.
+opens the same way. An open popup ignores pushed `collapseDetails` values, since a push can lag
+behind a later toggle, and the host handles setting changes in order so the last push is current.
 
 Counts are linked notes rather than rows — the tab counts and the badge alike — so they don't
 change when panel details are expanded or collapsed, and don't depend on any display setting.

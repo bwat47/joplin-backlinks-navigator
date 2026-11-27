@@ -184,7 +184,7 @@ export class PanelController {
 
     /**
      * Stores the compact/detailed choice as a setting. The host's settings push then updates every
-     * editor, so the next panel opens the same way; until it arrives this panel keeps its own state.
+     * editor, so the next panel opens the same way; an open panel keeps its own choice regardless.
      */
     private async rememberCollapse(collapsed: boolean): Promise<void> {
         try {

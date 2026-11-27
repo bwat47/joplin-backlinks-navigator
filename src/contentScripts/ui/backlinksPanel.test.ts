@@ -375,8 +375,23 @@ describe('BacklinksPanel grouping', () => {
         expect(document.querySelector('[data-row-id="group:a"]')).toBe(headerAfterToggle);
 
         // Changing a row-affecting setting still re-renders.
-        panel.setSettings({ ...SETTINGS, collapseDetails: false });
+        panel.setSettings({ ...SETTINGS, collapseDetails: true, showBacklinkHeading: true });
+        expect(document.querySelector('[data-row-id="group:a"]')).not.toBe(headerAfterToggle);
+        panel.destroy();
+    });
+
+    it('keeps its own collapse choice when a stale settings push arrives after quick toggles', () => {
+        const { panel } = createPanelHarness();
+        panel.setLinks('in', LINKS);
+        const toggle = document.querySelector<HTMLButtonElement>('.backlinks-navigator-collapse-toggle')!;
+
+        toggle.click(); // collapse
+        toggle.click(); // expand again before the first write's push arrives
+        // The first write's push, read before the second write landed, still says collapsed.
+        panel.setSettings({ ...SETTINGS, collapseDetails: true });
+
         expect(rowIds()).toEqual(['group:a', 'a:0', 'a:1', 'b:0']);
+        expect(toggle.getAttribute('aria-label')).toBe('Hide details');
         panel.destroy();
     });
 
