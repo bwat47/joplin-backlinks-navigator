@@ -38,7 +38,7 @@ When a note links to the current note more than once, its backlinks are grouped 
 
 Use the show/hide details button at the end of the tab bar (or Alt+↑ to hide and Alt+↓ to show details; ⌥↑ / ⌥↓ on macOS) to switch between a compact one-line-per-note list (hiding individual links and context previews, where clicking a note just opens it) and the expanded view with nested links and snippets. The choice is remembered. The counts on the tabs and the editor indicator are the number of linked notes, so they stay the same either way.
 
-Any outgoing links referencing an anchor (pointing to a markdown heading or html anchor) will scroll to that heading or anchor on note switch.
+When details are expanded, outgoing links referencing an anchor (pointing to a markdown heading or html anchor) will scroll to that heading or anchor on note switch.
 
 ## Settings
 
