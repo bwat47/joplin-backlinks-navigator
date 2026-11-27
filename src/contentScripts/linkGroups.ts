@@ -17,8 +17,8 @@ export type PanelRow =
  * title then note (see `linkSort.ts`), but grouping doesn't rely on a note's rows being adjacent,
  * so a filter that reorders them still yields one group per note.
  */
-function groupLinksByNote(items: readonly LinkItem[]): LinkItem[][] {
-    const groups = new Map<string, LinkItem[]>();
+function groupLinksByNote(items: readonly LinkItem[]): [LinkItem, ...LinkItem[]][] {
+    const groups = new Map<string, [LinkItem, ...LinkItem[]]>();
     for (const item of items) {
         const group = groups.get(item.noteId);
         if (group) {
@@ -49,15 +49,10 @@ export function buildPanelRows(items: readonly LinkItem[], collapsed: boolean): 
     const rows: PanelRow[] = [];
     for (const group of groupLinksByNote(items)) {
         const [first] = group;
-        if (!first) {
-            continue;
-        }
-        if (group.length === 1) {
-            rows.push({ kind: 'link', id: first.id, noteId: first.noteId, link: first, nested: false });
-            continue;
-        }
         const [firstNested, ...restNested] = group.filter(isNestedLink);
-        if (!firstNested) {
+        // A group of several always nests a link (each outgoing note has at most one whole-note
+        // row); the `!firstNested` check only narrows the tuple.
+        if (group.length === 1 || !firstNested) {
             rows.push({ kind: 'link', id: first.id, noteId: first.noteId, link: first, nested: false });
             continue;
         }
