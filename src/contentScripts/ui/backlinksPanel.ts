@@ -432,19 +432,23 @@ export class BacklinksPanel {
     }
 
     /**
-     * Rebuilds the visible rows from the active tab's links and the filter. A selection that is
-     * no longer visible moves to the first row of the same note (e.g. a nested row's header after
-     * collapsing), else to the first row.
+     * Rebuilds the visible rows from the active tab's links and the filter. Changing the filter
+     * query selects the top match; otherwise (e.g. toggling details) the selection stays on the
+     * same row, or moves to the first row of the same note if a nested row was hidden.
      */
     private applyFilter(filterText: string): void {
         this.clearFilterDebounce();
-        this.filterText = filterText.trim();
+        const nextFilterText = filterText.trim();
+        const filterChanged = nextFilterText !== this.filterText;
+        this.filterText = nextFilterText;
         const model = this.activeModel;
         const previousNoteId = this.rows.find((row) => row.id === this.selectedId)?.noteId;
         const links = model.state === 'ready' ? fuzzyFilter(this.filterText, model.items) : [];
         this.rows = buildPanelRows(links, this.settings.collapseDetails);
 
-        if (!this.rows.some((row) => row.id === this.selectedId)) {
+        if (filterChanged) {
+            this.selectedId = this.rows[0]?.id ?? null;
+        } else if (!this.rows.some((row) => row.id === this.selectedId)) {
             const fallback = this.rows.find((row) => row.noteId === previousNoteId) ?? this.rows[0];
             this.selectedId = fallback?.id ?? null;
         }

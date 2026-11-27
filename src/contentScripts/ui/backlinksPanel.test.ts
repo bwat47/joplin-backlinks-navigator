@@ -438,6 +438,30 @@ describe('BacklinksPanel grouping', () => {
         }
     });
 
+    it('selects the top match when a filter query reorders the same rows', () => {
+        vi.useFakeTimers();
+        try {
+            const { panel } = createPanelHarness();
+            panel.setLinks('in', [
+                { ...occurrence('a', 0), title: '6.4.9.0 System Test - Main' },
+                { ...occurrence('b', 0), title: 'Test' },
+            ]);
+            expect(rowIds()).toEqual(['a:0', 'b:0']);
+            expect(selectedRowId()).toBe('a:0');
+
+            const input = document.querySelector<HTMLInputElement>('.backlinks-navigator-input')!;
+            input.value = 'Test';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            vi.advanceTimersByTime(100);
+
+            expect(rowIds()).toEqual(['b:0', 'a:0']);
+            expect(selectedRowId()).toBe('b:0');
+            panel.destroy();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('keeps the filter focused when clicking the already-active tab', () => {
         const { panel } = createPanelHarness();
         panel.setLinks('in', LINKS);
