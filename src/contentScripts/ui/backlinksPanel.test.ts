@@ -32,7 +32,7 @@ function computedPanelFont(): string {
 const SETTINGS: PanelSettings = {
     dimensions: DEFAULT_PANEL_DIMENSIONS,
     showBacklinkHeading: false,
-    collapseGroups: false,
+    collapseDetails: false,
 };
 
 function createCallbacks(): PanelCallbacks {
@@ -313,7 +313,7 @@ describe('BacklinksPanel grouping', () => {
     });
 
     it('hides nested rows, snippets, and headings when collapsed', () => {
-        const { panel } = createPanelHarness(false, { ...SETTINGS, showBacklinkHeading: true, collapseGroups: true });
+        const { panel } = createPanelHarness(false, { ...SETTINGS, showBacklinkHeading: true, collapseDetails: true });
         panel.setLinks('in', [
             { ...occurrence('a', 0), section: 'Intro' },
             { ...occurrence('a', 1), section: 'Details' },
@@ -449,7 +449,7 @@ describe('BacklinksPanel grouping', () => {
         });
 
         it('hides nested anchors and snippets when collapsed', () => {
-            const panel = showOutgoing({ ...SETTINGS, collapseGroups: true }, [
+            const panel = showOutgoing({ ...SETTINGS, collapseDetails: true }, [
                 destination(''),
                 destination('setup'),
                 { ...destination(''), id: 'b', noteId: 'b', title: 'Note b' },

@@ -47,7 +47,7 @@ const SETTINGS = {
     panel: {
         dimensions: DEFAULT_PANEL_DIMENSIONS,
         showBacklinkHeading: false,
-        collapseGroups: false,
+        collapseDetails: false,
     },
     showIndicator: true,
 };
@@ -218,7 +218,7 @@ describe('backlinksNavigator panel integration', () => {
 
         runCommand(
             EDITOR_COMMAND_UPDATE_SETTINGS,
-            { ...SETTINGS, panel: { ...SETTINGS.panel, collapseGroups: true } },
+            { ...SETTINGS, panel: { ...SETTINGS.panel, collapseDetails: true } },
             false
         );
         await vi.advanceTimersByTimeAsync(INDICATOR_DEBOUNCE_MS);

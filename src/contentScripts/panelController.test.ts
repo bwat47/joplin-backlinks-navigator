@@ -193,7 +193,7 @@ describe('PanelController', () => {
         document.querySelector<HTMLButtonElement>('.backlinks-navigator-collapse-toggle')!.click();
         await vi.advanceTimersByTimeAsync(0);
 
-        expect(h.postMessage).toHaveBeenCalledWith({ type: 'setCollapseGroups', collapsed: true });
+        expect(h.postMessage).toHaveBeenCalledWith({ type: 'setCollapseDetails', collapsed: true });
         expect(document.querySelector(`[data-row-id="${OTHER_NOTE}:0"]`)).toBeNull();
     });
 

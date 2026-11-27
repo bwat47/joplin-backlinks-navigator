@@ -133,7 +133,7 @@ normalized once, on the host, when they are loaded.
 - `openNote` opens a target note, using the configured current-window/new-window/Note Tabs behavior.
   Ctrl-click, Ctrl-Enter, and middle-click each have an independent alternate-navigation setting.
 - `openPanel` runs the host command that opens the popup.
-- `setCollapseGroups` stores the popup's expand/collapse choice as a setting.
+- `setCollapseDetails` stores the popup's compact/detailed choice as a setting.
 
 ## Link Model
 
@@ -198,14 +198,14 @@ Collapsing hides nested rows and all context previews (snippets and headings), l
 one-line-per-note list. Expanding shows nested occurrences/anchors and context snippets on every
 row; the `showBacklinkHeading` setting adds the nearest heading above each backlink when expanded.
 The toggle (or Alt+Left / Alt+Right) reports the choice to the host, which stores it in the hidden
-`collapseLinkGroups` setting; the resulting settings push updates every editor, so the next popup
+`collapseDetails` setting; the resulting settings push updates every editor, so the next popup
 opens the same way. Before 1.6, `backlinkPreviewMode` controlled both title-only compact rows and
 nearest headings; a one-time migration (`migrateSettings`, gated by a hidden settings-version
 setting) maps `'title'` to collapsed details and `'titleSnippetHeading'` to `showBacklinkHeading`,
 after which those choices are the user's alone.
 
 Counts are linked notes rather than rows — the tab counts and the badge alike — so they don't
-change as the groups expand or collapse, and don't depend on any display setting.
+change when panel details are expanded or collapsed, and don't depend on any display setting.
 
 ## Indicator Counts
 

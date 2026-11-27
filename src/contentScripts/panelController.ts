@@ -183,12 +183,12 @@ export class PanelController {
     }
 
     /**
-     * Stores the expand/collapse choice as a setting. The host's settings push then updates every
+     * Stores the compact/detailed choice as a setting. The host's settings push then updates every
      * editor, so the next panel opens the same way; until it arrives this panel keeps its own state.
      */
     private async rememberCollapse(collapsed: boolean): Promise<void> {
         try {
-            await request(this.context, { type: 'setCollapseGroups', collapsed });
+            await request(this.context, { type: 'setCollapseDetails', collapsed });
         } catch (error) {
             logger.warn('Failed to remember the panel collapse choice', error);
         }

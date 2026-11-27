@@ -10,7 +10,7 @@ export const DEFAULT_CONTENT_SCRIPT_SETTINGS: ContentScriptSettings = {
     panel: {
         dimensions: { ...DEFAULT_PANEL_DIMENSIONS },
         showBacklinkHeading: false,
-        collapseGroups: false,
+        collapseDetails: false,
     },
     showIndicator: false,
 };

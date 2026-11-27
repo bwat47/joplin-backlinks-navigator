@@ -48,10 +48,10 @@ export interface Protocol {
      */
     openPanel: { request: object; response: void };
     /**
-     * Remember the panel's expand/collapse choice. The host stores it as a setting, whose change
+     * Remember the panel's compact/detailed choice. The host stores it as a setting, whose change
      * pushes updated settings back to every editor.
      */
-    setCollapseGroups: { request: { collapsed: boolean }; response: void };
+    setCollapseDetails: { request: { collapsed: boolean }; response: void };
 }
 
 export type MessageOf<K extends keyof Protocol> = { [P in K]: { type: P } & Protocol[P]['request'] }[K];

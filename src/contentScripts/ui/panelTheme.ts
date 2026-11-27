@@ -112,7 +112,7 @@ export function createPanelCss(dimensions: PanelDimensions): string {
     opacity: 0.85;
 }
 
-/* Expands or collapses every linked note's group; sits at the end of the tab bar. */
+/* Toggles compact vs. detailed panel rows; sits at the end of the tab bar. */
 .backlinks-navigator-collapse-toggle {
     flex: 0 0 auto;
     display: inline-flex;

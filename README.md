@@ -16,7 +16,7 @@ A Joplin plugin for viewing and navigating backlinks and outgoing links in the M
 - Shows notes linked from the current note
 - (Backlinks) Shows each link occurrence when a note links more than once, grouped under that note, and scrolls to the occurrence on navigation
 - (Outgoing links) Links pointing to a specific anchor - a heading, or an explicit HTML anchor such as `<a id="in3b65">` - show as their own entry grouped under the linked note, and scroll to that anchor on navigation
-- Expand or collapse the grouped links from the panel; the choice is remembered
+- Switch between compact and detailed views from the panel; the choice is remembered
 - Supports reference style note links
 - Opens related notes from a compact floating panel in the markdown editor
 - Filters links by note title

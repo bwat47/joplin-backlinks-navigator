@@ -20,7 +20,7 @@ import {
     loadIgnoredBacklinkNoteIdsSetting,
     loadIgnoredNotebookIdsSetting,
     loadShowIndicatorSetting,
-    setCollapseGroupsSetting,
+    setCollapseDetailsSetting,
 } from './settings';
 
 /**
@@ -115,7 +115,7 @@ export function createMessageHandler(repository: LinkRepository): (message: unkn
         openPanel: async () => {
             await joplin.commands.execute(COMMAND_SHOW_BACKLINKS);
         },
-        setCollapseGroups: (message) => setCollapseGroupsSetting(message.collapsed),
+        setCollapseDetails: (message) => setCollapseDetailsSetting(message.collapsed),
     };
 
     // Indexing `handlers` by `message.type` gives a union of handlers that the message union can't be

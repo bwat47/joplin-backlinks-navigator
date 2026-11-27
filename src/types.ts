@@ -129,7 +129,7 @@ export interface PanelSettings {
      * Compact view: show one title-only row per linked note, hiding nested occurrences/anchors
      * and context previews. Toggled from the panel and remembered as a hidden setting.
      */
-    collapseGroups: boolean;
+    collapseDetails: boolean;
 }
 
 export interface ContentScriptSettings {

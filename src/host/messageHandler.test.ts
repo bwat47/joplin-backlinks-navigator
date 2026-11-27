@@ -13,7 +13,7 @@ import {
     loadIgnoredBacklinkNoteIdsSetting,
     loadIgnoredNotebookIdsSetting,
     loadShowIndicatorSetting,
-    setCollapseGroupsSetting,
+    setCollapseDetailsSetting,
 } from './settings';
 
 vi.mock('api', () => ({
@@ -25,7 +25,7 @@ vi.mock('./settings', () => ({
     loadIgnoredBacklinkNoteIdsSetting: vi.fn(),
     loadIgnoredNotebookIdsSetting: vi.fn(),
     loadShowIndicatorSetting: vi.fn(),
-    setCollapseGroupsSetting: vi.fn(),
+    setCollapseDetailsSetting: vi.fn(),
 }));
 vi.mock('./backlinksService', () => ({ countBacklinks: vi.fn(), findBacklinks: vi.fn() }));
 vi.mock('./outgoingLinksService', () => ({ countOutgoingLinks: vi.fn(), findOutgoingLinks: vi.fn() }));
@@ -180,8 +180,8 @@ describe('createMessageHandler', () => {
     });
 
     it('remembers the panel collapse choice', async () => {
-        await createMessageHandler(repository)({ type: 'setCollapseGroups', collapsed: true });
+        await createMessageHandler(repository)({ type: 'setCollapseDetails', collapsed: true });
 
-        expect(setCollapseGroupsSetting).toHaveBeenCalledWith(true);
+        expect(setCollapseDetailsSetting).toHaveBeenCalledWith(true);
     });
 });

@@ -29,7 +29,7 @@ const mockSettings = vi.mocked(joplin.settings);
 const KEY_PANEL_WIDTH = 'backlinksNavigator.panelWidth';
 const KEY_PANEL_MAX_HEIGHT = 'backlinksNavigator.panelMaxHeightPercentage';
 const KEY_SHOW_BACKLINK_HEADING = 'backlinksNavigator.showBacklinkHeading';
-const KEY_COLLAPSE_GROUPS = 'backlinksNavigator.collapseLinkGroups';
+const KEY_COLLAPSE_DETAILS = 'backlinksNavigator.collapseDetails';
 const KEY_LEGACY_BACKLINK_PREVIEW = 'backlinksNavigator.backlinkPreviewMode';
 const KEY_SETTINGS_VERSION = 'backlinksNavigator.settingsVersion';
 const KEY_IGNORED_NOTE_IDS = 'backlinksNavigator.ignoredBacklinkNoteIds';
@@ -81,7 +81,7 @@ describe('settings loading', () => {
             [KEY_PANEL_WIDTH]: 400,
             [KEY_PANEL_MAX_HEIGHT]: 60,
             [KEY_SHOW_BACKLINK_HEADING]: true,
-            [KEY_COLLAPSE_GROUPS]: true,
+            [KEY_COLLAPSE_DETAILS]: true,
             [KEY_LEGACY_BACKLINK_PREVIEW]: '',
             [KEY_SETTINGS_VERSION]: 1,
         });
@@ -91,7 +91,7 @@ describe('settings loading', () => {
             panel: {
                 dimensions: { width: 400, maxHeightPercentage: 60 },
                 showBacklinkHeading: true,
-                collapseGroups: true,
+                collapseDetails: true,
             },
             showIndicator: true,
         });
@@ -103,7 +103,7 @@ describe('settings loading', () => {
             [KEY_PANEL_WIDTH]: 9999,
             [KEY_PANEL_MAX_HEIGHT]: 'tall',
             [KEY_SHOW_BACKLINK_HEADING]: 'always',
-            [KEY_COLLAPSE_GROUPS]: 'yes',
+            [KEY_COLLAPSE_DETAILS]: 'yes',
             [KEY_LEGACY_BACKLINK_PREVIEW]: '',
             [KEY_SETTINGS_VERSION]: 1,
         });
@@ -113,7 +113,7 @@ describe('settings loading', () => {
             panel: {
                 dimensions: { width: 640, maxHeightPercentage: 75 },
                 showBacklinkHeading: false,
-                collapseGroups: false,
+                collapseDetails: false,
             },
             showIndicator: false,
         });
@@ -121,14 +121,14 @@ describe('settings loading', () => {
         expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_PANEL_WIDTH, 640);
         expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_PANEL_MAX_HEIGHT, 75);
         expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_SHOW_BACKLINK_HEADING, false);
-        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_COLLAPSE_GROUPS, false);
+        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_COLLAPSE_DETAILS, false);
     });
 
     const storedPanelSettings = (overrides: Record<string, unknown>): Record<string, unknown> => ({
         [KEY_PANEL_WIDTH]: 400,
         [KEY_PANEL_MAX_HEIGHT]: 60,
         [KEY_SHOW_BACKLINK_HEADING]: false,
-        [KEY_COLLAPSE_GROUPS]: false,
+        [KEY_COLLAPSE_DETAILS]: false,
         [KEY_LEGACY_BACKLINK_PREVIEW]: 'title',
         [KEY_SETTINGS_VERSION]: 0,
         ...overrides,
@@ -140,9 +140,9 @@ describe('settings loading', () => {
 
         const settings = await loadContentScriptSettings();
 
-        expect(settings.panel.collapseGroups).toBe(true);
+        expect(settings.panel.collapseDetails).toBe(true);
         expect(settings.panel.showBacklinkHeading).toBe(false);
-        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_COLLAPSE_GROUPS, true);
+        expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_COLLAPSE_DETAILS, true);
         expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_SETTINGS_VERSION, 1);
         expect(mockSettings.setValue).toHaveBeenCalledTimes(2);
     });
@@ -156,7 +156,7 @@ describe('settings loading', () => {
         const settings = await loadContentScriptSettings();
 
         expect(settings.panel.showBacklinkHeading).toBe(true);
-        expect(settings.panel.collapseGroups).toBe(false);
+        expect(settings.panel.collapseDetails).toBe(false);
         expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_SHOW_BACKLINK_HEADING, true);
         expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_SETTINGS_VERSION, 1);
         expect(mockSettings.setValue).toHaveBeenCalledTimes(2);
@@ -168,7 +168,7 @@ describe('settings loading', () => {
 
         const settings = await loadContentScriptSettings();
 
-        expect(settings.panel).toMatchObject({ showBacklinkHeading: false, collapseGroups: false });
+        expect(settings.panel).toMatchObject({ showBacklinkHeading: false, collapseDetails: false });
         expect(mockSettings.setValue).not.toHaveBeenCalled();
     });
 
@@ -178,7 +178,7 @@ describe('settings loading', () => {
 
         const settings = await loadContentScriptSettings();
 
-        expect(settings.panel.collapseGroups).toBe(false);
+        expect(settings.panel.collapseDetails).toBe(false);
         expect(settings.panel.showBacklinkHeading).toBe(false);
         expect(mockSettings.setValue).toHaveBeenCalledWith(KEY_SETTINGS_VERSION, 1);
         expect(mockSettings.setValue).toHaveBeenCalledTimes(1);
@@ -189,7 +189,7 @@ describe('settings loading', () => {
             [KEY_PANEL_WIDTH]: 10,
             [KEY_PANEL_MAX_HEIGHT]: 60,
             [KEY_SHOW_BACKLINK_HEADING]: false,
-            [KEY_COLLAPSE_GROUPS]: false,
+            [KEY_COLLAPSE_DETAILS]: false,
             [KEY_LEGACY_BACKLINK_PREVIEW]: '',
         });
         mockSettings.value.mockResolvedValue(false);
@@ -270,7 +270,7 @@ describe('settings loading', () => {
 
 describe('setting change classification', () => {
     it('treats panel-only settings as editor-affecting without requiring an indicator refresh', () => {
-        for (const key of [KEY_PANEL_WIDTH, KEY_PANEL_MAX_HEIGHT, KEY_SHOW_BACKLINK_HEADING, KEY_COLLAPSE_GROUPS]) {
+        for (const key of [KEY_PANEL_WIDTH, KEY_PANEL_MAX_HEIGHT, KEY_SHOW_BACKLINK_HEADING, KEY_COLLAPSE_DETAILS]) {
             expect(isEditorAffectingSettingChanged([key])).toBe(true);
             expect(isIndicatorAffectingSettingChanged([key])).toBe(false);
         }

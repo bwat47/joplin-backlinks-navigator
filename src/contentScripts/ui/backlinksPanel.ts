@@ -20,7 +20,7 @@ export interface PanelCallbacks {
     onCtrlEnterSelect: SelectCallback;
     onMiddleClickSelect: SelectCallback;
     onClose: (reason: PanelCloseReason) => void;
-    /** Called when the user expands or collapses the groups, so the choice can be remembered. */
+    /** Called when the user toggles panel details, so the choice can be remembered. */
     onCollapseChange: (collapsed: boolean) => void;
 }
 
@@ -35,7 +35,7 @@ const TAB_LABELS: Record<LinkDirection, string> = {
     out: 'Outgoing Links',
 };
 
-// Lucide-style "chevrons" glyphs: pointing apart to expand the groups, together to collapse them.
+// Lucide-style "chevrons" glyphs: pointing apart to show details, together to hide them.
 const EXPAND_ICON_SVG =
     '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>';
 const COLLAPSE_ICON_SVG =
@@ -273,16 +273,16 @@ export class BacklinksPanel {
      * to the note's header.
      */
     private setCollapsed(collapsed: boolean): void {
-        if (collapsed === this.settings.collapseGroups) {
+        if (collapsed === this.settings.collapseDetails) {
             return;
         }
-        this.settings = { ...this.settings, collapseGroups: collapsed };
+        this.settings = { ...this.settings, collapseDetails: collapsed };
         this.applyFilter(this.input.value);
         this.onCollapseChange(collapsed);
     }
 
     private updateCollapseToggle(): void {
-        const collapsed = this.settings.collapseGroups;
+        const collapsed = this.settings.collapseDetails;
         const label = collapsed ? 'Show details (Alt+Right)' : 'Hide details (Alt+Left)';
         this.collapseToggle.innerHTML = collapsed ? EXPAND_ICON_SVG : COLLAPSE_ICON_SVG;
         this.collapseToggle.title = label;
@@ -366,7 +366,7 @@ export class BacklinksPanel {
     private handleTabClick(event: MouseEvent): void {
         const target = event.target as HTMLElement | null;
         if (target?.closest('.backlinks-navigator-collapse-toggle')) {
-            this.setCollapsed(!this.settings.collapseGroups);
+            this.setCollapsed(!this.settings.collapseDetails);
             this.input.focus();
             return;
         }
@@ -426,7 +426,7 @@ export class BacklinksPanel {
         const model = this.activeModel;
         const previousNoteId = this.rows.find((row) => row.id === this.selectedId)?.noteId;
         const links = model.state === 'ready' ? fuzzyFilter(this.filterText, model.items) : [];
-        this.rows = buildPanelRows(links, this.settings.collapseGroups);
+        this.rows = buildPanelRows(links, this.settings.collapseDetails);
 
         if (!this.rows.some((row) => row.id === this.selectedId)) {
             const fallback = this.rows.find((row) => row.noteId === previousNoteId) ?? this.rows[0];
@@ -612,7 +612,7 @@ export class BacklinksPanel {
             // Every row of a group shares its note, so the first stands in for the header.
             const first = row.items[0]!;
             item.classList.add('is-group');
-            item.setAttribute('aria-expanded', String(!this.settings.collapseGroups));
+            item.setAttribute('aria-expanded', String(!this.settings.collapseDetails));
             item.appendChild(this.createItemHeader(first, row.items.length));
             appendGroupDetails(item, first, this.settings);
             markTrashed(item, first);
@@ -717,7 +717,7 @@ function markTrashed(item: HTMLLIElement, link: LinkItem): void {
  * source note's context is in the occurrences nested beneath it, and repeating one would mislead.
  */
 function appendGroupDetails(item: HTMLLIElement, link: LinkItem, settings: PanelSettings): void {
-    if (!settings.collapseGroups && link.direction === 'out' && link.noteOpening) {
+    if (!settings.collapseDetails && link.direction === 'out' && link.noteOpening) {
         appendDetailLine(item, 'backlinks-navigator-item-snippet', link.noteOpening);
     }
 }
@@ -732,7 +732,7 @@ function appendGroupDetails(item: HTMLLIElement, link: LinkItem, settings: Panel
  * rendering an empty row.
  */
 function appendLinkDetails(item: HTMLLIElement, link: LinkItem, settings: PanelSettings, nested: boolean): void {
-    if (settings.collapseGroups) {
+    if (settings.collapseDetails) {
         return;
     }
     // An outgoing row that targets an anchor always names it: it shares its title with the row for

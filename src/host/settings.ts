@@ -33,7 +33,7 @@ const SETTING_CTRL_CLICK_BEHAVIOR = 'backlinksNavigator.ctrlClickBehavior';
 const SETTING_CTRL_ENTER_BEHAVIOR = 'backlinksNavigator.ctrlEnterBehavior';
 const SETTING_MIDDLE_CLICK_BEHAVIOR = 'backlinksNavigator.middleClickBehavior';
 const SETTING_SHOW_BACKLINK_HEADING = 'backlinksNavigator.showBacklinkHeading';
-const SETTING_COLLAPSE_GROUPS = 'backlinksNavigator.collapseLinkGroups';
+const SETTING_COLLAPSE_DETAILS = 'backlinksNavigator.collapseDetails';
 /** Legacy pre-1.6 setting, kept hidden so {@link migrateSettings} can read it once. */
 const SETTING_LEGACY_BACKLINK_PREVIEW_MODE = 'backlinksNavigator.backlinkPreviewMode';
 const SETTING_SETTINGS_VERSION = 'backlinksNavigator.settingsVersion';
@@ -225,7 +225,7 @@ export async function registerSettings(): Promise<void> {
             label: 'Show nearest heading for backlinks',
             description: 'Display the nearest heading above each backlink when panel details are expanded.',
         },
-        [SETTING_COLLAPSE_GROUPS]: {
+        [SETTING_COLLAPSE_DETAILS]: {
             value: false,
             type: SettingItemType.Bool,
             public: false,
@@ -324,10 +324,10 @@ async function migrateSettings(values: Record<string, unknown>): Promise<void> {
         return;
     }
     const legacyMode = values[SETTING_LEGACY_BACKLINK_PREVIEW_MODE];
-    if (legacyMode === 'title' && values[SETTING_COLLAPSE_GROUPS] !== true) {
+    if (legacyMode === 'title' && values[SETTING_COLLAPSE_DETAILS] !== true) {
         logger.info('Collapsing panel details for the pre-1.6 title-only backlink preview');
-        values[SETTING_COLLAPSE_GROUPS] = true;
-        await persistNormalizedSetting(SETTING_COLLAPSE_GROUPS, true);
+        values[SETTING_COLLAPSE_DETAILS] = true;
+        await persistNormalizedSetting(SETTING_COLLAPSE_DETAILS, true);
     } else if (legacyMode === 'titleSnippetHeading' && values[SETTING_SHOW_BACKLINK_HEADING] !== true) {
         logger.info('Enabling nearest backlink heading for the pre-1.6 nearest-heading preview');
         values[SETTING_SHOW_BACKLINK_HEADING] = true;
@@ -343,14 +343,14 @@ async function loadPanelSettings(): Promise<PanelSettings> {
             SETTING_PANEL_WIDTH,
             SETTING_PANEL_MAX_HEIGHT,
             SETTING_SHOW_BACKLINK_HEADING,
-            SETTING_COLLAPSE_GROUPS,
+            SETTING_COLLAPSE_DETAILS,
             SETTING_LEGACY_BACKLINK_PREVIEW_MODE,
             SETTING_SETTINGS_VERSION,
         ])),
     };
     await migrateSettings(values);
 
-    const [width, heightPercentage, showBacklinkHeading, collapseGroups] = await Promise.all([
+    const [width, heightPercentage, showBacklinkHeading, collapseDetails] = await Promise.all([
         normalizeStoredSetting(SETTING_PANEL_WIDTH, values[SETTING_PANEL_WIDTH], normalizePanelWidth, 'panel width'),
         normalizeStoredSetting(
             SETTING_PANEL_MAX_HEIGHT,
@@ -365,8 +365,8 @@ async function loadPanelSettings(): Promise<PanelSettings> {
             'show nearest heading for backlinks'
         ),
         normalizeStoredSetting(
-            SETTING_COLLAPSE_GROUPS,
-            values[SETTING_COLLAPSE_GROUPS],
+            SETTING_COLLAPSE_DETAILS,
+            values[SETTING_COLLAPSE_DETAILS],
             (value) => normalizeBooleanSetting(value, false),
             'collapse panel details'
         ),
@@ -378,7 +378,7 @@ async function loadPanelSettings(): Promise<PanelSettings> {
             maxHeightPercentage: heightPercentage,
         },
         showBacklinkHeading,
-        collapseGroups,
+        collapseDetails,
     };
 }
 
@@ -432,11 +432,11 @@ export async function setIgnoredNotebookIdsSetting(ids: Iterable<string>): Promi
 }
 
 /**
- * Remembers the panel's expand/collapse choice. Writing it fires `onChange`, which pushes the
+ * Remembers the panel's compact/detailed choice. Writing it fires `onChange`, which pushes the
  * updated settings to every editor, so the next panel opens the same way.
  */
-export async function setCollapseGroupsSetting(collapsed: boolean): Promise<void> {
-    await joplin.settings.setValue(SETTING_COLLAPSE_GROUPS, collapsed);
+export async function setCollapseDetailsSetting(collapsed: boolean): Promise<void> {
+    await joplin.settings.setValue(SETTING_COLLAPSE_DETAILS, collapsed);
 }
 
 export async function loadCtrlClickBehaviorSetting(): Promise<BacklinkOpenBehavior> {
@@ -468,7 +468,7 @@ const EDITOR_AFFECTING_SETTING_KEYS = new Set([
     SETTING_PANEL_WIDTH,
     SETTING_PANEL_MAX_HEIGHT,
     SETTING_SHOW_BACKLINK_HEADING,
-    SETTING_COLLAPSE_GROUPS,
+    SETTING_COLLAPSE_DETAILS,
     ...INDICATOR_AFFECTING_SETTING_KEYS,
 ]);
 
