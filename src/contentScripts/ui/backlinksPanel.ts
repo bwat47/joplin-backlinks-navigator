@@ -270,6 +270,7 @@ export class BacklinksPanel {
             settings.collapseDetails !== this.settings.collapseDetails;
         this.settings = settings;
         ensurePanelStyles(this.view, this.settings);
+        this.updateCollapseToggle();
         if (rowsAffected) {
             this.applyFilter(this.input.value);
         }
@@ -285,6 +286,7 @@ export class BacklinksPanel {
             return;
         }
         this.settings = { ...this.settings, collapseDetails: collapsed };
+        this.updateCollapseToggle();
         this.applyFilter(this.input.value);
         this.onCollapseChange(collapsed);
     }
@@ -442,7 +444,6 @@ export class BacklinksPanel {
             this.selectedId = fallback?.id ?? null;
         }
 
-        this.updateCollapseToggle();
         this.render();
     }
 
