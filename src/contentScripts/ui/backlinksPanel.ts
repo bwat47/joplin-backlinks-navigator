@@ -252,10 +252,7 @@ export class BacklinksPanel {
         this.tabBar.removeEventListener('click', this.handleTabClickListener);
         this.view.dom.ownerDocument.removeEventListener('mousedown', this.handleDocumentMouseDownListener, true);
 
-        if (this.filterDebounceTimer !== null) {
-            clearTimeout(this.filterDebounceTimer);
-            this.filterDebounceTimer = null;
-        }
+        this.clearFilterDebounce();
         this.overlay.destroy();
     }
 
@@ -405,10 +402,15 @@ export class BacklinksPanel {
         this.overlay.mount();
     }
 
-    private scheduleFilterUpdate(): void {
+    private clearFilterDebounce(): void {
         if (this.filterDebounceTimer !== null) {
             clearTimeout(this.filterDebounceTimer);
+            this.filterDebounceTimer = null;
         }
+    }
+
+    private scheduleFilterUpdate(): void {
+        this.clearFilterDebounce();
         this.filterDebounceTimer = window.setTimeout(() => {
             this.filterDebounceTimer = null;
             this.applyFilter(this.input.value);
@@ -417,8 +419,6 @@ export class BacklinksPanel {
 
     private flushPendingFilter(): void {
         if (this.filterDebounceTimer !== null) {
-            clearTimeout(this.filterDebounceTimer);
-            this.filterDebounceTimer = null;
             this.applyFilter(this.input.value);
         }
     }
@@ -433,6 +433,7 @@ export class BacklinksPanel {
      * collapsing), else to the first row.
      */
     private applyFilter(filterText: string): void {
+        this.clearFilterDebounce();
         this.filterText = filterText.trim();
         const model = this.activeModel;
         const previousNoteId = this.rows.find((row) => row.id === this.selectedId)?.noteId;

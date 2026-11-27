@@ -399,6 +399,27 @@ describe('BacklinksPanel grouping', () => {
         panel.destroy();
     });
 
+    it('cancels a pending filter debounce when toggling details applies the filter immediately', () => {
+        vi.useFakeTimers();
+        try {
+            const { panel } = createPanelHarness();
+            panel.setLinks('in', LINKS);
+            const input = document.querySelector<HTMLInputElement>('.backlinks-navigator-input')!;
+            input.value = 'Note a';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+
+            pressKey('ArrowUp', { altKey: true });
+            const header = document.querySelector('[data-row-id="group:a"]');
+            expect(rowIds()).toEqual(['group:a']);
+
+            vi.advanceTimersByTime(100);
+            expect(document.querySelector('[data-row-id="group:a"]')).toBe(header);
+            panel.destroy();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('follows a pushed collapse choice without reporting it as a toggle', () => {
         const { panel, callbacks } = createPanelHarness();
         panel.setLinks('in', LINKS);
